@@ -122,3 +122,5 @@ Notifications are per device, so turn them on on each phone you use.
 5. **Permission:** if you once tapped **Don't Allow**, the app can't ask again. Allow notifications in the phone's settings: on iPhone, **Settings → Notifications → Bluies Finest**; on Android, long-press the app icon → **App info → Notifications** (or Chrome → **Site settings → Notifications**). Also check Focus / Do Not Disturb.
 
 **The Notifications option doesn't show in Profile:** the site was built without `VITE_VAPID_PUBLIC_KEY` (step 7), or the app is in demo mode.
+
+**"permission denied for table sessions" in the notify logs?** Run [`supabase/service-role.sql`](../supabase/service-role.sql) in the SQL Editor. Newer Supabase projects don't let server functions read new tables until they're granted access.
