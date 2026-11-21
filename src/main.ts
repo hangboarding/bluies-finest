@@ -12,6 +12,8 @@ import { renderRanks } from './views/ranks';
 import { renderStats } from './views/stats';
 import { renderProfile } from './views/profile';
 import { maybeWelcome, pageTour } from './views/tour';
+import { queuedSessions, flushOutbox } from './lib/outbox';
+import { openClimber } from './views/climber';
 import { registerSW } from 'virtual:pwa-register';
 
 export const ACCENTS = ['#3ddc84', '#2bb5a0', '#5aa9e6', '#b48cff', '#ff9f43', '#ff5a4e', '#f78fb3', '#f2c14e'];
@@ -99,6 +101,9 @@ async function boot() {
   }
   // Never continue with half-loaded data: saving default settings over the real ones would wipe them.
   try { await loadUserData(); } catch (e: any) { errorScreen(e.message ?? 'Check your connection and try again.'); return; }
+  // sessions saved offline on this phone show up straight away, then upload in the background
+  state.sessions.unshift(...queuedSessions());
+  flushOutbox();
   applyTheme();
   if (location.hash === '#reset') { $('#app').innerHTML = '<main id="auth"></main>'; renderAuth($('#auth'), 'reset'); return; }
   shell();
@@ -116,5 +121,12 @@ const updateSW = registerSW({
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') navigator.serviceWorker?.getRegistration().then(r => r?.update()).catch(() => {});
+});
+// Re-draw Stats when offline sessions finish uploading.
+document.addEventListener('bf:sessions-changed', () => { if (current === 'stats') renderStats($('#view-stats')); });
+// Tap any climber's name or photo to open their profile.
+document.addEventListener('click', e => {
+  const el = (e.target as HTMLElement).closest('[data-uid]') as HTMLElement | null;
+  if (el && !(e.target as HTMLElement).closest('button:not([data-uid]),input,a:not([data-uid])')) openClimber(el.dataset.uid!);
 });
 boot();

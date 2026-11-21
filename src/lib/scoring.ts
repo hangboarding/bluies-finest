@@ -86,7 +86,7 @@ export const CATEGORIES: Category[] = [
     value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.tutS, 0) },
   { id: 'sets', icon: 'sets', name: 'Sets', group: 'Volume', unit: '', desc: 'Sets completed, last 28 days',
     value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.sets, 0) },
-  { id: 'hangs', icon: 'mountain', name: 'Total hangs', group: 'Volume', unit: '', desc: 'All-time hangs logged',
+  { id: 'hangs', icon: 'mountain', name: 'Total hangs', group: 'Volume', unit: '', desc: 'Hangs logged in the last 90 days',
     value: m => m.reduce((a, s) => a + s.totalHangs, 0) },
   { id: 'streak', icon: 'streak', name: 'Weekly streak', group: 'Consistency', unit: 'wks', desc: 'Consecutive weeks with 2+ sessions',
     value: (m, _a, now) => weekStreak(m, now) },

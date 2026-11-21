@@ -119,3 +119,18 @@ h1,h2,h3,.big,.ptitle,.stat b,.ring .n,.pt,.champ,.auth-title{letter-spacing:-.0
 .ring .n,.stat b,.pt,.pv,.rpev b{font-variant-numeric:tabular-nums}
 .auth-title{font-size:32px;font-weight:800}
 .auth-tag{font-size:15px;margin:6px 0 0;color:var(--mute)}
+.sugg{display:flex;align-items:center;gap:8px;font-size:13px;background:color-mix(in srgb,var(--acc) 12%,var(--card2));border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);border-radius:12px;padding:8px 10px;margin-bottom:10px}
+.sugg span{flex:1}.sugg .lic{color:var(--acc);flex:none}.sugg .pill{padding:6px 12px;font-size:12px}
+.pending-tag{display:inline-block;font-size:11px;color:var(--gold);margin-left:4px}
+/* climber profile */
+.climber-sheet{max-height:88vh;overflow:auto;text-align:left}
+.climber h3{font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:6px}
+.cav{width:84px;height:84px;font-size:28px;border:3px solid var(--acc)}
+.cpbs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cpb{background:var(--card2);border-radius:12px;padding:10px;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;font-size:12px;color:var(--mute)}
+.cpb b{grid-column:1/-1;font-size:18px;color:var(--ink)}.cpb .lic{color:var(--acc)}
+.cgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.cgrid i{aspect-ratio:1;border-radius:4px;background:var(--line)}.cgrid i.on{background:var(--acc)}
+.cbadges{display:flex;flex-wrap:wrap;gap:8px}
+.cbadge{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--card2);border:1px solid var(--tc);border-radius:12px;padding:8px 6px;min-width:62px;font-size:20px}
+.cbadge small{font-size:10px;color:var(--tc);font-weight:700}.cbadge .lic{width:24px;height:24px;color:var(--tc)}
+[data-uid]{cursor:pointer}

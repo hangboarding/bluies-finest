@@ -45,6 +45,8 @@ export interface Session {
   points: number;
   isPb: boolean;
   note: string;
+  /** Client-only: saved on this device, waiting to upload. */
+  pendingUpload?: boolean;
 }
 export type NewSession = Omit<Session, 'id' | 'userId' | 'createdAt'> & { createdAt?: string };
 

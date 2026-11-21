@@ -54,7 +54,7 @@ export const ONE_OFFS: OneOff[] = [
   { icon: '💯', name: 'Perfect Session', desc: 'Every hang held full time on Max Hangs.', got: c => c.sessions.some(s => s.protocolKey === 'max' && s.totalHangs > 0 && s.fullHangs === s.totalHangs) },
   { icon: '🙌', name: 'Ambidextrous', desc: 'Left and right within 5% in a one-arm session.', got: c => c.sessions.some(s => { const L = s.hangs.filter(h => h.hand === 'L').reduce((a, h) => a + h.held, 0), R = s.hangs.filter(h => h.hand === 'R').reduce((a, h) => a + h.held, 0); return L > 0 && R > 0 && Math.abs(L - R) / Math.max(L, R) <= 0.05; }) },
   { icon: '⚡', name: 'Speedrun', desc: 'Finish a JUST LET ME HANG session.', got: c => c.sessions.some(s => s.protocolKey === 'jlmh') },
-  { icon: '🏅', name: 'PB Machine', desc: 'Set 3 personal bests in one week.', got: c => { const pbs = c.sessions.filter(s => s.isPb).map(s => +new Date(s.createdAt)).sort(); return pbs.some((t, i) => pbs[i + 2] !== undefined && pbs[i + 2]! - t <= 7 * 864e5); } },
+  { icon: '🏅', name: 'PB Machine', desc: 'Set 3 personal bests in one week.', got: c => { const pbs = c.sessions.filter(s => s.isPb).map(s => +new Date(s.createdAt)).sort((a, b) => a - b); return pbs.some((t, i) => pbs[i + 2] !== undefined && pbs[i + 2]! - t <= 7 * 864e5); } },
   { icon: '💬', name: 'Hype Squad', desc: "Comment on 10 other climbers' sessions.", got: c => c.commentsGiven >= 10 },
   { icon: '❤️', name: 'Heart Throb', desc: 'Get 50 hearts on your activity.', got: c => c.heartsReceived >= 50 },
   // secrets

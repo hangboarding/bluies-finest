@@ -95,11 +95,11 @@ function drawPBs(mine: Session[]) {
   $('#pbs').innerHTML = rows.join('') || '<p class="sub">Your bests will show up here after your first session.</p>';
 }
 
-function sessRow(s: Session, actions = true) {
+export function sessRow(s: Session, actions = true) {
   const load = s.mode === 'lift' ? `lift ${s.liftKg}kg` : s.addedKg ? `+${s.addedKg}kg` : s.assistKg ? `−${s.assistKg}kg` : 'BW';
   const when = new Date(s.createdAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-  return `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(s.protocolName)} · ${s.edgeMm}mm · ${load}<small>${when} · ${s.fullHangs}/${s.totalHangs} full · ${s.tutS}s · ${esc(s.grip)}${s.rpe ? ' · RPE ' + s.rpe : ''} · ${s.points} pts</small></span>
-    ${actions ? `<button class="ed" data-ed aria-label="Edit session">${ic('edit')}</button><button class="ed" data-del aria-label="Delete session">${ic('trash')}</button>` : ''}</div>`;
+  return `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(s.protocolName)} · ${s.edgeMm}mm · ${load}${s.pendingUpload ? '<span class="pending-tag">⏳ waiting to upload</span>' : ''}<small>${when} · ${s.fullHangs}/${s.totalHangs} full · ${s.tutS}s · ${esc(s.grip)}${s.rpe ? ' · RPE ' + s.rpe : ''} · ${s.points} pts</small></span>
+    ${actions && !s.pendingUpload ? `<button class="ed" data-ed aria-label="Edit session">${ic('edit')}</button><button class="ed" data-del aria-label="Delete session">${ic('trash')}</button>` : ''}</div>`;
 }
 function drawRecent(mine: Session[]) {
   $('#recent').innerHTML = mine.slice(0, 8).map(s => sessRow(s)).join('') || '<p class="sub">No sessions yet — head to Hang to log your first.</p>';

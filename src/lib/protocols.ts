@@ -9,6 +9,7 @@ export interface Protocol {
 
 export const PROTOCOLS: Record<string, Protocol> = {
   jlmh: { n: 'JUST LET ME HANG', simple: true, by: 'No theory, no fuss', use: 'Quick hangs with zero setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },
+  warm: { n: 'Warm-up', by: 'Standard practice — progressive loading', use: 'Prepping fingers before hard hangs', hang: 10, rest: 20, sets: 6, reps: 1, edge: 25, int: 'Easy, ~40–60% — feet on or assisted', freq: 'Before every hard session', d: 'Easy hangs on a big edge, building gradually. Pair with arm circles and a few easy climbs if you can.' },
   max: { n: 'Max Hangs', by: 'Eva López (2012–14 studies) · popularised by Eric Hörst', use: 'Max finger strength', hang: 10, rest: 180, sets: 5, reps: 1, edge: 20, int: '~85–90%, 2–3s in reserve', freq: '2×/week', d: 'Near-max load on a medium edge with full recovery between hangs.' },
   abra: { n: 'Abrahangs', by: "Emil Abrahamsson · based on Keith Baar's tendon research", use: 'Tendon health, rehab, recovery', mode: 'lift', hang: 10, rest: 20, sets: 10, reps: 1, edge: 20, effort: 50, int: '40–60%, never to failure', freq: 'Daily is fine', d: 'Light, feet-assisted hangs or lifts, done often to load tendons gently.' },
   rep: { n: 'Repeaters', by: "Mark & Mike Anderson — The Rock Climber's Training Manual", use: 'Strength-endurance', hang: 7, rest: 3, sets: 6, reps: 6, setRest: 180, edge: 20, int: '~60–80%', freq: '2×/week', d: '7s on / 3s off × 6 makes one set. Builds power you can repeat on a route.' },
@@ -69,5 +70,8 @@ export const QUOTES: [string, string][] = [
   ['Serve, sweat, repeat 💦', 'Another deposit in the strength bank, darling.'],
   ['Gagged. Absolutely gagged.', "We'd clap but you've got chalk everywhere."],
 ];
+
+/** Near-maximal protocols: warm up first, and don't overdo them. */
+export const MAX_EFFORT = new Set(['max', 'min', 's753', 'oneA', 'rec']);
 
 export const BUILTIN_BOARDS = ['Beastmaker 1000', 'Beastmaker 2000', 'Tension Block', 'Lattice Edge', 'Gym board'];

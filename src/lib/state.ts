@@ -12,7 +12,7 @@ export interface Settings {
   board?: string;
   boards: { list: string[]; def: string; custom: string[] };
   customProtos: Record<string, Protocol>;
-  prefs: { sound: boolean; vib: boolean; icons: 'emoji' | 'flat'; pgrip: boolean; psetup: boolean; mode: 'dark' | 'light'; acc: string };
+  prefs: { sound: boolean; vib: boolean; icons: 'emoji' | 'flat'; pgrip: boolean; psetup: boolean; mode: 'dark' | 'light'; acc: string; nudges: boolean };
   panels: Record<string, boolean>;                  // remembered open/closed sections
   toursSeen: Record<string, boolean>;
   chart?: string;
@@ -22,13 +22,17 @@ export interface Settings {
   iconsV?: number;                                  // settings migration marker
   /** Optional personal details. Private: stored with the user's private settings, never shown to others. */
   about?: { age?: number | null; heightCm?: number | null; location?: string };
+  /** Load changes suggested from the last session's effort rating, per protocol (shown with an Undo). */
+  suggest?: Record<string, { text: string; prev: { add: number; rem: number; lift: number } }>;
+  /** Protocol to switch back to after a warm-up. */
+  returnTo?: string;
 }
 
 export const DEFAULT_SETTINGS = (): Settings => ({
   proto: 'max', vals: {}, chips: {},
   boards: { list: [...BUILTIN_BOARDS], def: BUILTIN_BOARDS[0]!, custom: [] },
   customProtos: {},
-  prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#3ddc84' },
+  prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#3ddc84', nudges: true },
   panels: { extras: false }, toursSeen: {}, flags: {},
 });
 
@@ -56,10 +60,18 @@ export async function initStore() {
 }
 
 const LS_KEY = 'bf.settings';
+/** How far back other climbers' sessions are loaded at startup, and the window leaderboards use. */
+export const RECENT_DAYS = 90;
 /** Load profile, private settings and sessions after sign-in. */
 export async function loadUserData() {
   const s = state.store, id = s.currentUserId()!;
-  const [profiles, priv, sessions, social] = await Promise.all([s.listProfiles(), s.getPrivate(), s.listSessions(), s.socialCounts()]);
+  // Startup only loads everyone's recent sessions (leaderboards use the last RECENT_DAYS days)
+  // plus my own full history (for my stats and achievements). Older sessions of others load on demand.
+  const since = new Date(Date.now() - RECENT_DAYS * 864e5).toISOString();
+  const [profiles, priv, mine, recent, social] = await Promise.all([s.listProfiles(), s.getPrivate(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }), s.socialCounts()]);
+  const byId = new Map<string, Session>();
+  for (const x of [...mine, ...recent]) byId.set(x.id, x);
+  const sessions = [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   state.profiles = new Map(profiles.map(p => [p.id, p]));
   state.me = state.profiles.get(id) ?? null;
   state.priv = priv;

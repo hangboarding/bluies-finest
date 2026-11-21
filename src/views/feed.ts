@@ -31,7 +31,7 @@ function draw() {
   $('#feed').innerHTML = xs.map(({ session: s, likes, likedByMe, comments }) => {
     const p = profileOf(s.userId), mine = s.userId === me;
     return `<div class="card post" data-id="${s.id}">
-      <div class="who">${avatar(p)}<span><b>${esc(p?.name ?? 'Climber')}${mine ? ' (you)' : ''}</b><small>${relTime(s.createdAt)}</small></span>${s.isPb ? `<span class="badge" style="margin-left:auto">${ic('medal')} PB</span>` : ''}</div>
+      <div class="who" data-uid="${s.userId}">${avatar(p)}<span><b>${esc(p?.name ?? 'Climber')}${mine ? ' (you)' : ''}</b><small>${relTime(s.createdAt)}</small></span>${s.isPb ? `<span class="badge" style="margin-left:auto">${ic('medal')} PB</span>` : ''}</div>
       <div class="what">${esc(s.protocolName)}</div><div class="meta">${meta(s).map(m => `<span>${esc(m)}</span>`).join('')}</div>
       ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
       <div class="acts"><button class="${likedByMe ? 'on' : ''}" data-like aria-label="Heart">${ic(likedByMe ? 'hearted' : 'heart')} ${likes}</button><button data-cm aria-label="Comments">${ic('comment')} ${comments.length}</button></div>

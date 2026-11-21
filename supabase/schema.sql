@@ -422,7 +422,10 @@ declare
   ef double precision;
 begin
   if tg_op = 'INSERT' then
-    new.created_at := now();            -- no back-dating
+    -- Sessions saved offline upload later with their real finish time; accept up to 7 days old,
+    -- otherwise (or if in the future) use the server's clock. No long-range back-dating.
+    new.created_at := case when new.created_at between now() - interval '7 days' and now() + interval '5 minutes'
+                           then new.created_at else now() end;
     new.user_id    := auth.uid();       -- always the signed-in user
   else
     new.created_at := old.created_at;   -- immutable after creation

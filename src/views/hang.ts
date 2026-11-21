@@ -1,12 +1,13 @@
-import { $, $$, esc, toast, confirmSheet, promptSheet, bubble, vibrate } from '../lib/ui';
+import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, vibrate } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, type Values, type Protocol } from '../lib/protocols';
+import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, type Values, type Protocol } from '../lib/protocols';
 import { state, saveSettings, mySessions, achievementCtx } from '../lib/state';
 import { SessionTimer, buildSteps, beep, fanfare, unlockAudio, keepAwake, handsLabel, type Step } from '../lib/timer';
 import { sessionPoints, loadPct } from '../lib/scoring';
 import { diffUnlocks, bumpDaily } from '../lib/achievements';
 import type { HangResult, NewSession } from '../lib/types';
 import { confetti } from '../lib/confetti';
+import { saveOrQueue } from '../lib/outbox';
 import { go } from '../main';
 
 const allProtos = (): Record<string, Protocol> => ({ ...PROTOCOLS, ...state.settings.customProtos });
@@ -32,7 +33,7 @@ export function renderHang(root: HTMLElement) {
       <div id="modeWrap"><br><label class="f lab">${ic('mode')} Load method<span class="tip" data-tip="mode">i</span></label>
         <div class="chips g g2" data-k="mode"><span class="chip" data-v="hang">Hang (on board)</span><span class="chip" data-v="lift">No-hang (lift)</span></div></div>
     </div>
-    <div class="card"><div class="params" id="params"></div></div>
+    <div class="card"><div class="sugg hide" id="sugg"></div><div class="params" id="params"></div></div>
     <div class="feelrow"><label class="f">${ic('feel')} Pre-session feel</label>
       <div class="chips feel g g8" data-k="feel">${FEELS.map(f => `<span class="chip" data-v="${f}" aria-label="Feeling ${f}">${ic(f)}</span>`).join('')}</div></div>
     <details class="card panel ${S.prefs.pgrip ? '' : 'hide'}" data-p="grip" open><summary>${ic('grip')} Grip<small id="gripSum"></small></summary><br>
@@ -151,7 +152,58 @@ function loadProto(k: string) {
   ($('#proto') as HTMLSelectElement).value = k;
   $('#protoHint').innerHTML = hint(p);
   setChip('mode', val.mode); setChip('hands', val.hands);
-  drawParams(); summaries(); hydrateIcons($('#protoHint'));
+  drawParams(); summaries(); hydrateIcons($('#protoHint')); drawSuggestion();
+}
+
+// ---------- load suggestion from last session's effort ----------
+function drawSuggestion() {
+  const sg = state.settings.suggest?.[cur], el = $('#sugg'); if (!el) return;
+  el.classList.toggle('hide', !sg);
+  if (sg) el.innerHTML = `${ic('chart')}<span>${esc(sg.text)}</span><button class="pill" id="suggUndo">Undo</button>`, hydrateIcons(el);
+}
+/** After saving, nudge next time's load: easy (RPE ≤5) → +2.5kg, very hard (RPE ≥9) → −2.5kg. */
+function applyLoadSuggestion(s: NewSession) {
+  const k = s.protocolKey, S = state.settings, p = allProtos()[k];
+  S.suggest ??= {}; delete S.suggest[k];
+  // light-by-design protocols shouldn't get heavier just because they felt easy
+  if (!p || p.simple || k === 'warm' || k === 'abra' || s.rpe == null) { saveSettings(); return; }
+  const d = s.rpe <= 5 ? 2.5 : s.rpe >= 9 ? -2.5 : 0;
+  if (!d) { saveSettings(); return; }
+  const v = { add: s.addedKg, rem: s.assistKg, lift: s.liftKg }, prev = { ...v };
+  if (s.mode === 'lift') v.lift = Math.max(0, v.lift + d);
+  else if (d > 0) { const fromAssist = Math.min(v.rem, d); v.rem -= fromAssist; v.add += d - fromAssist; }
+  else { const fromAdd = Math.min(v.add, -d); v.add -= fromAdd; v.rem += -d - fromAdd; }
+  S.vals[k] = { ...(S.vals[k] ?? {}), add: v.add, rem: v.rem, lift: v.lift };
+  const what = s.mode === 'lift' ? `${v.lift}kg lift` : v.add ? `+${v.add}kg` : v.rem ? `−${v.rem}kg assist` : 'bodyweight';
+  S.suggest[k] = { text: `${d > 0 ? 'Felt easy' : 'Felt very hard'} last time (RPE ${s.rpe}) — load set to ${what}`, prev };
+  saveSettings();
+  if (k === cur) loadProto(k);
+}
+function undoSuggestion() {
+  const S = state.settings, sg = S.suggest?.[cur]; if (!sg) return;
+  S.vals[cur] = { ...(S.vals[cur] ?? {}), add: sg.prev.add, rem: sg.prev.rem, lift: sg.prev.lift };
+  delete S.suggest![cur]; saveSettings(); loadProto(cur); toast('Back to last time’s load');
+}
+
+// ---------- safety nudges before hard sessions ----------
+async function preStartCheck(): Promise<boolean> {
+  if (!state.settings.prefs.nudges || !MAX_EFFORT.has(cur)) return true;
+  const now = Date.now(), mine = mySessions();
+  const hard = mine.filter(s => MAX_EFFORT.has(s.protocolKey));
+  const week = hard.filter(s => now - +new Date(s.createdAt) < 7 * 864e5).length;
+  const lastHard = hard.reduce((m, s) => Math.max(m, +new Date(s.createdAt)), 0);
+  const warmedUp = mine.some(s => now - +new Date(s.createdAt) < 60 * 60e3); // any session in the last hour counts
+  const notes: string[] = [];
+  if (lastHard && now - lastHard < 24 * 3600e3) notes.push('You did a max-effort session in the last 24 hours. Fingers recover slower than muscles — 48 hours between hard sessions is the usual advice.');
+  if (week >= 3) notes.push(`That would be ${week + 1} max-effort sessions this week. Most protocols recommend 2, at most 3.`);
+  if (!warmedUp) notes.unshift('Hard hangs on cold fingers are the classic way to tweak a pulley. A few minutes of easy hangs first makes a real difference.');
+  if (!notes.length) return true;
+  const buttons = warmedUp ? [{ label: 'Change plan', kind: 'ghost' as const }, { label: 'Start anyway', kind: 'primary' as const }]
+    : [{ label: 'Skip, I’m warm', kind: 'ghost' as const }, { label: 'Warm up first', kind: 'primary' as const }];
+  const i = await sheet({ title: warmedUp ? 'Quick check' : 'Warm up first?', body: notes.map(n => `<p class="sub" style="text-align:left">${n}</p>`).join('') + '<p class="sub" style="font-size:12px">Turn these reminders off in Profile → Settings.</p>', buttons });
+  if (warmedUp) return i === 1;
+  if (i === 1) { state.settings.returnTo = cur; saveSettings(); loadProto('warm'); persist(); toast('Warm-up loaded — you’ll be brought back after'); return false; }
+  return i === 0;
 }
 
 function persist() {
@@ -239,7 +291,8 @@ function wireSetup(root: HTMLElement) {
   });
   $('#board').addEventListener('change', e => { if ((e.target as HTMLSelectElement).value === '__add') addBoard(); else persist(); });
 
-  $('#start').addEventListener('click', start);
+  $('#start').addEventListener('click', async () => { unlockAudio(); if (!(editing && timer) && !(await preStartCheck())) return; start(); });
+  $('#sugg').addEventListener('click', e => { if ((e.target as HTMLElement).closest('#suggUndo')) undoSuggestion(); });
   $('#pause').addEventListener('click', togglePause);
   $('#skip').addEventListener('click', () => { unlockAudio(); timer?.skip(); });
   $('#letgo').addEventListener('click', () => { if (!timer) return; unlockAudio(); beep(440, 0.3); const h = timer.letGo(); toast(`Held ${h}s — logged`); });
@@ -279,7 +332,7 @@ function start() {
     const lead = val.ready > 0 ? 1 : 0;
     steps = [...steps.slice(0, lead), ...steps.slice(i)];
   }
-  if (!resuming) startedAt = Date.now();
+  if (!resuming) { startedAt = Date.now(); if (state.settings.suggest?.[cur]) { delete state.settings.suggest[cur]; saveSettings(); $('#sugg').classList.add('hide'); } }
   editing = false; $('#start').innerHTML = `${ic('play')} Start session`; hydrateIcons($('#start'));
   if (!steps.some(s => s.p === 'hang')) { toast('Add at least one set'); return; }
   timer?.stop();
@@ -373,9 +426,14 @@ async function saveSession() {
   try {
     pending.rpe = +($('#rpe') as HTMLInputElement).value;
     pending.note = ($('#note') as HTMLInputElement).value.trim();
-    const s = await state.store.addSession(pending);
+    const saved = pending;
+    const { session: s, queued } = await saveOrQueue(saved);
     state.sessions.unshift(s); pending = null;
-    toast('Session saved'); show('setup'); go('stats');
+    applyLoadSuggestion(saved);
+    const back = state.settings.returnTo;
+    if (saved.protocolKey === 'warm' && back && allProtos()[back]) { delete state.settings.returnTo; saveSettings(); loadProto(back); persist(); toast(`Warmed up — ${allProtos()[back]!.n} is ready`, 3500); show('setup'); scrollTo(0, 0); return; }
+    toast(queued ? 'No signal — saved on this phone. It’ll upload automatically.' : 'Session saved', queued ? 4500 : 2200);
+    show('setup'); go('stats');
   } catch (e: any) { toast(e.message ?? 'Could not save — try again'); }
   finally { btn.disabled = false; }
 }

@@ -44,6 +44,7 @@ export function renderProfile(root: HTMLElement) {
   <div class="card"><h3>${ic('settings')} Settings</h3>
     ${toggle('sound', 'Sounds', 'Countdown beeps and the finish chime', 'sound')}
     ${toggle('vib', 'Vibration', 'Buzz on phase changes (phones only)', 'vib')}
+    ${toggle('nudges', 'Safety reminders', 'Warm-up prompt and overtraining check before max-effort sessions', 'help')}
     ${toggle('pgrip', 'Show Grip section', 'Grip type, fingers and hands on the Hang screen', 'grip')}
     ${toggle('psetup', 'Show Setup section', 'Board, edge material and profile on the Hang screen', 'board')}
     <div class="tg"><span>${ic('help')} App tour<small>Show the intro and page tips again</small></span><button class="pill" id="replay">Replay</button></div></div>

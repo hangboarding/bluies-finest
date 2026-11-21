@@ -42,7 +42,7 @@ const SESSION_COLUMNS = {
   points: 'points',
   isPb: 'is_pb',
   note: 'note',
-} as const satisfies Record<keyof Session, string>;
+} as const satisfies Record<Exclude<keyof Session, 'pendingUpload'>, string>; // pendingUpload is client-only
 
 const SESSION_SELECT = Object.values(SESSION_COLUMNS).join(',');
 const COMMENT_SELECT = 'id,session_id,user_id,body,created_at';
