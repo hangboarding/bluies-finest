@@ -17,7 +17,7 @@ export function challengeCard(): string {
     <div class="chal-title">${esc(c.title)}</div>
     <div class="chal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${c.target}" aria-valuenow="${p.total}"><i style="width:${p.pct}%"></i></div>
     <div class="chal-nums"><span><b>${p.total.toLocaleString()}</b> / ${c.target.toLocaleString()} ${m.unit}</span><span>${p.pct}%</span></div>
-    ${p.done ? `<div class="chal-done">${ic('party')} Challenge smashed — nice work, crew!</div>` : ''}
+    ${p.done ? `<div class="chal-done">${ic('party')} Mission accomplished — nice work, crew!</div>` : ''}
     ${top && c.metric !== 'climbers' ? `<div class="chal-top">Top contributors: ${top}</div>` : ''}
     ${c.auto ? '<div class="chal-top">Automatic monthly challenge — admins can set custom ones in Admin tools.</div>' : ''}
   </div>`;
