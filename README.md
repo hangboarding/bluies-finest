@@ -1,52 +1,57 @@
 # Bluies Finest
 
-Hangboard training for the crew: protocol-based timers, session logging, an invite-only leaderboard, an activity feed with hearts and comments, stats and achievements. It's a mobile-first web app and can be installed to your home screen.
+Hangboard accountability and bragging rights. A mobile-first web app for a small crew. You can log sessions with a protocol-based timer, compete on leaderboards, and cheer each other on in the activity feed.
 
-- **Frontend:** Vite + TypeScript (no framework), hosted on GitHub Pages
-- **Backend:** Supabase (auth, Postgres with row-level security, photo storage)
-- **Demo mode:** with no Supabase keys, the app runs entirely in your browser with sample climbers. The invite code is `BLUIES`.
+**Live:** https://hangboarding.github.io/bluies-finest/ (invite-only; install it to your phone's home screen)
+
+## Features
+
+- **Hang timer:** 12 protocols (Max Hangs, Repeaters, Abrahangs, 7/53…), or save your own, plus "Just let me hang".
+  - Get-ready countdown, beeps, let-go logging and left/right one-arm hangs.
+  - The screen stays awake while you hang.
+- **Smart prompts:** warm-up and overtraining reminders, and next time's load adjusted from how hard the session felt.
+- **Offline-safe saving:** sessions saved with no signal upload automatically later.
+- **Ranks:** leaderboards over the last 90 days (strength, grip types, volume and consistency). Strength is scored as % of bodyweight; bodyweight itself is never shown.
+- **Stats:** consistency calendar, personal bests, trends and achievements (10 tiers from Iron to GOAT, plus secret ones).
+- **Activity:** feed with hearts and comments, a weekly crew recap, notifications, and climber profiles.
+- **Admin tools:** manage invite codes and remove content, all from inside the app.
 
 ## Run it locally
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev      # http://localhost:5173
+npm test         # 110 tests: timer, scoring, streaks, achievements, recap
 ```
 
-To connect to Supabase, copy `.env.example` to `.env.local` and fill in your keys. Full steps are in [docs/SUPABASE.md](docs/SUPABASE.md).
+Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.
 
-## Deploy to GitHub Pages
+## Set up the real backend
 
-1. Create a GitHub repo and push this folder to its `main` branch.
-2. In the repo, open **Settings → Pages** and set **Source** to **GitHub Actions**.
-3. Open **Settings → Secrets and variables → Actions** and add the repository secrets `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-4. Every push to `main` builds and deploys automatically ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)). The site will be at `https://<user>.github.io/<repo>/`.
-5. In Supabase, set the Site URL and redirect URL to that address (see [docs/SUPABASE.md](docs/SUPABASE.md), step 6).
+Follow [docs/SUPABASE.md](docs/SUPABASE.md) (about 15 minutes, free plan). In short:
+1. Run `supabase/schema.sql` in a new Supabase project.
+2. Add the project URL and publishable key as GitHub secrets.
+3. Set up an email sender.
+4. Make yourself admin.
+
+## Deploy
+
+Every push to `main` runs the tests, then builds and deploys to GitHub Pages via [.github/workflows/deploy.yml](.github/workflows/deploy.yml). It needs the repository secrets `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, and **Settings → Pages → Source: GitHub Actions**.
 
 ## How scoring works
 
-- **Session points**:
-  - 5 points for showing up
-  - plus time under tension × load factor × edge factor ÷ 2
-  - plus 2 points per full hang
-  - plus 20 points for a personal best
-- **Load factor**: load as a percentage of bodyweight (target effort for no-hang lifts), capped between 0.4 and 2.
-- **Edge factor**: 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
-- **Overall rank**: points from the last 28 days, plus 15 for each week of your current weekly streak (2 or more sessions a week).
-
-Bodyweight is stored in a private table that only its owner can read. Other climbers only ever see the resulting percentage.
+- **Session points** = 5, plus time under tension × load factor × edge factor ÷ 2, plus 2 per full hang, plus 20 for a personal best.
+  - **Load factor:** % of bodyweight (or target effort for no-hang lifts), capped between 0.4 and 2.
+  - **Edge factor:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
+- Points are recalculated on the server, so they can't be faked.
+- **Overall rank** = points from the last 28 days, plus 15 for each week of your current streak (a streak week means 2 or more sessions).
 
 ## Project layout
 
 | Path | What's in it |
 |---|---|
-| `src/main.ts` | Boot, tabs, theme |
-| `src/views/*` | Hang (setup, timer, finish), Activity, Ranks, Stats, Profile, Auth, Tour |
-| `src/lib/timer.ts` | Wall-clock timer, wake lock, audio |
-| `src/lib/scoring.ts` | Points and leaderboard categories |
-| `src/lib/achievements.ts` | 10-tier, one-off and secret achievements |
-| `src/lib/local-store.ts` / `supabase-store.ts` | The two backends, behind one `Store` interface |
-| `supabase/schema.sql` | Tables, security rules, invite-code signup, storage |
-| `design/sketch.html` | The original clickable sketch |
-
-To regenerate the app icons after editing `public/logo.svg`, run `npm run icons`.
+| `src/views/` | Screens: Hang, Activity, Ranks, Stats, Profile, Admin, sign-in, tour |
+| `src/lib/` | Timer, scoring, achievements, offline outbox, and the two backends (demo and Supabase) |
+| `supabase/` | `schema.sql` (everything for a new project), plus `hardening.sql` and `admin.sql` for existing projects |
+| `tests/` | Vitest suite |
+| `design/` | The original clickable sketch and logo explorations |

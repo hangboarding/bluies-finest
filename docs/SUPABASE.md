@@ -1,162 +1,100 @@
 # Setting up the Supabase backend
 
-Without these steps the app runs in **demo mode** (data stays in one browser).
-Follow them once to turn on real accounts, the shared feed, likes and comments.
-It takes about 15 minutes and everything here is on Supabase's free plan.
+Without these steps the app runs in **demo mode**, where data stays in one browser. Follow them once to turn on real accounts, the shared feed, hearts and comments. It takes about 15 minutes, and everything here is on Supabase's free plan.
 
-## 1. Create a free Supabase project
+> **Already set up before late November 2026?** Your database needs two update scripts. Run [`supabase/hardening.sql`](../supabase/hardening.sql) and then [`supabase/admin.sql`](../supabase/admin.sql) in the SQL Editor; both are safe to run again. Then do steps 7 and 8 below if you haven't already.
 
-1. Go to <https://supabase.com> and sign up (GitHub login is easiest).
-2. Click **New project**. Pick any name (e.g. `bluies-finest`), set a database
-   password (save it somewhere, you rarely need it), choose the region closest
-   to you, and click **Create new project**.
-3. Wait a minute or two until the dashboard says the project is ready.
+## 1. Create a project
 
-## 2. Create the database tables
+1. Sign up at <https://supabase.com> (GitHub login is easiest) and click **New project**.
+2. Name it (e.g. `bluies-finest`), set a database password (save it somewhere) and pick the nearest region.
+3. Wait a minute until it says it's ready.
 
-1. In the left sidebar open **SQL Editor** and click **New query**.
-2. Open `supabase/schema.sql` from this repo, copy **all** of it, paste it in.
-3. Click **Run**. You should see "Success. No rows returned".
+## 2. Create the database
 
-It is safe to run the file again later (for example after an update to it).
+1. Go to **SQL Editor → New query**.
+2. Paste in **all** of [`supabase/schema.sql`](../supabase/schema.sql) and click **Run**. You should see "Success. No rows returned".
 
-## 3. Copy your project URL and key
+This creates every table, security rule, invite-code sign-up, photo storage, server-side scoring and admin access. It's safe to run again.
 
-1. In the sidebar open **Project Settings -> API** (in newer dashboards: **Project Settings -> API Keys**,
-   and the URL is under **Data API**).
-2. Copy the **Project URL** (looks like `https://abcdefgh.supabase.co`).
-3. Copy the **publishable** key (starts with `sb_publishable_`). Older projects call
-   this the **anon / public** key — either works. It's designed to be public; the
-   database rules protect your data. **Never** use the **secret** key
-   (`sb_secret_…`, formerly `service_role`) in the app — it bypasses all security.
-   The variable is still named `VITE_SUPABASE_ANON_KEY`; put the publishable key in it.
+## 3. Copy your URL and key
 
-## 4. Use them locally
+Go to **Project Settings → API Keys** (the URL is under **Data API**) and copy:
+- the **Project URL**, e.g. `https://abcdefgh.supabase.co`
+- the **publishable** key, `sb_publishable_…` (older projects call it the *anon / public* key)
 
-1. In the project folder, copy `.env.example` to a new file called `.env.local`.
-2. Fill it in:
+The publishable key is designed to be public, because the database rules protect the data. **Never** put the **secret** key (`sb_secret_…`, formerly `service_role`) in the app or on GitHub, because it bypasses all security.
 
-   ```
-   VITE_SUPABASE_URL=https://abcdefgh.supabase.co
-   VITE_SUPABASE_ANON_KEY=sb_publishable_...
-   ```
+## 4. Connect the app
 
-3. Restart `npm run dev`. The app now uses Supabase instead of demo mode.
-   (`.env.local` is not committed to git.)
+**On GitHub:** open the repo → **Settings → Secrets and variables → Actions** and add two repository secrets:
+- `VITE_SUPABASE_URL`: your project URL
+- `VITE_SUPABASE_ANON_KEY`: your publishable key (the name says "anon", but put the publishable key here)
 
-## 5. Use them on GitHub Pages
+Then push a commit, or re-run the deploy from the **Actions** tab, to rebuild the site with them.
 
-1. On GitHub open your repo -> **Settings -> Secrets and variables -> Actions**.
-2. Click **New repository secret** twice and add:
-   - Name `VITE_SUPABASE_URL`, value = your Project URL
-   - Name `VITE_SUPABASE_ANON_KEY`, value = your publishable key
-3. Re-run the deploy workflow (or push a commit) so the site is rebuilt with them.
+**Locally (optional):** copy `.env.example` to `.env.local`, fill in the same two values, and restart `npm run dev`.
 
-## 6. Tell Supabase where the app lives
+## 5. Tell Supabase where the app lives
 
-Emails (confirm account, reset password) link back to your site, so Supabase
-must know its address.
+Open **Authentication → URL Configuration**:
+- **Site URL:** `https://hangboarding.github.io/bluies-finest/`. Include the trailing slash.
+- **Redirect URLs:** add `https://hangboarding.github.io/bluies-finest/**` and `http://localhost:5173/**`.
 
-1. Open **Authentication -> URL Configuration**.
-2. **Site URL**: your GitHub Pages address, e.g. `https://yourname.github.io/hangleaderboard/`
-3. Under **Redirect URLs** click **Add URL** and add:
-   - `https://yourname.github.io/hangleaderboard/**`
-   - `http://localhost:5173/**` (so links also work while developing)
-4. Click **Save**.
+## 6. Make password-reset links work on any device
 
-Tip: password-reset and confirmation links work best when opened in the same
-browser the request was made from.
+This change makes reset links open correctly even in a different browser from the one that asked for them, for example when someone requests a reset from the installed app and opens the email in Safari.
 
-### About email confirmation
+Open **Authentication → Emails → Templates → Reset Password** and change the link to:
 
-By default Supabase makes new users click a link in an email before they can
-sign in. That's the safer choice, so we recommend leaving it on. If you ever
-want to turn it off, it is under **Authentication -> Sign In / Providers -> Email -> Confirm email**.
-**Important:** Supabase's built-in email sender is only for testing. It sends
-very few emails per hour and may only deliver to addresses of people on your
-Supabase team. For friends to receive confirmation and password-reset emails,
-set up a free email sender (e.g. Resend or Brevo) under **Authentication ->
-Emails -> SMTP Settings**. Without it, the "confirm email" and "forgot
-password" emails may never arrive.
-
-## 7. Invite codes
-
-Nobody can sign up without a valid invite code. The setup script creates one
-code, **`BLUIES`**, with unlimited uses. Codes are not case-sensitive.
-
-**See your codes and how often they've been used:** open **Table Editor ->
-invite_codes**. (Only you can see this table; the app can't read it.)
-
-**Change the code** (e.g. if `BLUIES` leaks) - in the SQL Editor run:
-
-```sql
-update public.invite_codes set code = 'NEWCODE' where code = 'BLUIES';
+```html
+<a href="{{ .SiteURL }}?token_hash={{ .TokenHash }}&type=recovery#reset">Reset your password</a>
 ```
 
-**Add a code for one person** (works once):
+## 7. Send emails (confirmations and password resets)
 
-```sql
-insert into public.invite_codes (code, max_uses) values ('FORSAM', 1);
-```
+Supabase's built-in email sender only delivers to members of your Supabase team, a few times an hour, so your friends wouldn't get anything. Use a free Gmail account as the sender instead:
 
-**Switch a code off:**
+1. Create a Gmail account for the app.
+2. Turn on 2-Step Verification for that account.
+3. Create an **app password** at <https://myaccount.google.com/apppasswords>.
+4. In Supabase, open **Authentication → Emails → SMTP Settings**, turn on custom SMTP, and enter:
 
-```sql
-update public.invite_codes set max_uses = uses where code = 'BLUIES';
-```
+| Field | Value |
+|---|---|
+| Sender email | the Gmail address |
+| Sender name | `Bluies Finest` |
+| Host | `smtp.gmail.com` |
+| Port | `465` |
+| Username | the Gmail address |
+| Password | the 16-character app password |
 
-Use capital letters when typing codes into SQL.
+5. Optionally raise the email limit under **Authentication → Rate Limits**.
+
+If you own a domain, a service like Resend also works. Leave **Confirm email** turned on (Authentication → Sign In / Providers → Email).
 
 ## 8. Make yourself admin
 
-Admins can delete anyone's sessions or comments. First sign up in the app,
-then in the SQL Editor run (with your email):
+Sign up in the app first, then run this in the SQL Editor with your email:
 
 ```sql
 update public.profiles set is_admin = true
 where id = (select id from auth.users where email = 'you@example.com');
 ```
 
-Sign out and back in (or reload) to see admin controls. Users can never make
-themselves admin from the app.
+Reload the app. **Profile → Admin tools** now lets you manage invite codes, see members, and remove sessions or comments. Nobody can make themselves admin from the app.
 
-## Handy extras
+## Invite codes
 
-- **See who has signed up:** **Authentication -> Users**.
-- **Remove someone completely:** delete them in **Authentication -> Users**.
-  All their sessions, likes, comments and private data are removed with them.
-  (Their avatar picture stays in **Storage -> avatars**; delete their folder there too.)
-- **Free projects pause** after about a week with no activity. If the app stops
-  working, open the Supabase dashboard and click **Restore project**.
+Nobody can sign up without a valid code. A new project starts with one code, `BLUIES`, which has unlimited uses. **Change it straight away:** that code is visible in the public repo. Manage codes from **Profile → Admin tools**:
+- add a code, optionally with a use limit (e.g. 1 for a single person)
+- change a code's limit
+- copy or delete a code
 
-## Update: security hardening (run once)
+Codes aren't case-sensitive when people sign up.
 
-If you set up the database before this section existed, open **SQL Editor → New query**,
-paste in all of `supabase/hardening.sql` and click **Run**. It adds sanity limits to
-sessions, calculates points on the server so they can't be faked, stops sessions from
-being back-dated, and only allows profile photos from your own storage. Existing data is
-untouched. (New projects get this automatically from `schema.sql`.)
+## Good to know
 
-## Make password-reset links work on any device
-
-By default the reset link only works in the same browser that asked for it — which
-breaks if someone requests it from the installed app and opens the email in Safari.
-Fix it by changing the email template:
-
-1. Open **Authentication → Emails → Templates → Reset Password**.
-2. Replace the link in the message body with:
-
-   ```html
-   <a href="{{ .SiteURL }}?token_hash={{ .TokenHash }}&type=recovery#reset">Reset your password</a>
-   ```
-
-3. Save. Make sure **Site URL** (Authentication → URL Configuration) is exactly
-   `https://hangboarding.github.io/bluies-finest/` including the trailing slash.
-
-## Update: admin page (run once)
-
-To manage invite codes from the app's **Profile → Admin tools** page, open
-**SQL Editor → New query**, paste in all of `supabase/admin.sql` and click **Run**.
-It lets admins (and only admins) view, add, edit and delete invite codes, and tidies
-any existing codes to capitals (sign-up compares codes in capitals, so a code saved
-with lowercase letters would never match). New projects get this from `schema.sql`.
+- **Free projects pause** after about a week with no activity. If the app stops loading, open the Supabase dashboard and click **Restore project**. No data is lost.
+- **Removing someone completely:** delete them in **Authentication → Users**. Their sessions, hearts, comments and private data go with them. Also delete their folder in **Storage → avatars**.
+- **Backups:** the free plan doesn't include downloadable backups. Every user can download their own data from Profile, and you can export tables from the **Table Editor**.
