@@ -25,7 +25,7 @@ export function renderProfile(root: HTMLElement) {
         <div><label class="f">Age <small>(optional)</small></label><input class="tx" id="pAge" type="number" inputmode="numeric" min="10" max="100" value="${S.about?.age ?? ''}" placeholder="—" aria-label="Age"></div>
         <div><label class="f">Height <small>(cm, optional)</small></label><input class="tx" id="pHeight" type="number" inputmode="numeric" min="100" max="230" value="${S.about?.heightCm ?? ''}" placeholder="—" aria-label="Height in centimetres"></div>
       </div>
-      <div><label class="f">Location <small>(optional)</small></label><input class="tx" id="pLoc" maxlength="60" value="${esc(S.about?.location ?? '')}" placeholder="e.g. Sheffield" aria-label="Location"></div>
+      <div><label class="f">Location <small>(optional)</small></label><input class="tx" id="pLoc" maxlength="60" value="${esc(S.about?.location ?? '')}" placeholder="e.g. Katoomba" aria-label="Location"></div>
       <p class="sub" style="margin:0">${ic('lock')} Age, height and location are private. Your bodyweight is never shown — others only see a rounded % on your sessions.</p>
     </div>
     <button class="big" id="saveName">Save</button>
