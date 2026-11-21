@@ -202,3 +202,4 @@ header{position:relative}
 .adm-chal{display:grid;gap:8px;margin-top:8px}.adm-chal .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .adm-chal select,.adm-chal input{height:44px}
 #pushTg.hide{display:none}
+.toast{width:max-content;max-width:calc(100vw - 32px);text-align:center;line-height:1.35}
