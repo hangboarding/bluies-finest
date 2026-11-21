@@ -50,6 +50,10 @@ async function draw() {
     ${recent.map(s => `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(who(s.userId)?.name ?? 'Climber')} · ${esc(s.protocolName)}<small>${relTime(s.createdAt)} · ${s.edgeMm}mm · ${s.fullHangs}/${s.totalHangs} full · ${s.points} pts${s.note ? ` · “${esc(s.note.slice(0, 40))}”` : ''}</small></span>
       <button class="ed" data-act="delsess" aria-label="Remove session">${ic('trash')}</button></div>`).join('') || '<p class="sub">No sessions yet.</p>'}
 
+    <h3>${ic('download')} Backup</h3>
+    <p class="sub" style="margin:0 0 8px">Download every member's sessions, hearts, comments and profile (name and photo link only) as one file. Private details like bodyweight, age, height and location aren't included — admins can't see those either. Worth doing every month or so; the free Supabase plan has no downloadable backups.</p>
+    <button class="big ghost" data-act="backup">${ic('download')} Back up everything</button>
+
     <h3>${ic('comment')} Recent comments</h3>
     ${comments.map(cm => `<div class="lrow" data-cid="${cm.id}"><span class="nm">${esc(who(cm.userId)?.name ?? 'Climber')} on ${esc(cm.protocol)}<small>${relTime(cm.createdAt)} · “${esc(cm.body.slice(0, 80))}”</small></span>
       <button class="ed" data-act="delcm" aria-label="Remove comment">${ic('trash')}</button></div>`).join('') || '<p class="sub">No comments yet.</p>'}
@@ -57,11 +61,63 @@ async function draw() {
   hydrateIcons(root);
 }
 
+/** Every heart and comment. On Supabase this pages through the tables directly (a single
+ *  request is capped at 1,000 rows); in demo mode it reads them from the feed. */
+async function allHeartsAndComments(): Promise<{ hearts: { sessionId: string; userId: string; createdAt?: string }[]; comments: Comment[] }> {
+  const client = (state.store as any).client;
+  if (!client) {
+    const feed = await state.store.feed(100000);
+    return { hearts: feed.flatMap(x => Array.from({ length: x.likes }, () => ({ sessionId: x.session.id, userId: '' }))), comments: feed.flatMap(x => x.comments) };
+  }
+  const page = async (table: string, select: string) => {
+    const out: any[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await client.from(table).select(select).order('created_at').range(from, from + 999);
+      if (error) throw new Error(error.message);
+      out.push(...(data ?? []));
+      if (!data || data.length < 1000) return out;
+    }
+  };
+  const [likes, comments] = await Promise.all([page('likes', 'session_id,user_id,created_at'), page('comments', 'id,session_id,user_id,body,created_at')]);
+  return {
+    hearts: likes.map(r => ({ sessionId: r.session_id, userId: r.user_id, createdAt: r.created_at })),
+    comments: comments.map(r => ({ id: r.id, sessionId: r.session_id, userId: r.user_id, body: r.body, createdAt: r.created_at })),
+  };
+}
+
+/** Everything the group can see, in one JSON file: profiles, every session (full history,
+ *  not just the recent window the app keeps loaded), hearts, comments and invite codes. */
+async function backupAll(btn: HTMLButtonElement) {
+  btn.disabled = true; const label = btn.innerHTML; btn.textContent = 'Preparing backup…';
+  try {
+    const [profiles, sessions, codes, social] = await Promise.all([
+      state.store.listProfiles(), state.store.listSessions(), // listSessions pages through everything
+      state.store.listInviteCodes().catch(() => [] as InviteCode[]),
+      allHeartsAndComments(),
+    ]);
+    const data = {
+      app: 'Bluies Finest', kind: 'full-backup', version: 1, exportedAt: new Date().toISOString(), exportedBy: state.me?.name,
+      counts: { members: profiles.length, sessions: sessions.length, hearts: social.hearts.length, comments: social.comments.length },
+      profiles: profiles.map(p => ({ id: p.id, name: p.name, avatarUrl: p.avatarUrl, isAdmin: p.isAdmin, createdAt: p.createdAt })),
+      sessions,
+      hearts: social.hearts,
+      comments: social.comments,
+      inviteCodes: codes,
+    };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    a.download = `bluies-finest-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(`Backup downloaded — ${data.counts.sessions} sessions, ${data.counts.members} members`, 4000);
+  } finally { btn.disabled = false; btn.innerHTML = label; }
+}
+
 async function onClick(e: MouseEvent) {
   const b = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null; if (!b) return;
   const row = b.closest('.lrow') as HTMLElement | null, code = row?.dataset.code ?? '';
   try {
     switch (b.dataset.act) {
+      case 'backup': await backupAll(b as HTMLButtonElement); return;
       case 'copy':
         try { await navigator.clipboard.writeText(code); toast(`Copied ${code}`); } catch { toast(code); }
         return;

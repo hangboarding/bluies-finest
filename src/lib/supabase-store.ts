@@ -113,7 +113,7 @@ function friendly(err: unknown, fallback = 'Something went wrong. Please try aga
     return new Error('Your new password must be different from the old one.');
   }
   if (msg.includes('password should') || msg.includes('weak password') || code === 'weak_password') {
-    return new Error('That password is too weak. Use at least 6 characters (longer is better).');
+    return new Error('That password is too weak. Use at least 8 characters (longer is better).');
   }
   if (msg.includes('unable to validate email') || msg.includes('invalid email') || code === 'email_address_invalid') {
     return new Error("That email address doesn't look right.");

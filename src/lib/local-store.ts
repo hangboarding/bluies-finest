@@ -80,7 +80,7 @@ export class LocalStore implements Store {
     if (!code || (code.maxUses != null && code.uses >= code.maxUses)) throw new Error("That invite code isn't valid");
     code.uses++;
     if (this.db.users.some(u => u.email === email.toLowerCase())) throw new Error('An account with that email already exists');
-    if (password.length < 6) throw new Error('Password must be at least 6 characters');
+    if (password.length < 8) throw new Error('Password must be at least 8 characters');
     const id = uid();
     this.db.users.push({ id, email: email.toLowerCase(), password });
     this.db.profiles.push({ id, name, avatarUrl: null, isAdmin: this.db.users.length === 1, createdAt: new Date().toISOString() });

@@ -18,8 +18,8 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
       <form id="authForm" novalidate>
         ${mode === 'up' ? field('aName', 'Name', 'text', 'nickname') : ''}
         ${mode !== 'reset' ? field('aEmail', 'Email', 'email', 'email') : ''}
-        ${mode === 'in' || mode === 'up' ? field('aPw', mode === 'up' ? 'Password (min 6 characters)' : 'Password', 'password', mode === 'up' ? 'new-password' : 'current-password') : ''}
-        ${mode === 'reset' ? field('aPw', 'New password (min 6 characters)', 'password', 'new-password') + field('aPw2', 'Repeat new password', 'password', 'new-password') : ''}
+        ${mode === 'in' || mode === 'up' ? field('aPw', mode === 'up' ? 'Password (min 8 characters)' : 'Password', 'password', mode === 'up' ? 'new-password' : 'current-password') : ''}
+        ${mode === 'reset' ? field('aPw', 'New password (min 8 characters)', 'password', 'new-password') + field('aPw2', 'Repeat new password', 'password', 'new-password') : ''}
         ${mode === 'up' ? field('aCode', 'Invite code', 'text', 'off') + '<p class="sub" style="margin:-4px 0 10px;font-size:12px">Ask the crew for the code.</p>' : ''}
         <button class="big" type="submit" id="aGo">${{ in: 'Sign in', up: 'Create account', forgot: 'Send reset link', reset: 'Set new password' }[mode]}</button>
       </form>
@@ -40,13 +40,14 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
       if (mode === 'in') await state.store.signIn(v('aEmail'), ($('#aPw') as HTMLInputElement).value);
       if (mode === 'up') {
         if (!v('aName')) throw new Error('Enter your name');
+        if (($('#aPw') as HTMLInputElement).value.length < 8) throw new Error('Password must be at least 8 characters');
         await state.store.signUp({ name: v('aName').slice(0, 40), email: v('aEmail'), password: ($('#aPw') as HTMLInputElement).value, inviteCode: v('aCode') });
         if (!state.store.currentUserId()) { root.querySelector('.card')!.innerHTML = `<h2>Check your email ✉️</h2><p class="sub">We sent a confirmation link to <b>${esc(v('aEmail'))}</b>. Tap it, then come back and sign in.</p><button class="big" id="back">Back to sign in</button>`; $('#back').onclick = () => renderAuth(root, 'in'); }
       }
       if (mode === 'forgot') { await state.store.requestPasswordReset(v('aEmail')); toast('If that email has an account, a reset link is on its way', 4000); renderAuth(root, 'in'); }
       if (mode === 'reset') {
         const a = ($('#aPw') as HTMLInputElement).value;
-        if (a.length < 6) throw new Error('Password must be at least 6 characters');
+        if (a.length < 8) throw new Error('Password must be at least 8 characters');
         if (a !== ($('#aPw2') as HTMLInputElement).value) throw new Error('Passwords don’t match');
         await state.store.updatePassword(a); history.replaceState(null, '', location.pathname); toast('Password updated — you’re signed in'); location.reload();
       }

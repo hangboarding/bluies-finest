@@ -88,14 +88,14 @@ async function changePassword() {
     const i = await sheet({
       title: 'Change password',
       body: `<form onsubmit="return false" style="text-align:left">
-        <input class="tx" type="password" id="pw1" autocomplete="new-password" placeholder="New password (min 6 characters)" aria-label="New password" style="margin-bottom:10px">
+        <input class="tx" type="password" id="pw1" autocomplete="new-password" placeholder="New password (min 8 characters)" aria-label="New password" style="margin-bottom:10px">
         <input class="tx" type="password" id="pw2" autocomplete="new-password" placeholder="Repeat new password" aria-label="Repeat new password" style="margin-bottom:12px"></form>`,
       buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Change', kind: 'primary' }],
       onMount: e => { el = e; },
     });
     if (i !== 1) return;
     const a = (el.querySelector('#pw1') as HTMLInputElement).value, b = (el.querySelector('#pw2') as HTMLInputElement).value;
-    if (a.length < 6) { toast('Password must be at least 6 characters'); continue; }
+    if (a.length < 8) { toast('Password must be at least 8 characters'); continue; }
     if (a !== b) { toast('Passwords don’t match'); continue; }
     try { await state.store.updatePassword(a); toast('Password changed'); } catch (err: any) { toast(err.message ?? 'Couldn’t change password'); }
     return;
