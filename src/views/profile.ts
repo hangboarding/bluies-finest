@@ -14,14 +14,22 @@ export function renderProfile(root: HTMLElement) {
     `<div class="tg"><span>${ic(icon)} ${label}<small>${sub}</small></span><button class="sw2 ${P[k] ? 'on' : ''}" data-set="${k}" role="switch" aria-checked="${!!P[k]}" aria-label="${label}"></button></div>`;
   root.innerHTML = `
   <div class="card center">
-    <label class="upl" id="upl" aria-label="Change photo">${avatar(me, 'uplpic')}<input type="file" accept="image/jpeg,image/png,image/webp" hidden id="file"></label>
-    <div class="fld"><input class="tx" id="pName" maxlength="40" placeholder="Climber name" value="${esc(me.name)}" aria-label="Name"></div>
-    <button class="big" id="saveName">Save name</button>
+    <label class="upl" id="upl" aria-label="Change photo">${avatar(me, 'uplpic')}<span class="camb">${ic('camera')}</span><input type="file" accept="image/jpeg,image/png,image/webp" hidden id="file"></label>
+    <label class="f left">Name</label>
+    <div class="fld"><input class="tx" id="pName" maxlength="40" placeholder="Name" value="${esc(me.name)}" aria-label="Name"></div>
+    <div class="about">
+      <div><label class="f lab">Bodyweight<span class="tip" data-tip="bodyweight">i</span></label>
+        <div class="prm" style="--c:#b48cff"><div class="step"><button data-bw="-0.5" aria-label="Decrease bodyweight">−</button><input id="bw" inputmode="decimal" value="${state.priv.bodyweightKg ?? ''}" placeholder="—" aria-label="Bodyweight in kg"><small>kg</small><button data-bw="0.5" aria-label="Increase bodyweight">+</button></div></div></div>
+      <div class="split">
+        <div><label class="f">Age <small>(optional)</small></label><input class="tx" id="pAge" type="number" inputmode="numeric" min="10" max="100" value="${S.about?.age ?? ''}" placeholder="—" aria-label="Age"></div>
+        <div><label class="f">Height <small>(cm, optional)</small></label><input class="tx" id="pHeight" type="number" inputmode="numeric" min="100" max="230" value="${S.about?.heightCm ?? ''}" placeholder="—" aria-label="Height in centimetres"></div>
+      </div>
+      <div><label class="f">Location <small>(optional)</small></label><input class="tx" id="pLoc" maxlength="60" value="${esc(S.about?.location ?? '')}" placeholder="e.g. Sheffield" aria-label="Location"></div>
+      <p class="sub" style="margin:0">${ic('lock')} Age, height and location are private. Your bodyweight is never shown — others only see a rounded % on your sessions.</p>
+    </div>
+    <button class="big" id="saveName">Save</button>
     ${state.store.kind === 'local' ? '<p class="sub" style="margin-top:10px">Demo mode — data is stored in this browser only.</p>' : ''}
   </div>
-  <div class="card"><h3 class="lab">${ic('muscle')} Bodyweight<span class="tip" data-tip="bodyweight">i</span></h3>
-    <div class="prm" style="--c:#b48cff"><div class="step"><button data-bw="-0.5" aria-label="Decrease bodyweight">−</button><input id="bw" inputmode="decimal" value="${state.priv.bodyweightKg ?? ''}" placeholder="—" aria-label="Bodyweight in kg"><small>kg</small><button data-bw="0.5" aria-label="Increase bodyweight">+</button></div></div>
-    <p class="sub" style="margin:8px 0 0">${ic('lock')} Private — only you can ever see this.</p></div>
   <div class="card"><h3>${ic('lock')} Password</h3>
     <div class="fld"><input class="tx" type="password" id="pw1" autocomplete="new-password" placeholder="New password (min 6 characters)" aria-label="New password"></div>
     <div class="fld"><input class="tx" type="password" id="pw2" autocomplete="new-password" placeholder="Repeat new password" aria-label="Repeat new password"></div>
@@ -46,21 +54,47 @@ export function renderProfile(root: HTMLElement) {
   drawBoardList(); hydrateIcons(root);
   root.onclick = onClick;
   $('#file').addEventListener('change', onPhoto);
-  $('#bw').addEventListener('change', () => saveBw(($('#bw') as HTMLInputElement).value));
   $('#newBoard').addEventListener('keydown', e => { if (e.key === 'Enter') $('#addBoard').click(); });
 }
 
 function drawBoardList() {
   const B = state.settings.boards;
-  $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star', 'emoji')}</button><span class="nm">${esc(b)}</span><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet — add one below.</p>';
+  $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star')}</button><span class="nm">${esc(b)}</span><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet — add one below.</p>';
   hydrateIcons($('#boardList'));
 }
 
-async function saveBw(v: string) {
-  const n = v.trim() === '' ? null : Math.max(20, Math.min(250, +v));
-  if (n != null && isNaN(n)) return toast('Enter a number in kg');
-  state.priv.bodyweightKg = n; ($('#bw') as HTMLInputElement).value = n == null ? '' : String(n);
-  try { await state.store.savePrivate({ bodyweightKg: n }); toast('Bodyweight saved (private)'); } catch (e: any) { toast(e.message); }
+/** Parse an optional number field; returns undefined when invalid, null when empty. */
+function num(id: string, min: number, max: number): number | null | undefined {
+  const raw = ($(`#${id}`) as HTMLInputElement).value.trim();
+  if (raw === '') return null;
+  const n = +raw.replace(',', '.');
+  return isFinite(n) && n >= min && n <= max ? Math.round(n * 10) / 10 : undefined;
+}
+
+/** Save name, bodyweight and the optional private details in one go. */
+async function saveAbout() {
+  const name = ($('#pName') as HTMLInputElement).value.trim();
+  if (!name) return toast('Name can’t be empty');
+  const bw = num('bw', 20, 250), age = num('pAge', 10, 100), heightCm = num('pHeight', 100, 230);
+  if (bw === undefined) return toast('Bodyweight should be between 20 and 250 kg');
+  if (age === undefined) return toast('Age should be between 10 and 100');
+  if (heightCm === undefined) return toast('Height should be between 100 and 230 cm');
+  const location = ($('#pLoc') as HTMLInputElement).value.trim().slice(0, 60);
+  const btn = $('#saveName') as HTMLButtonElement; btn.disabled = true;
+  try {
+    if (name !== state.me!.name) {
+      await state.store.updateProfile({ name });
+      state.me!.name = name; state.profiles.get(state.me!.id)!.name = name; refreshHeader();
+    }
+    state.settings.about = { age, heightCm, location };
+    state.settings.savedAt = Date.now();
+    state.priv.bodyweightKg = bw;
+    // bodyweight + private details go up together in one private write
+    await state.store.savePrivate({ bodyweightKg: bw, settings: state.settings as any });
+    saveSettings();
+    toast('Saved');
+  } catch (e: any) { toast(e.message ?? 'Could not save'); }
+  finally { btn.disabled = false; }
 }
 
 async function onPhoto(e: Event) {
@@ -84,7 +118,7 @@ async function onClick(e: MouseEvent) {
   const t = e.target as HTMLElement, S = state.settings;
   const tip = t.closest('.tip') as HTMLElement | null; if (tip) { const [h, b] = TIPS[tip.dataset.tip!]!; bubble(h, b); return; }
   const bwb = t.closest('[data-bw]') as HTMLElement | null;
-  if (bwb) { const i = $('#bw') as HTMLInputElement; i.value = String(Math.max(20, (+i.value || 70) + +bwb.dataset.bw!)); clearTimeout((i as any)._t); (i as any)._t = setTimeout(() => saveBw(i.value), 600); return; }
+  if (bwb) { const i = $('#bw') as HTMLInputElement; i.value = String(Math.max(20, (+i.value || 70) + +bwb.dataset.bw!)); return; }
   const tg = t.closest('[data-set]') as HTMLElement | null;
   if (tg) { const k = tg.dataset.set as 'sound'; (S.prefs as any)[k] = !S.prefs[k]; tg.classList.toggle('on', !!S.prefs[k]); tg.setAttribute('aria-checked', String(!!S.prefs[k])); setSound(S.prefs.sound); (window as any).__prefs = S.prefs; saveSettings(); return; }
   const m = t.closest('#mode [data-m]') as HTMLElement | null;
@@ -98,7 +132,7 @@ async function onClick(e: MouseEvent) {
   const delb = t.closest('[data-delb]') as HTMLElement | null;
   if (delb) { const b = delb.dataset.delb!; S.boards.list = S.boards.list.filter(x => x !== b); if (S.boards.def === b) S.boards.def = S.boards.list[0] ?? ''; if (S.board === b) S.board = S.boards.def; saveSettings(); drawBoardList(); return; }
   if (t.closest('#addBoard')) { const i = $('#newBoard') as HTMLInputElement; if (i.value.trim()) { await addBoard(i.value); i.value = ''; drawBoardList(); } return; }
-  if (t.closest('#saveName')) { const n = ($('#pName') as HTMLInputElement).value.trim(); if (!n) return toast('Name can’t be empty'); try { await state.store.updateProfile({ name: n }); state.me!.name = n; state.profiles.get(state.me!.id)!.name = n; refreshHeader(); toast('Name saved'); } catch (err: any) { toast(err.message); } return; }
+  if (t.closest('#saveName')) { await saveAbout(); return; }
   if (t.closest('#savePw')) {
     const a = ($('#pw1') as HTMLInputElement).value, b = ($('#pw2') as HTMLInputElement).value;
     if (a.length < 6) return toast('Password must be at least 6 characters'); if (a !== b) return toast('Passwords don’t match');

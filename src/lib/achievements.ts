@@ -1,5 +1,5 @@
 import type { Session } from './types';
-import { weekStreak, dayKey, isCrimp } from './scoring';
+import { weekStreak, dayKey, isCrimp, parseDayKey } from './scoring';
 
 export const TIER_NAMES = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond', 'Master', 'Grand Master', 'GOAT'];
 export const TIER_COLOURS = ['#8a8f94', '#c8814a', '#c9d1d9', '#f2c14e', '#9fd8d1', '#2ecc71', '#7ad7f0', '#b48cff', '#ff5a8a', '#ffd700'];
@@ -37,7 +37,7 @@ const sameProtoRun = (ss: Session[]) => {
   const byDay = new Map<string, Set<string>>();
   for (const s of ss) { const k = dayKey(new Date(s.createdAt)); (byDay.get(k) ?? byDay.set(k, new Set()).get(k)!).add(s.protocolKey); }
   for (const [k, protos] of byDay) for (const p of protos) {
-    let n = 1; const d = new Date(k);
+    let n = 1; const d = parseDayKey(k);
     while (n < 7) { d.setDate(d.getDate() + 1); if (byDay.get(dayKey(d))?.has(p)) n++; else break; }
     if (n >= 7) return true;
   }
@@ -78,13 +78,13 @@ export function tierOf(v: number | null, t: number[], lower?: boolean) {
 }
 
 /** Returns names of achievements (tier-ups and one-offs) newly unlocked between two contexts. */
-export function diffUnlocks(before: Ctx, after: Ctx): string[] {
-  const out: string[] = [];
+export function diffUnlocks(before: Ctx, after: Ctx): { icon: string; text: string }[] {
+  const out: { icon: string; text: string }[] = [];
   for (const a of TIERED) {
     const b = tierOf(a.value(before), a.thresholds, a.lower), n = tierOf(a.value(after), a.thresholds, a.lower);
-    if (n > b) out.push(`${a.icon} ${a.name} → ${TIER_NAMES[n - 1]}`);
+    if (n > b) out.push({ icon: a.icon, text: `${a.name} → ${TIER_NAMES[n - 1]}` });
   }
-  for (const o of ONE_OFFS) if (!o.got(before) && o.got(after)) out.push(`${o.icon} ${o.secret ? 'Secret: ' : ''}${o.name}`);
+  for (const o of ONE_OFFS) if (!o.got(before) && o.got(after)) out.push({ icon: o.icon, text: `${o.secret ? 'Secret: ' : ''}${o.name}` });
   return out;
 }
 

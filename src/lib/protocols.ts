@@ -54,7 +54,7 @@ export const TIPS: Record<string, [string, string]> = {
   effort: ['Target effort', 'How hard to pull, as % of your max. Abrahangs ≈ 40–60%, recruitment pulls ≈ 100%.'],
   setRest: ['Rest between sets', 'Longer rest after finishing all reps in a set.'],
   mode: ['Load method', 'Hang: you hang off the board, adding or removing weight. No-hang: you stand and lift a weight with a portable edge — easier to dose precisely.'],
-  bodyweight: ['Why bodyweight?', 'Used to work out load as a % of bodyweight so scoring is fair. Only you can ever see it.'],
+  bodyweight: ['Why bodyweight?', 'Used to work out load as a % of bodyweight so scoring is fair. Your bodyweight itself is never shown to anyone — others only see the rounded %, which keeps it approximate.'],
 };
 
 export const QUOTES: [string, string][] = [

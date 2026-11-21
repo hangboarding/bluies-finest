@@ -6,6 +6,7 @@ import type { FeedItem } from '../lib/types';
 let items: FeedItem[] = [];
 let filter: 'all' | 'me' | 'pb' = 'all';
 let open = '';
+const liking = new Set<string>();
 
 export async function renderFeed(root: HTMLElement) {
   root.innerHTML = `<div class="chips g g3" id="feedF" style="margin-bottom:12px">
@@ -49,18 +50,29 @@ async function onClick(e: MouseEvent) {
   if (f) { filter = f.dataset.f as any; document.querySelectorAll('#feedF .chip').forEach(c => c.classList.toggle('on', c === f)); draw(); return; }
   const post = t.closest('.post') as HTMLElement | null; if (!post) return;
   const it = items.find(x => x.session.id === post.dataset.id)!;
-  try {
-    if (t.closest('[data-like]')) {
-      it.likedByMe = !it.likedByMe; it.likes += it.likedByMe ? 1 : -1; if (it.likedByMe) vibrate(15); draw();
-      await state.store.setLike(it.session.id, it.likedByMe);
-    } else if (t.closest('[data-cm]')) {
-      open = open === it.session.id ? '' : it.session.id; draw();
-      if (open) (document.querySelector(`.post[data-id="${open}"] .cmts input`) as HTMLInputElement)?.focus();
-    } else if (t.closest('[data-send]')) {
-      const i = post.querySelector('.cmts input') as HTMLInputElement, body = i.value.trim(); if (!body) return;
-      i.disabled = true;
+  if (t.closest('[data-like]')) {
+    if (liking.has(it.session.id)) return; // ignore double-taps while the last one is in flight
+    liking.add(it.session.id);
+    const want = !it.likedByMe;
+    it.likedByMe = want; it.likes += want ? 1 : -1; if (want) vibrate(15); draw();
+    try { await state.store.setLike(it.session.id, want); }
+    catch (err: any) { it.likedByMe = !want; it.likes += want ? -1 : 1; draw(); toast(err.message ?? 'Couldn’t save that heart'); }
+    finally { liking.delete(it.session.id); }
+    return;
+  }
+  if (t.closest('[data-send]')) {
+    const i = post.querySelector('.cmts input') as HTMLInputElement, btn = post.querySelector('[data-send]') as HTMLButtonElement, body = i.value.trim(); if (!body) return;
+    i.disabled = btn.disabled = true;
+    try {
       const c = await state.store.addComment(it.session.id, body);
       it.comments.push(c); if (it.session.userId !== state.me?.id) state.social.commentsGiven++; open = it.session.id; draw();
+    } catch (err: any) { i.disabled = btn.disabled = false; toast(err.message ?? 'Couldn’t post that comment'); }
+    return;
+  }
+  try {
+    if (t.closest('[data-cm]')) {
+      open = open === it.session.id ? '' : it.session.id; draw();
+      if (open) (document.querySelector(`.post[data-id="${open}"] .cmts input`) as HTMLInputElement)?.focus();
     } else if (t.closest('[data-cdel]')) {
       if (!await confirmSheet('Delete comment?', 'This can’t be undone.', 'Delete')) return;
       const id = (t.closest('[data-cdel]') as HTMLElement).dataset.cdel!;

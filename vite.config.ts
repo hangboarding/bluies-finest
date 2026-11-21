@@ -6,12 +6,12 @@ export default defineConfig({
   base: process.env.BASE_PATH || '/',
   plugins: [
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg'],
       manifest: {
         name: 'Bluies Finest',
         short_name: 'Bluies',
-        description: 'Hangboard training, timers and leaderboards for the crew.',
+        description: 'Hangboard accountability and bragging rights.',
         theme_color: '#0d1511',
         background_color: '#0d1511',
         display: 'standalone',
@@ -24,9 +24,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         navigateFallbackDenylist: [/^\/auth/],
-        runtimeCaching: [{ urlPattern: /supabase\.co\/storage/, handler: 'CacheFirst', options: { cacheName: 'avatars', expiration: { maxEntries: 100, maxAgeSeconds: 30 * 864e2 } } }],
+        runtimeCaching: [{ urlPattern: /supabase\.co\/storage/, handler: 'CacheFirst', options: { cacheName: 'avatars', cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 100, maxAgeSeconds: 30 * 864e2 } } }],
       },
     }),
   ],

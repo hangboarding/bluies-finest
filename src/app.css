@@ -70,3 +70,52 @@ button,.chip,.a,.tip,a,select,input,label,summary,.heat i{touch-action:manipulat
 input,select,textarea{font-size:max(16px,1em)!important}
 .step input{font-size:20px!important}
 button,.chip,summary{-webkit-user-select:none;user-select:none}
+/* flat icon sizing */
+.big-ic .lic,.hero-ic .lic{width:56px;height:56px;stroke-width:1.6}
+.hero-ic{color:var(--acc)}
+.a b .lic{width:30px;height:30px;color:var(--tc,var(--mute))}
+.a.lock b .lic{color:var(--mute)}
+.feel .chip .lic{width:24px;height:24px}
+.feel .chip.on .lic{color:var(--acc)}
+.chip.on em .lic{color:var(--acc)}
+.crown .lic{width:30px;height:30px;color:var(--gold);fill:color-mix(in srgb,var(--gold) 35%,transparent)}
+.champ .lic{color:var(--gold)}
+.boards .star .lic{color:var(--mute)}
+.boards .star.on .lic{color:var(--gold);fill:var(--gold)}
+.unl{white-space:nowrap}.unl .lic{color:var(--acc)}
+.about{display:grid;gap:12px;text-align:left;margin:4px 0 14px}
+.about .split{gap:10px}
+label.f.left{text-align:left}
+label.f small{text-transform:none;letter-spacing:0;opacity:.8}
+.upl{position:relative}.upl:after{display:none!important}
+.camb{position:absolute;right:-2px;bottom:-2px;width:34px;height:34px;border-radius:50%;background:var(--acc);color:var(--onacc);display:grid;place-items:center;border:3px solid var(--card)}
+.camb .lic{width:16px;height:16px}
+/* ---------- animated sign-in logo ---------- */
+.logo-anim{display:block;margin:0 auto;overflow:visible;filter:drop-shadow(0 0 18px #3ddc8433)}
+.la-draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:la-draw var(--d,1.4s) var(--delay,0s) cubic-bezier(.65,0,.35,1) forwards}
+@keyframes la-draw{to{stroke-dashoffset:0}}
+.la-fill{opacity:0;animation:la-fade .7s 1.3s ease forwards}
+.la-shade{opacity:0;animation:la-fade .7s 1.5s ease forwards}
+.la-snow{opacity:0;animation:la-fade .4s 1.7s ease forwards}
+@keyframes la-fade{to{opacity:1}}
+.la-route{opacity:0;transition:opacity .4s}
+.la-climber{opacity:0;transition:opacity .3s}
+.la-climbing .la-route{opacity:.7}
+.la-climbing .la-climber{opacity:1}
+.la-climbing .la-armA,.la-climbing .la-legB{animation:la-reach .3s ease-in-out infinite alternate;transform-origin:-.5px -4.5px;transform-box:view-box}
+.la-climbing .la-armB,.la-climbing .la-legA{animation:la-reach .3s ease-in-out infinite alternate-reverse;transform-origin:-.5px -4.5px;transform-box:view-box}
+@keyframes la-reach{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
+.la-summit{opacity:0}
+.la-top .la-climber{opacity:0}
+.la-top .la-summit{animation:la-pop .5s cubic-bezier(.2,1.6,.4,1) forwards;transform-origin:60px 15px;transform-box:view-box}
+.la-spark{opacity:0}.la-top .la-spark{animation:la-fade .3s .35s forwards,la-twinkle 1.2s .7s ease-in-out infinite alternate}
+@keyframes la-pop{0%{opacity:0;transform:scale(.3)}100%{opacity:1;transform:scale(1)}}
+@keyframes la-twinkle{to{opacity:.3}}
+.la-static .la-draw{animation:none;stroke-dashoffset:0}
+.la-static .la-fill,.la-static .la-shade,.la-static .la-snow,.la-static .la-summit,.la-static .la-spark{animation:none;opacity:1}
+/* ---------- Sora everywhere ---------- */
+html,body,button,input,select,textarea{font-family:'Sora Variable',system-ui,-apple-system,'Segoe UI',sans-serif}
+h1,h2,h3,.big,.ptitle,.stat b,.ring .n,.pt,.champ,.auth-title{letter-spacing:-.01em}
+.ring .n,.stat b,.pt,.pv,.rpev b{font-variant-numeric:tabular-nums}
+.auth-title{font-size:32px;font-weight:800}
+.auth-tag{font-size:15px;margin:6px 0 0;color:var(--mute)}

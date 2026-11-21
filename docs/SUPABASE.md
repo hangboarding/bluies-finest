@@ -128,3 +128,27 @@ themselves admin from the app.
   (Their avatar picture stays in **Storage -> avatars**; delete their folder there too.)
 - **Free projects pause** after about a week with no activity. If the app stops
   working, open the Supabase dashboard and click **Restore project**.
+
+## Update: security hardening (run once)
+
+If you set up the database before this section existed, open **SQL Editor → New query**,
+paste in all of `supabase/hardening.sql` and click **Run**. It adds sanity limits to
+sessions, calculates points on the server so they can't be faked, stops sessions from
+being back-dated, and only allows profile photos from your own storage. Existing data is
+untouched. (New projects get this automatically from `schema.sql`.)
+
+## Make password-reset links work on any device
+
+By default the reset link only works in the same browser that asked for it — which
+breaks if someone requests it from the installed app and opens the email in Safari.
+Fix it by changing the email template:
+
+1. Open **Authentication → Emails → Templates → Reset Password**.
+2. Replace the link in the message body with:
+
+   ```html
+   <a href="{{ .SiteURL }}?token_hash={{ .TokenHash }}&type=recovery#reset">Reset your password</a>
+   ```
+
+3. Save. Make sure **Site URL** (Authentication → URL Configuration) is exactly
+   `https://hangboarding.github.io/bluies-finest/` including the trailing slash.

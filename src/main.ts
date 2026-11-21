@@ -1,11 +1,12 @@
+import '@fontsource-variable/sora';
 import './styles.css';
 import './app.css';
-import { $, $$, toast } from './lib/ui';
+import { $, $$, toast, esc } from './lib/ui';
 import { ic, hydrateIcons, setIconMode } from './lib/icons';
 import { state, initStore, loadUserData } from './lib/state';
 import { setSound } from './lib/timer';
 import { renderAuth } from './views/auth';
-import { renderHang, hangBusy } from './views/hang';
+import { renderHang, hangBusy, hangPending } from './views/hang';
 import { renderFeed } from './views/feed';
 import { renderRanks } from './views/ranks';
 import { renderStats } from './views/stats';
@@ -50,7 +51,7 @@ export async function go(page: Page) {
   }
   scrollTo(0, 0);
   if (page !== 'hang' || !$('#view-hang').childElementCount) await PAGES.find(p => p.id === page)!.render($(`#view-${page}`));
-  pageTour(page);
+  if (current === page) pageTour(page); // user may have switched tabs while this page loaded
 }
 
 function shell() {
@@ -62,16 +63,42 @@ function shell() {
   $$('#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v as Page)));
 }
 
+function errorScreen(msg: string) {
+  $('#app').innerHTML = `<main><div class="auth"><img src="${import.meta.env.BASE_URL}logo.svg" alt="" class="auth-logo" width="72" height="72">
+    <h2 style="margin-top:16px">Couldn't load your data</h2><p class="sub">${esc(msg)}</p>
+    <button class="big" id="retry">Try again</button><div class="links"><a id="out">Log out</a></div></div></main>`;
+  $('#retry').onclick = () => location.reload();
+  $('#out').onclick = async () => { await state.store.signOut().catch(() => {}); location.reload(); };
+}
+
+/** Password-reset emails link here with ?token_hash=…&type=recovery. Exchanging the hash works
+ *  in any browser (unlike the PKCE ?code= flow, which only works where the reset was requested). */
+async function handleRecoveryLink() {
+  const q = new URLSearchParams(location.search), th = q.get('token_hash');
+  if (!th || q.get('type') !== 'recovery') return;
+  history.replaceState(null, '', location.pathname + '#reset');
+  const client = (state.store as any).client;
+  if (!client) return;
+  const { error } = await client.auth.verifyOtp({ token_hash: th, type: 'recovery' });
+  if (error) toast('That reset link has expired or was already used — request a new one', 6000);
+}
+
 async function boot() {
-  try { await initStore(); } catch (e: any) { $('#app').innerHTML = `<p class="sub center" style="padding:40px">Couldn't start: ${e.message}</p>`; return; }
+  try { await initStore(); } catch (e: any) { errorScreen(e.message ?? 'Unknown error'); return; }
+  await handleRecoveryLink();
   state.store.onAuthChange(() => location.reload());
   if (!state.store.currentUserId()) {
     applyTheme();
     $('#app').innerHTML = '<main id="auth"></main>';
-    renderAuth($('#auth'), location.hash === '#reset' ? 'reset' : 'in');
+    if (location.hash === '#reset') {
+      history.replaceState(null, '', location.pathname);
+      toast('That reset link has expired or was opened in another browser — request a new one', 6000);
+      renderAuth($('#auth'), 'forgot');
+    } else renderAuth($('#auth'), 'in');
     return;
   }
-  try { await loadUserData(); } catch (e: any) { toast(e.message ?? 'Could not load your data', 5000); }
+  // Never continue with half-loaded data: saving default settings over the real ones would wipe them.
+  try { await loadUserData(); } catch (e: any) { errorScreen(e.message ?? 'Check your connection and try again.'); return; }
   applyTheme();
   if (location.hash === '#reset') { $('#app').innerHTML = '<main id="auth"></main>'; renderAuth($('#auth'), 'reset'); return; }
   shell();
@@ -79,5 +106,15 @@ async function boot() {
   await go('hang');
 }
 
-registerSW({ immediate: true });
+// App updates: download quietly, then switch to the new version only when the user isn't mid-session.
+const updateSW = registerSW({
+  onNeedRefresh() {
+    const apply = () => { if (hangBusy() || hangPending()) setTimeout(apply, 15_000); else updateSW(true); };
+    apply();
+  },
+  onRegisteredSW(_url, reg) { if (reg) setInterval(() => reg.update().catch(() => {}), 60 * 60e3); },
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') navigator.serviceWorker?.getRegistration().then(r => r?.update()).catch(() => {});
+});
 boot();

@@ -57,7 +57,9 @@ document.addEventListener('click', e => { if (!(e.target as HTMLElement).closest
 export const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('') || '?';
 export function avatar(p: { name: string; avatarUrl?: string | null } | undefined, cls = 'av') {
   if (!p) return `<span class="${cls}">?</span>`;
-  return p.avatarUrl
+  // Only plain https (or local demo data:) URLs with no characters that could break out of CSS url('…').
+  const safe = !!p.avatarUrl && /^(https:\/\/|data:image\/(png|jpeg|webp);base64,)[^'"()\\\s<>]+$/.test(p.avatarUrl);
+  return safe
     ? `<span class="${cls}" style="background-image:url('${esc(p.avatarUrl)}')"></span>`
     : `<span class="${cls}" style="background:${colourFor(p.name)}">${esc(initials(p.name))}</span>`;
 }

@@ -19,13 +19,16 @@ export interface Settings {
   flags: Record<string, any>;                       // achievement event flags/counters
   savedAt?: number;                                 // ms timestamp of last change, newest copy wins
   owner?: string;                                   // user id the local copy belongs to
+  iconsV?: number;                                  // settings migration marker
+  /** Optional personal details. Private: stored with the user's private settings, never shown to others. */
+  about?: { age?: number | null; heightCm?: number | null; location?: string };
 }
 
 export const DEFAULT_SETTINGS = (): Settings => ({
   proto: 'max', vals: {}, chips: {},
   boards: { list: [...BUILTIN_BOARDS], def: BUILTIN_BOARDS[0]!, custom: [] },
   customProtos: {},
-  prefs: { sound: true, vib: true, icons: 'emoji', pgrip: true, psetup: true, mode: 'dark', acc: '#3ddc84' },
+  prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#3ddc84' },
   panels: { extras: false }, toursSeen: {}, flags: {},
 });
 
@@ -37,6 +40,8 @@ export const state = {
   priv: { bodyweightKg: null, settings: {} } as PrivateData,
   settings: DEFAULT_SETTINGS(),
   social: { heartsReceived: 0, commentsGiven: 0 },
+  /** True once the signed-in user's data has fully loaded; gates all settings writes. */
+  loaded: false,
 };
 
 export async function initStore() {
@@ -71,24 +76,32 @@ export async function loadUserData() {
   merged.boards = { ...d.boards, ...(newer.boards ?? older.boards ?? {}) };
   merged.panels = { ...d.panels, ...(older.panels ?? {}), ...(newer.panels ?? {}) };
   merged.owner = id;
-  if (localNewer) { state.settings = merged; flushSettings(); }
+  merged.about = { ...(older.about ?? {}), ...(newer.about ?? {}) };
+  // One-time migration: flat icons became the default; earlier accounts saved "emoji".
+  const migrate = (merged.iconsV ?? 0) < 1;
+  if (migrate) { merged.prefs.icons = 'flat'; merged.iconsV = 1; }
   state.settings = merged;
   state.sessions = sessions;
   state.social = social;
+  state.loaded = true;
+  if (localNewer || migrate) saveSettings();
 }
 
 let saveTimer: number | undefined;
-/** Persist settings locally right away and to the backend shortly after. */
+/** Persist settings locally right away and to the backend shortly after.
+ *  Does nothing until the user's real settings have loaded, so defaults can never overwrite them. */
 export function saveSettings() {
+  if (!state.loaded) return;
   state.settings.savedAt = Date.now();
   try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch { /* storage blocked */ }
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(flushSettings, 800);
 }
-/** Upload settings now (also used when the page is being hidden or closed). */
-export function flushSettings() {
-  clearTimeout(saveTimer);
-  if (state.store?.currentUserId()) return state.store.savePrivate({ settings: state.settings as any }).catch(() => { /* retried on next change */ });
+/** Upload pending settings now (also used when the page is being hidden or closed). */
+export async function flushSettings() {
+  clearTimeout(saveTimer); saveTimer = undefined;
+  if (!state.loaded || !state.store?.currentUserId()) return;
+  try { await state.store.savePrivate({ settings: state.settings as any }); } catch { /* retried on next change */ }
 }
 addEventListener('pagehide', () => { if (saveTimer) flushSettings(); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flushSettings(); });

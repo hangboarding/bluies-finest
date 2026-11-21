@@ -1,7 +1,7 @@
 import { $, $$, esc, sheet, confirmSheet, toast, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
-import { weekStreak, bestDayRun, dayKey, weekStart, sessionPoints, CATEGORIES } from '../lib/scoring';
+import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, CATEGORIES } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
 import type { Session } from '../lib/types';
 
@@ -40,7 +40,7 @@ export function renderStats(root: HTMLElement) {
 // ---------- consistency ----------
 function range(): [Date, number, string] {
   const t = new Date(); t.setHours(0, 0, 0, 0);
-  if (hs === 'w') { const st = new Date(+weekStart(t) + ho * 7 * DAY), en = new Date(+st + 6 * DAY); return [st, 7, `${st.getDate()} ${MON[st.getMonth()]} – ${en.getDate()} ${MON[en.getMonth()]}`]; }
+  if (hs === 'w') { const st = addDays(weekStart(t), ho * 7), en = addDays(st, 6); return [st, 7, `${st.getDate()} ${MON[st.getMonth()]} – ${en.getDate()} ${MON[en.getMonth()]}`]; }
   if (hs === 'm') { const st = new Date(t.getFullYear(), t.getMonth() + ho, 1); return [st, new Date(st.getFullYear(), st.getMonth() + 1, 0).getDate(), `${MON[st.getMonth()]} ${st.getFullYear()}`]; }
   if (hs === 'q') { const st = new Date(t.getFullYear(), t.getMonth() - 2 + ho * 3, 1), en = new Date(st.getFullYear(), st.getMonth() + 3, 0); return [st, Math.round((+en - +st) / DAY) + 1, `${MON[st.getMonth()]} – ${MON[en.getMonth()]} ${en.getFullYear()}`]; }
   const st = new Date(t.getFullYear() + ho, 0, 1); return [st, Math.round((+new Date(st.getFullYear() + 1, 0, 1) - +st) / DAY), `${st.getFullYear()}`];
@@ -63,10 +63,10 @@ function heat() {
   h.innerHTML = html; $('#hLbl').textContent = lbl; ($('#hNext') as HTMLButtonElement).disabled = ho >= 0;
   if (hs === 'y') {
     let m = '', last = -1;
-    for (let c = 0; c < cols; c++) { const d = new Date(+st + (c * 7 - lead) * DAY), mo = d.getMonth(); m += `<span>${c === 0 || (mo !== last && d.getFullYear() === st.getFullYear()) ? MON[mo] : ''}</span>`; last = mo; }
+    for (let c = 0; c < cols; c++) { const d = addDays(st, c * 7 - lead), mo = d.getMonth(); m += `<span>${c === 0 || (mo !== last && d.getFullYear() === st.getFullYear()) ? MON[mo] : ''}</span>`; last = mo; }
     $('#ymon').innerHTML = m; box.scrollLeft = ho < 0 ? 0 : box.scrollWidth;
   }
-  const elapsed = Math.max(1, Math.min(n, Math.floor((+today - +st) / DAY) + 1));
+  const elapsed = Math.max(1, Math.min(n, Math.round((+today - +st) / DAY) + 1));
   $('#hsum').innerHTML = `<span><b>${count}</b> sessions</span><span><b>${(count / Math.max(1, elapsed / 7)).toFixed(1)}</b>/week</span><span>Best run <b>${bestDayRun(inRange)}</b> days</span>`;
 }
 document.addEventListener('keydown', e => {
@@ -114,12 +114,25 @@ async function editSession(s: Session) {
     buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Save', kind: 'primary' }], onMount: e => { el = e; },
   });
   if (i !== 1) return;
+  const LIM: Record<string, [number, number]> = { edgeMm: [3, 60], liftKg: [0, 200], addedKg: [0, 150], assistKg: [0, 150], rpe: [1, 10] };
   const patch: Record<string, any> = {};
-  $$<HTMLInputElement>('[data-f]', el).forEach(inp => { patch[inp.dataset.f!] = inp.type === 'number' ? (inp.value === '' ? null : +inp.value) : inp.value.trim(); });
-  const bw = state.priv.bodyweightKg;
-  if (s.mode === 'hang' && bw) patch.loadPct = Math.round(((bw + patch.addedKg - patch.assistKg) / bw) * 1000) / 10;
-  Object.assign(s, patch); patch.points = s.points = sessionPoints(s);
-  try { await state.store.updateSession(s.id, patch); toast('Session updated'); renderStats($('#view-stats')); } catch (e: any) { toast(e.message); }
+  for (const inp of $$<HTMLInputElement>('[data-f]', el)) {
+    const k = inp.dataset.f!;
+    if (inp.type !== 'number') { patch[k] = inp.value.trim().slice(0, 2000); continue; }
+    if (inp.value.trim() === '') { if (k === 'rpe') patch.rpe = null; continue; } // leave other blanks unchanged
+    const n = +inp.value, [lo, hi] = LIM[k] ?? [0, 9999];
+    if (!isFinite(n) || n < lo || n > hi) return toast(`Check that value — must be ${lo}–${hi}`);
+    patch[k] = n;
+  }
+  // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have).
+  const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;
+  if (s.mode === 'hang' && bw && (next.addedKg !== s.addedKg || next.assistKg !== s.assistKg)) patch.loadPct = next.loadPct = loadPct(bw, next.addedKg, next.assistKg);
+  patch.points = next.points = sessionPoints(next);
+  try {
+    await state.store.updateSession(s.id, patch);
+    Object.assign(s, patch); // apply locally only once the save succeeded
+    toast('Session updated'); renderStats($('#view-stats'));
+  } catch (e: any) { toast(e.message ?? 'Could not save'); }
 }
 
 // ---------- chart ----------
@@ -142,8 +155,8 @@ function drawChartSel() {
 }
 function chart() {
   const k = ($('#chartSel') as HTMLSelectElement).value, [, unit, f] = CHARTS[k]!, mine = mySessions();
-  const ws = +weekStart(new Date()), weeks = Array.from({ length: 8 }, (_, i) => ws - (7 - i) * 7 * DAY);
-  const vals = weeks.map(w => f(mine.filter(s => { const t = +new Date(s.createdAt); return t >= w && t < w + 7 * DAY; })));
+  const ws = weekStart(new Date()), weeks = Array.from({ length: 8 }, (_, i) => +addDays(ws, -(7 - i) * 7));
+  const vals = weeks.map(w => { const end = +addDays(w, 7); return f(mine.filter(s => { const t = +new Date(s.createdAt); return t >= w && t < end; })); });
   const nums = vals.filter((v): v is number => v != null), mx = Math.max(1, ...nums.map(Math.abs));
   $('#chart').innerHTML = vals.map((v, i) => { const d = new Date(weeks[i]!); return `<div style="height:${v == null ? 0 : Math.max(3, (Math.abs(v) / mx) * 100)}%">${v != null ? `<b>${v}${unit}</b>` : ''}<span>${d.getDate()} ${MON[d.getMonth()]}</span></div>`; }).join('');
   const first = nums[0], last = nums[nums.length - 1];
@@ -158,19 +171,20 @@ function drawAch() {
     const nx = a.thresholds[lv], prev = lv ? a.thresholds[lv - 1]! : (a.lower ? a.thresholds[0]! * 1.5 : 0);
     const prog = nx == null ? 1 : v == null ? 0 : Math.max(0, Math.min(1, (a.lower ? prev - v : v - prev) / Math.abs(nx - prev)));
     const col = TIER_COLOURS[Math.max(0, lv - 1)];
-    return `<div class="a ${lv ? 'got' : 'lock'}" data-a="${k}" style="--tc:${col}" role="button" tabindex="0"><b>${a.icon}</b>${lv ? `<span class="lv">${TIER_NAMES[lv - 1]}</span>` : ''}${a.name}
+    return `<div class="a ${lv ? 'got' : 'lock'}" data-a="${k}" style="--tc:${col}" role="button" tabindex="0"><b>${ic(a.icon)}</b>${lv ? `<span class="lv">${TIER_NAMES[lv - 1]}</span>` : ''}${a.name}
       <small>${nx != null ? (v == null ? `– / ${nx}` : a.lower ? `${v} → ${nx}` : `${v} / ${nx}`) : '👑 maxed'}</small>${nx != null ? `<div class="bar"><i style="width:${prog * 100}%;background:${TIER_COLOURS[lv]}"></i></div>` : ''}
       <div class="tier">${a.thresholds.map((_, j) => `<i class="${j < lv ? 'on' : ''}"></i>`).join('')}</div></div>`;
   }).join('');
+  hydrateIcons($('#ach'));
   $('#achN').textContent = `${got}/${TIERED.length * 10} tiers`;
   const og = ONE_OFFS.filter(o => !o.secret && o.got(c)).length, sg = ONE_OFFS.filter(o => o.secret && o.got(c)).length;
   $('#secN').textContent = `${og}/${ONE_OFFS.filter(o => !o.secret).length} one-offs · ${sg}/${ONE_OFFS.filter(o => o.secret).length} secrets`;
   $('#ach1').innerHTML = ONE_OFFS.map((o, k) => { const g = o.got(c); return o.secret && !g
-    ? `<div class="a secret" data-o="${k}" role="button" tabindex="0"><b>❓</b>???<small>Hidden</small></div>`
-    : `<div class="a ${g ? 'got' : 'lock'}" data-o="${k}" style="--tc:${o.secret ? 'var(--blue)' : 'var(--gold)'}" role="button" tabindex="0"><b>${o.icon}</b>${o.name}<small>${g ? '✓ Unlocked' : 'Locked'}</small></div>`; }).join('');
+    ? `<div class="a secret" data-o="${k}" role="button" tabindex="0"><b>${ic('❓')}</b>???<small>Hidden</small></div>`
+    : `<div class="a ${g ? 'got' : 'lock'}" data-o="${k}" style="--tc:${o.secret ? 'var(--blue)' : 'var(--gold)'}" role="button" tabindex="0"><b>${ic(o.icon)}</b>${o.name}<small>${g ? '✓ Unlocked' : 'Locked'}</small></div>`; }).join('');
 }
 
-function info(html: string) { sheet({ body: `<div class="ainfo">${html}</div>` }); }
+function info(html: string) { sheet({ body: `<div class="ainfo">${html}</div>` }); hydrateIcons(document.querySelector(".ainfo")!); }
 
 async function onClick(e: MouseEvent) {
   const t = e.target as HTMLElement;
@@ -189,7 +203,7 @@ async function onClick(e: MouseEvent) {
   const a = t.closest('.a') as HTMLElement | null;
   if (a?.dataset.a) {
     const x = TIERED[+a.dataset.a]!, c = achievementCtx(), v = x.value(c), lv = tierOf(v, x.thresholds, x.lower), nx = x.thresholds[lv];
-    info(`<div class="big-ic">${x.icon}</div><h2>${x.name}</h2><p class="sub">${x.desc}</p>
+    info(`<div class="big-ic" style="color:${lv ? TIER_COLOURS[lv - 1] : 'var(--mute)'}">${ic(x.icon)}</div><h2>${x.name}</h2><p class="sub">${x.desc}</p>
       <div style="font-weight:800;color:${lv ? TIER_COLOURS[lv - 1] : 'var(--mute)'}">${lv ? TIER_NAMES[lv - 1] : 'Not started'}${v != null ? ` · you're at ${v}` : ''}</div>
       ${nx != null ? `<p class="sub" style="margin:4px 0 12px">Next: <b style="color:${TIER_COLOURS[lv]}">${TIER_NAMES[lv]}</b> at ${x.lower ? '≤ ' : ''}${nx}${v != null ? ` (${Math.round(Math.abs(nx - v) * 10) / 10} to go)` : ''}</p>` : '<p class="sub">👑 GOAT status. Nothing left to prove.</p>'}
       <button class="linkbtn" data-tiers="${a.dataset.a}">${ic('help')} See all tier targets</button>`);
@@ -198,8 +212,8 @@ async function onClick(e: MouseEvent) {
   }
   if (a?.dataset.o) {
     const o = ONE_OFFS[+a.dataset.o]!, g = o.got(achievementCtx());
-    info(o.secret && !g ? `<div class="big-ic">❓</div><h2>Secret achievement</h2><p class="sub">Hint: <i>${o.hint}</i></p>`
-      : `<div class="big-ic" style="${g ? '' : 'filter:grayscale(1);opacity:.4'}">${o.icon}</div><h2>${o.name}</h2><p class="sub">${o.desc}</p><p style="font-weight:700">${g ? (o.secret ? '🤫 Secret found!' : '✓ Unlocked') : '🔒 Not yet'}</p>`);
+    info(o.secret && !g ? `<div class="big-ic">${ic('❓')}</div><h2>Secret achievement</h2><p class="sub">Hint: <i>${o.hint}</i></p>`
+      : `<div class="big-ic" style="${g ? '' : 'filter:grayscale(1);opacity:.4'}">${ic(o.icon)}</div><h2>${o.name}</h2><p class="sub">${o.desc}</p><p style="font-weight:700">${g ? (o.secret ? '🤫 Secret found!' : '✓ Unlocked') : '🔒 Not yet'}</p>`);
     return;
   }
   const row = t.closest('#recent .lrow') as HTMLElement | null;

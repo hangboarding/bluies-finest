@@ -34,7 +34,7 @@ export function renderHang(root: HTMLElement) {
     </div>
     <div class="card"><div class="params" id="params"></div></div>
     <div class="feelrow"><label class="f">${ic('feel')} Pre-session feel</label>
-      <div class="chips feel g g8" data-k="feel">${FEELS.map(f => `<span class="chip" data-v="${f}">${f}</span>`).join('')}</div></div>
+      <div class="chips feel g g8" data-k="feel">${FEELS.map(f => `<span class="chip" data-v="${f}" aria-label="Feeling ${f}">${ic(f)}</span>`).join('')}</div></div>
     <details class="card panel ${S.prefs.pgrip ? '' : 'hide'}" data-p="grip" open><summary>${ic('grip')} Grip<small id="gripSum"></small></summary><br>
       <label class="f">${ic('grip')} Grip type</label>
       <div class="chips g g5 tile" data-k="grip">${GRIPS.map(([n, k]) => `<span class="chip" data-v="${n}"><em>${ic(k)}</em>${n === 'Open' ? 'Open' : n}</span>`).join('')}</div>
@@ -65,7 +65,7 @@ export function renderHang(root: HTMLElement) {
   </div></section>
 
   <section id="v-done" class="hide">
-    <div class="hero"><div class="hero-ic">${ic('mountain', 'emoji')}</div><h2 id="cheer"></h2><p id="cheer2"></p></div>
+    <div class="hero"><div class="hero-ic">${ic('mountain')}</div><h2 id="cheer"></h2><p id="cheer2"></p></div>
     <div class="card">
       <div class="stats" style="margin:0"><div class="stat"><b id="sTime"></b>under tension</div><div class="stat"><b id="sSets"></b>full hangs</div><div class="stat"><b id="sPts"></b>points</div></div>
       <p class="dnote" id="res"></p>
@@ -120,7 +120,21 @@ function setChip(k: string, v: string | undefined) {
   chips.forEach(c => c.classList.toggle('on', c === hit));
 }
 
-function readInputs() { for (const f of FIELDS) { const i = $(`#i-${f.k}`) as HTMLInputElement | null; if (i) (val as any)[f.k] = Math.max(0, +i.value || 0); } }
+/** Sensible limits per setting — stops typos (and gaming) like 0s hangs or 10,000 sets. */
+const LIMITS: Record<string, [number, number]> = {
+  hang: [1, 300], rest: [0, 900], sets: [1, 50], reps: [1, 30], setRest: [0, 1800], edge: [3, 60],
+  add: [0, 150], rem: [0, 150], lift: [0, 200], effort: [5, 100], sw: [0, 120], ready: [0, 60],
+};
+function readInputs() {
+  for (const f of FIELDS) {
+    const i = $(`#i-${f.k}`) as HTMLInputElement | null; if (!i) continue;
+    const [lo, hi] = LIMITS[f.k] ?? [0, 9999];
+    const n = Math.min(hi, Math.max(lo, +String(i.value).replace(',', '.') || 0));
+    const v = f.step < 1 ? Math.round(n * 2) / 2 : Math.round(n);
+    (val as any)[f.k] = v;
+    if (+i.value !== v) i.value = String(v);
+  }
+}
 
 function summaries() {
   const b = ($('#board') as HTMLSelectElement).value;
@@ -227,38 +241,47 @@ function wireSetup(root: HTMLElement) {
 
   $('#start').addEventListener('click', start);
   $('#pause').addEventListener('click', togglePause);
-  $('#skip').addEventListener('click', () => timer?.skip());
-  $('#letgo').addEventListener('click', () => { if (!timer) return; const h = timer.letGo(); beep(440, 0.3); toast(`Held ${h}s — logged`); });
+  $('#skip').addEventListener('click', () => { unlockAudio(); timer?.skip(); });
+  $('#letgo').addEventListener('click', () => { if (!timer) return; unlockAudio(); beep(440, 0.3); const h = timer.letGo(); toast(`Held ${h}s — logged`); });
   $('#quit').addEventListener('click', quit);
   $('#edit').addEventListener('click', () => { if (!timer) return; timer.pause(); timer.stop(); editing = true; keepAwake(false); show('setup'); $('#start').innerHTML = `${ic('replay')} Resume with changes`; hydrateIcons($('#start')); toast('Tweak and resume — completed hangs are kept'); });
   $('#setlbl').addEventListener('click', () => { if (timer?.step.p === 'ready' && bumpDaily(state.settings.flags, 'chalk') >= 10) { state.settings.flags.chalkBucket = true; saveSettings(); } });
   $('#rpe').addEventListener('input', rpeUpd);
   $('#saveSess').addEventListener('click', saveSession);
-  root.querySelector('[data-skip]')!.addEventListener('click', async () => { if (await confirmSheet("Don't save?", 'This session will be discarded.', 'Discard', 'Keep it')) { show('setup'); } });
+  root.querySelector('[data-skip]')!.addEventListener('click', async () => { if (await confirmSheet("Don't save?", 'This session will be discarded.', 'Discard', 'Keep it')) { pending = null; show('setup'); } });
 }
 
 function show(which: 'setup' | 'timer' | 'done') {
   for (const k of ['setup', 'timer', 'done']) $(`#v-${k}`).classList.toggle('hide', k !== which);
   scrollTo(0, 0);
 }
-export const hangBusy = () => !!timer && !$('#v-timer').classList.contains('hide');
+export const hangBusy = () => !!timer && !$('#v-timer')?.classList.contains('hide');
+/** A finished session is waiting on the done screen to be saved. */
+export const hangPending = () => !!pending;
 
 // ---------------- timer ----------------
 const COL: Record<Step['p'], string> = { ready: 'var(--gold)', hang: 'var(--acc)', rest: 'var(--blue)', sw: 'var(--gold)' };
 
 function start() {
   unlockAudio(); keepAwake(true); persist();
-  const prevLog = editing && timer ? timer.log : [];
-  const doneHangs = editing && timer ? timer.completedHangs() : 0;
+  const resuming = editing && !!timer;
+  const prevLog = resuming ? timer!.log : [];
+  // Every hang already done is in the log (even across several edits), so skip that many.
+  const doneHangs = prevLog.length;
   let steps = buildSteps(val);
-  if (editing && doneHangs > 0) {
+  if (resuming && doneHangs > 0) {
     let seen = 0; const i = steps.findIndex(s => s.p === 'hang' && seen++ === doneHangs);
+    if (i === -1) {
+      // the edited plan has no hangs left — finish with what's been done
+      editing = false; $('#start').innerHTML = `${ic('play')} Start session`; hydrateIcons($('#start'));
+      timer = null; done(prevLog); return;
+    }
     const lead = val.ready > 0 ? 1 : 0;
-    steps = i > 0 ? [...steps.slice(0, lead), ...steps.slice(i)] : steps;
+    steps = [...steps.slice(0, lead), ...steps.slice(i)];
   }
-  if (!editing) startedAt = Date.now();
+  if (!resuming) startedAt = Date.now();
   editing = false; $('#start').innerHTML = `${ic('play')} Start session`; hydrateIcons($('#start'));
-  if (!steps.length) { toast('Add at least one set'); return; }
+  if (!steps.some(s => s.p === 'hang')) { toast('Add at least one set'); return; }
   timer?.stop();
   timer = new SessionTimer(steps, { onTick: render, onPhase: phase, onWarn: () => beep(880), onDone: done });
   timer.log = prevLog;
@@ -286,6 +309,7 @@ function render(s: Step, left: number) {
 }
 function togglePause() {
   if (!timer) return;
+  unlockAudio();
   if (timer.paused) { timer.resume(); if (timer.maxPauseMs >= 30 * 60e3) { state.settings.flags.slowBurn = true; saveSettings(); } }
   else timer.pause();
   $('#pause').innerHTML = timer.paused ? `${ic('play')} Resume` : `${ic('pause')} Pause`; hydrateIcons($('#pause'));
@@ -316,10 +340,14 @@ function done(log: HangResult[]) {
   const bw = state.priv.bodyweightKg;
   const lp = val.mode === 'lift' ? null : loadPct(bw, val.add, val.rem);
   const mine = mySessions();
-  const sameEdge = mine.filter(s => s.mode === val.mode && s.edgeMm === val.edge && s.fullHangs > 0);
-  const isPb = full > 0 && (val.mode === 'lift'
-    ? sameEdge.every(s => s.liftKg < val.lift) && sameEdge.length > 0
-    : lp != null && sameEdge.length > 0 && sameEdge.every(s => (s.loadPct ?? 0) < lp));
+  // A PB only counts against genuinely comparable sessions: same mode, edge, hands
+  // (one-arm vs two) and a similar hang length (within ±3s).
+  const comparable = mine.filter(s => s.mode === val.mode && s.edgeMm === val.edge && s.fullHangs > 0
+    && (s.hands === 'both') === (val.hands === 'both') && Math.abs(s.hang - val.hang) <= 3
+    && (val.mode === 'lift' || s.loadPct != null)); // sessions logged before bodyweight was set can't be compared
+  const isPb = full > 0 && comparable.length > 0 && (val.mode === 'lift'
+    ? comparable.every(s => s.liftKg < val.lift)
+    : lp != null && comparable.every(s => (s.loadPct ?? 0) < lp));
   pending = {
     protocolKey: cur, protocolName: allProtos()[cur]!.n, mode: val.mode, hang: val.hang, rest: val.rest, sets: val.sets, reps: val.reps, setRest: val.setRest,
     edgeMm: val.edge, addedKg: val.mode === 'lift' ? 0 : val.add, assistKg: val.mode === 'lift' ? 0 : val.rem, liftKg: val.mode === 'lift' ? val.lift : 0, effortPct: val.effort,
@@ -334,7 +362,7 @@ function done(log: HangResult[]) {
     + (val.hands === 'LR' ? ` · Left ${lr('L')}s / Right ${lr('R')}s` : '') + (isPb ? ' · 🏅 New personal best!' : '')
     + (bw == null && val.mode !== 'lift' ? ' · Add your bodyweight in Profile for fairer scoring' : '');
   const unlocked = diffUnlocks(achievementCtx(), achievementCtx([{ ...pending, id: 'x', userId: '', createdAt: new Date().toISOString() } as any, ...mine]));
-  $('#unlocks').innerHTML = unlocked.length ? 'Unlocked: ' + unlocked.map(esc).join(' &nbsp;·&nbsp; ') : '';
+  $('#unlocks').innerHTML = unlocked.length ? 'Unlocked: ' + unlocked.map(u => `<span class="unl">${ic(u.icon)} ${esc(u.text)}</span>`).join(' &nbsp;·&nbsp; ') : ''; hydrateIcons($('#unlocks'));
   ($('#rpe') as HTMLInputElement).value = '7'; rpeUpd(); ($('#note') as HTMLInputElement).value = '';
   show('done'); fanfare(); vibrate([100, 50, 100, 50, 300]); confetti();
 }

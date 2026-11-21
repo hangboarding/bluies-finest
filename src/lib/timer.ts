@@ -26,7 +26,7 @@ export const setSound = (on: boolean) => { soundOn = on; };
 export function unlockAudio() {
   try {
     ac ??= new (window.AudioContext || (window as any).webkitAudioContext)();
-    if (ac.state === 'suspended') ac.resume();
+    if (ac.state !== 'running') ac.resume(); // iOS can leave it 'suspended' or 'interrupted' after a call/lock
     const b = ac.createBuffer(1, 1, 22050), s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start(0);
   } catch { /* no audio available */ }
 }
@@ -48,7 +48,11 @@ export async function keepAwake(on: boolean) {
     if (!on && lock) { await lock.release(); lock = null; }
   } catch { /* denied or unsupported — the timer still works */ }
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wantLock) keepAwake(true); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (wantLock) keepAwake(true);
+  if (ac && ac.state !== 'running') ac.resume().catch(() => {});
+});
 
 // ---------- engine ----------
 export interface TimerHooks {
@@ -67,8 +71,9 @@ export class SessionTimer {
   private vis = () => this.tick();
   private enter() { this.endAt = performance.now() + this.step.t * 1000; this.lastLeft = -1; this.hooks.onPhase(this.step, this.idx); this.tick(); }
   left() { return Math.max(0, Math.ceil(((this.paused ? this.remaining : this.endAt - performance.now())) / 1000 - 1e-9)); }
+  private done = false;
   private tick() {
-    if (this.paused || !this.steps.length) return;
+    if (this.paused || this.done || this.idx >= this.steps.length) return;
     // catch up on any phases that ended while we were throttled
     while (performance.now() >= this.endAt) { if (!this.advance(true)) return; }
     const l = this.left();
@@ -87,21 +92,34 @@ export class SessionTimer {
     this.idx++;
     if (this.idx >= this.steps.length) { this.finish(); return false; }
     this.endAt = performance.now() - overshoot + this.step.t * 1000; this.lastLeft = -1;
+    if (this.paused) this.remaining = this.step.t * 1000; // a skip while paused starts the next step fresh
     this.hooks.onPhase(this.step, this.idx);
     return true;
   }
+  /** Seconds held so far on the current hang (respects pause). */
+  private elapsed() { const c = this.step, rem = this.paused ? this.remaining : this.endAt - performance.now(); return Math.min(c.t, Math.max(0, Math.round(c.t - rem / 1000))); }
+  /** Log the current hang as cut short and move on. */
+  private cutShort() {
+    const c = this.step, held = this.elapsed();
+    this.log.push({ set: c.set!, rep: c.rep!, hand: c.hand!, target: c.t, held, full: held >= c.t }); c.logged = true;
+    return held;
+  }
   letGo() {
+    if (this.done) return 0;
     const c = this.step; if (c.p !== 'hang' || c.logged) return 0;
-    const held = Math.max(0, Math.round(c.t - (this.endAt - performance.now()) / 1000));
-    this.log.push({ set: c.set!, rep: c.rep!, hand: c.hand!, target: c.t, held: Math.min(held, c.t), full: held >= c.t }); c.logged = true;
+    const held = this.cutShort();
     this.advance(false); this.tick(); return held;
   }
-  skip() { this.advance(false); this.tick(); }
+  /** Skipping a hang only credits the time actually held — it never counts as a free full hang. */
+  skip() {
+    if (this.done) return;
+    if (this.step.p === 'hang' && !this.step.logged) this.cutShort();
+    this.advance(false); this.tick();
+  }
   pause() { if (this.paused) return; this.remaining = this.endAt - performance.now(); this.paused = true; this.pausedAt = Date.now(); }
   resume() { if (!this.paused) return; const p = Date.now() - this.pausedAt; this.pausedMs += p; this.maxPauseMs = Math.max(this.maxPauseMs, p); this.endAt = performance.now() + this.remaining; this.paused = false; this.tick(); }
   stop() { clearInterval(this.h); document.removeEventListener('visibilitychange', this.vis); }
-  private finish() { this.stop(); this.hooks.onDone(this.log); }
-  completedHangs() { return this.steps.slice(0, this.idx).filter(s => s.p === 'hang').length; }
+  private finish() { this.done = true; this.stop(); this.hooks.onDone(this.log); }
 }
 
 export const handsLabel = (h: Hands) => ({ both: 'Both', L: 'Left', R: 'Right', LR: 'L then R' }[h]);

@@ -7,8 +7,9 @@ import { bumpDaily } from '../lib/achievements';
 let cat = 'overall';
 
 export function renderRanks(root: HTMLElement) {
-  if (bumpDaily(state.settings.flags, 'peek') >= 20) state.settings.flags.peepingTom = true;
-  saveSettings();
+  const F = state.settings.flags, peeks = bumpDaily(F, 'peek');
+  if (peeks >= 20 && !F.peepingTom) { F.peepingTom = true; saveSettings(); }
+  else if (peeks % 5 === 0) saveSettings(); // persist the counter occasionally, not on every visit
   const groups = [...new Set(CATEGORIES.map(c => c.group))];
   root.innerHTML = `<div class="card">
     <label class="f">Category</label>
@@ -37,10 +38,11 @@ function draw() {
   $('#catDesc').innerHTML = `${ic(c.icon)} ${esc(c.desc)}`;
   const me = state.me?.id;
   const nm = (r: (typeof rows)[0]) => esc(r.p.name) + (r.p.id === me ? ' (you)' : '');
-  const pod = (r: (typeof rows)[0] | undefined, k: 1 | 2 | 3) => r ? `<div class="pod p${k}">${k === 1 ? '<span class="crown">👑</span>' : ''}${avatar(r.p, 'ph')}<b>${nm(r)}</b>
+  const pod = (r: (typeof rows)[0] | undefined, k: 1 | 2 | 3) => r ? `<div class="pod p${k}">${k === 1 ? `<span class="crown">${ic('crown')}</span>` : ''}${avatar(r.p, 'ph')}<b>${nm(r)}</b>
       <div class="sub pv">${fmt(r.v!, c.unit)}</div><div class="blk">${k}</div></div>` : `<div class="pod p${k}"></div>`;
   $('#podium').innerHTML = rows.length ? pod(rows[1], 2) + pod(rows[0], 1) + pod(rows[2], 3) : '';
-  $('#champ').textContent = rows[0] ? `👑 ${rows[0].p.id === me ? 'You rule' : rows[0].p.name + ' rules'} ${c.name.toLowerCase()} — ${fmt(rows[0].v!, c.unit)}` : 'No one has a result here yet. Be the first!';
+  $('#champ').innerHTML = rows[0] ? `${ic('crown')} ${rows[0].p.id === me ? 'You rule' : esc(rows[0].p.name) + ' rules'} ${c.name.toLowerCase()} — ${fmt(rows[0].v!, c.unit)}` : 'No one has a result here yet. Be the first!';
+  hydrateIcons($('#podium')); hydrateIcons($('#champ'));
   $('#lbList').innerHTML = rows.slice(3).map((r, i) => `<div class="lrow ${r.p.id === me ? 'me' : ''}"><span class="r">${i + 4}</span>${avatar(r.p)}<span class="nm">${nm(r)}</span><span class="pt">${fmt(r.v!, c.unit)}</span></div>`).join('');
   const mi = rows.findIndex(r => r.p.id === me);
   $('#gap').textContent = mi === 0 ? "🥇 You're number one!" : mi > 0 ? `⬆ ${fmt(Math.abs(rows[mi - 1]!.v! - rows[mi]!.v!), c.unit).replace('+', '')} to pass ${rows[mi - 1]!.p.name}` : 'Log a session to get on this board.';

@@ -10,6 +10,7 @@
     "icons": "pwa-assets-generator"
   },
   "dependencies": {
+    "@fontsource-variable/sora": "^5.3.0",
     "@supabase/supabase-js": "^2.119.2",
     "lucide": "^1.77.0"
   },

@@ -20,19 +20,22 @@ export function sessionPoints(s: Pick<Session, 'tutS' | 'fullHangs' | 'isPb' | '
 }
 
 export const loadPct = (bw: number | null, add: number, assist: number) =>
-  bw && bw > 0 ? Math.round(((bw + add - assist) / bw) * 1000) / 10 : null;
+  bw && bw > 0 ? Math.round(((bw + add - assist) / bw) * 100) : null; // whole % only — finer values would reveal bodyweight
 
-const WEEK = 7 * 864e5;
-/** Monday 00:00 of the week containing d. */
+/** Monday 00:00 (local time) of the week containing d. */
 export function weekStart(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+/** Add whole calendar days in local time. Unlike adding 864e5 ms, this is correct across daylight-saving changes. */
+export function addDays(d: Date | number, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+/** Parse a "YYYY-MM-DD" day key as local midnight (new Date('YYYY-MM-DD') would be UTC). */
+export function parseDayKey(k: string) { const [y, m, d] = k.split('-').map(Number); return new Date(y!, m! - 1, d!); }
 
 /** Consecutive weeks (ending this week or last) with at least 2 sessions. */
 export function weekStreak(sessions: Session[], now = new Date()) {
   const counts = new Map<number, number>();
   for (const s of sessions) { const w = +weekStart(new Date(s.createdAt)); counts.set(w, (counts.get(w) ?? 0) + 1); }
-  let w = +weekStart(now), n = 0;
-  if ((counts.get(w) ?? 0) < 2) w -= WEEK; // this week isn't over yet — don't break the streak
-  while ((counts.get(w) ?? 0) >= 2) { n++; w -= WEEK; }
+  let w = weekStart(now), n = 0;
+  if ((counts.get(+w) ?? 0) < 2) w = addDays(w, -7); // this week isn't over yet — don't break the streak
+  while ((counts.get(+w) ?? 0) >= 2) { n++; w = addDays(w, -7); }
   return n;
 }
 
@@ -40,9 +43,9 @@ export function weekStreak(sessions: Session[], now = new Date()) {
 export function bestDayRun(days: Set<string>) {
   let best = 0;
   for (const d of days) {
-    const prev = new Date(d); prev.setDate(prev.getDate() - 1);
+    const prev = addDays(parseDayKey(d), -1);
     if (days.has(dayKey(prev))) continue;
-    let n = 1; const x = new Date(d);
+    let n = 1; const x = parseDayKey(d);
     for (;;) { x.setDate(x.getDate() + 1); if (days.has(dayKey(x))) n++; else break; }
     best = Math.max(best, n);
   }
