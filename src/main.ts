@@ -30,8 +30,17 @@ let current: Page = 'hang';
 export function applyTheme() {
   const p = state.settings.prefs, root = document.documentElement;
   root.dataset.mode = p.mode; root.dataset.icons = p.icons; root.style.setProperty('--acc', p.acc);
+  // text/icons drawn on top of the accent (buttons, selected chips) must stay readable for any custom colour
+  root.style.setProperty('--onacc', readableOn(p.acc));
   setIconMode(p.icons); setSound(p.sound); (window as any).__prefs = p;
   $('meta[name="theme-color"]')?.setAttribute('content', p.mode === 'dark' ? '#0d1511' : '#e9efeb');
+}
+/** Dark or white text, whichever contrasts better with the given hex colour. */
+export function readableOn(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return '#06110b';
+  const n = parseInt(m[1]!, 16), ch = [n >> 16, (n >> 8) & 255, n & 255].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  const L = 0.2126 * ch[0]! + 0.7152 * ch[1]! + 0.0722 * ch[2]!;
+  return (L + 0.05) / 0.05 > 1.05 / (L + 0.05) ? '#06110b' : '#ffffff';
 }
 export function refreshHeader() { /* header shows only the logo + name now; kept for views that call it */ }
 

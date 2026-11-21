@@ -36,7 +36,7 @@ export function renderProfile(root: HTMLElement) {
   <div class="card"><h3>${ic('theme')} Theme</h3>
     <label class="f">Mode</label><div class="seg" id="mode"><button data-m="dark" class="${P.mode === 'dark' ? 'on' : ''}">Dark</button><button data-m="light" class="${P.mode === 'light' ? 'on' : ''}">Light</button></div><br>
     <label class="f">Icons</label><div class="seg" id="icons"><button data-i="emoji" class="${P.icons === 'emoji' ? 'on' : ''}">😀 Emoji</button><button data-i="flat" class="${P.icons === 'flat' ? 'on' : ''}">${ic('mountain', 'flat')} Flat</button></div><br>
-    <label class="f">Accent colour</label><div class="sw" id="sw">${ACCENTS.map(c => `<i data-c="${c}" style="background:${c}" class="${c === P.acc ? 'on' : ''}" role="button" aria-label="Accent ${c}"></i>`).join('')}</div></div>
+    <label class="f">Accent colour</label><div class="sw" id="sw">${ACCENTS.map(c => `<i data-c="${c}" style="background:${c}" class="${c === P.acc ? 'on' : ''}" role="button" aria-label="Accent ${c}"></i>`).join('')}<label class="sw-custom ${ACCENTS.includes(P.acc) ? '' : 'on'}" style="${ACCENTS.includes(P.acc) ? '' : `--mine:${P.acc}`}" aria-label="Pick your own colour" title="Pick your own colour"><input type="color" id="accPick" value="${P.acc}"></label></div></div>
   <div class="card"><h3>${ic('settings')} Settings</h3>
     ${toggle('sound', 'Sounds', 'Countdown beeps and the finish chime', 'sound')}
     ${toggle('vib', 'Vibration', 'Buzz on phase changes (phones only)', 'vib')}
@@ -52,6 +52,10 @@ export function renderProfile(root: HTMLElement) {
   drawBoardList(); hydrateIcons(root);
   root.onclick = onClick;
   $('#file').addEventListener('change', onPhoto);
+  // custom colour: live preview while dragging, saved when the picker closes
+  const pick = $('#accPick') as HTMLInputElement;
+  pick.addEventListener('input', () => { S.prefs.acc = pick.value; applyTheme(); markCustom(true, pick.value); });
+  pick.addEventListener('change', () => setAccent(pick.value));
   $('#newBoard').addEventListener('keydown', e => { if (e.key === 'Enter') $('#addBoard').click(); });
 }
 
@@ -59,6 +63,18 @@ function drawBoardList() {
   const B = state.settings.boards;
   $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star')}</button><span class="nm">${esc(b)}</span><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet — add one below.</p>';
   hydrateIcons($('#boardList'));
+}
+
+function markCustom(on: boolean, colour?: string) {
+  const c = $('.sw-custom'); c.classList.toggle('on', on); c.style.setProperty('--mine', on && colour ? colour : '');
+  if (on) $$('#sw i').forEach(x => x.classList.remove('on'));
+}
+function setAccent(colour: string) {
+  const S = state.settings;
+  S.prefs.acc = colour; if (bumpDaily(S.flags, 'accent') >= 10) S.flags.spinCycle = true;
+  applyTheme(); saveSettings();
+  $$('#sw i').forEach(x => x.classList.toggle('on', x.dataset.c === colour));
+  markCustom(!ACCENTS.includes(colour), colour);
 }
 
 /** Password fields only exist inside this popup, so browsers don't keep offering to save
@@ -146,7 +162,7 @@ async function onClick(e: MouseEvent) {
   const ii = t.closest('#icons [data-i]') as HTMLElement | null;
   if (ii) { S.prefs.icons = ii.dataset.i as any; saveSettings(); applyTheme(); await rerender(); toast(S.prefs.icons === 'flat' ? 'Flat icons on' : 'Emoji icons on'); return; }
   const sw = t.closest('#sw [data-c]') as HTMLElement | null;
-  if (sw) { S.prefs.acc = sw.dataset.c!; if (bumpDaily(S.flags, 'accent') >= 10) S.flags.spinCycle = true; applyTheme(); $$('#sw i').forEach(x => x.classList.toggle('on', x === sw)); saveSettings(); return; }
+  if (sw) { setAccent(sw.dataset.c!); return; }
   const star = t.closest('[data-b]') as HTMLElement | null;
   if (star) { S.boards.def = star.dataset.b!; S.board = S.boards.def; saveSettings(); drawBoardList(); return; }
   const delb = t.closest('[data-delb]') as HTMLElement | null;

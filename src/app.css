@@ -135,3 +135,15 @@ h1,h2,h3,.big,.ptitle,.stat b,.ring .n,.pt,.champ,.auth-title{letter-spacing:-.0
 .cbadge small{font-size:10px;color:var(--tc);font-weight:700}.cbadge .lic{width:24px;height:24px;color:var(--tc)}
 [data-uid]{cursor:pointer}
 .fav{margin:10px 2px 0;font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;flex-wrap:wrap}.fav b{color:var(--ink)}.fav .lic{color:var(--gold)}
+
+/* selected mood: filled with the accent so it's obvious in flat mode */
+.feel .chip.on{background:var(--acc);border-color:var(--acc)}
+.feel .chip.on .lic{color:var(--onacc)}
+.feel .chip:not(.on) .lic{opacity:.75}
+/* custom accent colour wheel */
+.sw-custom{position:relative;width:40px;height:40px;border-radius:50%;cursor:pointer;border:3px solid transparent;
+  background:conic-gradient(#ff5a4e,#ff9f43,#f2c14e,#3ddc84,#5aa9e6,#b48cff,#f78fb3,#ff5a4e)}
+.sw-custom::after{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--mine,var(--card));box-shadow:0 0 0 2px var(--card);pointer-events:none}
+.sw-custom.on{border-color:var(--ink)}
+.sw-custom input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+[data-icons=flat] .feel .chip{filter:none}
