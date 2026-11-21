@@ -25,8 +25,11 @@ It is safe to run the file again later (for example after an update to it).
 1. In the sidebar open **Project Settings -> API** (in newer dashboards: **Project Settings -> API Keys**,
    and the URL is under **Data API**).
 2. Copy the **Project URL** (looks like `https://abcdefgh.supabase.co`).
-3. Copy the **anon / public** key (a long string). This key is designed to be
-   public; the database rules protect your data. **Never** use the `service_role` / secret key in the app.
+3. Copy the **publishable** key (starts with `sb_publishable_`). Older projects call
+   this the **anon / public** key — either works. It's designed to be public; the
+   database rules protect your data. **Never** use the **secret** key
+   (`sb_secret_…`, formerly `service_role`) in the app — it bypasses all security.
+   The variable is still named `VITE_SUPABASE_ANON_KEY`; put the publishable key in it.
 
 ## 4. Use them locally
 
@@ -35,7 +38,7 @@ It is safe to run the file again later (for example after an update to it).
 
    ```
    VITE_SUPABASE_URL=https://abcdefgh.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key
+   VITE_SUPABASE_ANON_KEY=sb_publishable_...
    ```
 
 3. Restart `npm run dev`. The app now uses Supabase instead of demo mode.
@@ -46,7 +49,7 @@ It is safe to run the file again later (for example after an update to it).
 1. On GitHub open your repo -> **Settings -> Secrets and variables -> Actions**.
 2. Click **New repository secret** twice and add:
    - Name `VITE_SUPABASE_URL`, value = your Project URL
-   - Name `VITE_SUPABASE_ANON_KEY`, value = your anon key
+   - Name `VITE_SUPABASE_ANON_KEY`, value = your publishable key
 3. Re-run the deploy workflow (or push a commit) so the site is rebuilt with them.
 
 ## 6. Tell Supabase where the app lives
