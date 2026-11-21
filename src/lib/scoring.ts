@@ -99,3 +99,17 @@ export const CATEGORIES: Category[] = [
       return isFinite(a) && isFinite(b) && b > 0 ? Math.round(((a - b) / b) * 1000) / 10 : null;
     } },
 ];
+
+/** Most-used protocol (warm-ups don't count). Ties go to the one used most recently. */
+export function favouriteProtocol(sessions: Session[]): { key: string; name: string; count: number; pct: number } | null {
+  const xs = sessions.filter(s => s.protocolKey !== 'warm');
+  if (!xs.length) return null;
+  const tally = new Map<string, { name: string; count: number; last: string }>();
+  for (const s of xs) {
+    const t = tally.get(s.protocolKey) ?? { name: s.protocolName, count: 0, last: '' };
+    t.count++; if (s.createdAt > t.last) { t.last = s.createdAt; t.name = s.protocolName; }
+    tally.set(s.protocolKey, t);
+  }
+  const [key, best] = [...tally.entries()].sort((a, b) => b[1].count - a[1].count || b[1].last.localeCompare(a[1].last))[0]!;
+  return { key, name: best.name, count: best.count, pct: Math.round((best.count / xs.length) * 100) };
+}

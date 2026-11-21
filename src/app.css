@@ -134,3 +134,4 @@ h1,h2,h3,.big,.ptitle,.stat b,.ring .n,.pt,.champ,.auth-title{letter-spacing:-.0
 .cbadge{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--card2);border:1px solid var(--tc);border-radius:12px;padding:8px 6px;min-width:62px;font-size:20px}
 .cbadge small{font-size:10px;color:var(--tc);font-weight:700}.cbadge .lic{width:24px;height:24px;color:var(--tc)}
 [data-uid]{cursor:pointer}
+.fav{margin:10px 2px 0;font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;flex-wrap:wrap}.fav b{color:var(--ink)}.fav .lic{color:var(--gold)}

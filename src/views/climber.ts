@@ -3,7 +3,7 @@
 import { esc, avatar, sheet, toast } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state } from '../lib/state';
-import { weekStreak, dayKey, addDays, weekStart, CATEGORIES } from '../lib/scoring';
+import { weekStreak, dayKey, addDays, weekStart, favouriteProtocol, CATEGORIES } from '../lib/scoring';
 import { TIERED, TIER_NAMES, TIER_COLOURS, tierOf, type Ctx } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { sessRow } from './stats';
@@ -58,6 +58,7 @@ export async function openClimber(uid: string) {
   el.innerHTML = `
     <div class="center">${avatar(p, 'cav')}<h2 style="margin:10px 0 2px">${esc(p.name)}</h2><p class="sub" style="margin:0">Climbing with the crew since ${since}</p></div>
     <div class="stats" style="margin:14px 0"><div class="stat"><b>${xs.length}</b>sessions</div><div class="stat"><b>${weekStreak(xs, now)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank >= 0 ? '#' + (rank + 1) : '–'}</b>overall</div></div>
+    ${(() => { const f = favouriteProtocol(xs); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}
     ${pbs ? `<h3>${ic('medal')} Personal bests</h3><div class="cpbs">${pbs}</div>` : ''}
     <h3 style="margin-top:14px">${ic('calendar')} Last 5 weeks</h3><div class="cgrid">${grid}</div>
     ${badges.length ? `<h3 style="margin-top:14px">${ic('award')} Badges</h3><div class="cbadges">${badges.map(({ a, lv }) => `<span class="cbadge" style="--tc:${TIER_COLOURS[lv - 1]}" title="${a.name} — ${TIER_NAMES[lv - 1]}">${ic(a.icon)}<small>${TIER_NAMES[lv - 1]}</small></span>`).join('')}</div>` : ''}

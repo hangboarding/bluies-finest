@@ -20,14 +20,22 @@ const PAGE_TIPS: Record<string, Tip[]> = {
     { sel: '#hscale', title: 'Your consistency', body: 'Switch between week, month, 3 months and year. Tap any day to see what you did.' },
     { sel: '#ach', title: 'Achievements', body: 'Badges level up through 10 tiers from Iron to GOAT. Tap one for details. There are secret ones too 🤫' },
   ],
-  profile: [{ sel: '.upl', title: 'Make it yours', body: 'Add a photo, set your bodyweight (private), add your boards and pick a theme. You can replay this tour from here.' }],
+  profile: [
+    { sel: '.upl', title: 'Your photo', body: 'Tap to add a photo. It shows next to your name on the leaderboard and in the activity feed.' },
+    { sel: '.about', title: 'Your details', body: 'Set your bodyweight — it’s needed for accurate stats, because strength is scored as % of bodyweight. Age, height and location are optional. All of this is private. Tap Save when you’re done.' },
+    { sel: '.card:has(#pw1)', title: 'Password', body: 'Change your password here any time.' },
+    { sel: '.boards', title: 'Your hangboards', body: 'Add the boards you train on. The ⭐ one is picked by default for new sessions, and you can remove any you don’t use.' },
+    { sel: '.card:has(#mode)', title: 'Look & feel', body: 'Switch between dark and light mode, emoji or flat icons, and pick an accent colour.' },
+    { sel: '.card:has([data-set="sound"])', title: 'Settings', body: 'Turn countdown sounds, vibration and safety reminders on or off, choose which sections show on the Hang screen, and replay this tour.' },
+    { sel: '.card:has(#dl)', title: 'Your data', body: 'Download everything you’ve logged as a file whenever you like. Delete account is at the very bottom if you ever need it.' },
+  ],
 };
 
 const WELCOME = [
   ['🏔️', 'Welcome to Bluies Finest', 'Log hangboard sessions, follow proven protocols and compete with the crew.'],
   ['⏱', 'Smart timer', 'Get-ready countdown, beeps, rest timers and one-arm left/right switching. The screen stays awake while you hang.'],
   ['🏆', 'Compete & celebrate', 'Climb the leaderboard, unlock achievements and heart each other’s sessions.'],
-  ['🔒', 'Your data, your call', 'Bodyweight is private. Download or delete your data any time from Profile.'],
+  ['🔒', 'Your data, your call', 'Your data is private. Download or delete it any time from Profile.'],
 ];
 
 export const resetTours = () => { state.settings.toursSeen = {}; saveSettings(); };
@@ -57,19 +65,36 @@ export function pageTour(page: string) {
   const tips = (PAGE_TIPS[page] ?? []).filter(t => $(t.sel)); if (!tips.length) return;
   running = true;
   let i = 0; const ov = document.createElement('div'); ov.className = 'tour';
-  const finish = () => { ov.remove(); running = false; state.settings.toursSeen[page] = true; saveSettings(); };
+  const HEADER = 64, TABS = 80; // fixed bars at the top and bottom of the screen
+  let el: HTMLElement;
+  // Position the highlight and the tip box around the current target. Re-run on scroll/resize
+  // so it stays lined up even if the page is still settling.
+  const place = () => {
+    if (!el?.isConnected) return;
+    const hole = ov.querySelector('.tour-hole') as HTMLElement, card = ov.querySelector('.tour-card') as HTMLElement;
+    const r = el.getBoundingClientRect(), pad = 6;
+    const top = Math.max(HEADER, r.top - pad), bottom = Math.min(innerHeight - TABS, r.bottom + pad);
+    Object.assign(hole.style, { top: `${top}px`, left: `${Math.max(4, r.left - pad)}px`, width: `${Math.min(innerWidth - 8, r.width + pad * 2)}px`, height: `${Math.max(0, bottom - top)}px` });
+    const h = card.offsetHeight + 14, below = innerHeight - TABS - bottom, above = top - HEADER;
+    card.style.top = card.style.bottom = '';
+    if (below >= h) card.style.top = `${bottom + 12}px`;
+    else if (above >= h) card.style.bottom = `${innerHeight - top + 12}px`;
+    else card.style.bottom = `${TABS + 8}px`; // big target: pin the tip above the tab bar
+  };
+  const finish = () => { ov.remove(); removeEventListener('scroll', place); removeEventListener('resize', place); running = false; state.settings.toursSeen[page] = true; saveSettings(); };
   const draw = () => {
-    const t = tips[i]!, el = $(t.sel); el.scrollIntoView({ block: 'center' });
-    requestAnimationFrame(() => {
-      const r = el.getBoundingClientRect(), pad = 6, below = r.bottom + 190 < innerHeight;
-      ov.innerHTML = `<div class="tour-hole" style="top:${r.top - pad}px;left:${Math.max(4, r.left - pad)}px;width:${Math.min(innerWidth - 8, r.width + pad * 2)}px;height:${r.height + pad * 2}px"></div>
-        <div class="tour-card" style="${below ? `top:${r.bottom + 14}px` : `bottom:${innerHeight - r.top + 14}px`}"><b>${t.title}</b><p>${t.body}</p>
-        <div class="tour-ft"><span>${i + 1} / ${tips.length}</span><button data-t="skip">Skip</button><button data-t="next" class="on">${i === tips.length - 1 ? 'Got it' : 'Next'}</button></div></div>`;
-    });
+    const t = tips[i]!; el = $(t.sel);
+    ov.innerHTML = `<div class="tour-hole"></div><div class="tour-card"><b>${t.title}</b><p>${t.body}</p>
+      <div class="tour-ft"><span>${i + 1} / ${tips.length}</span><button data-t="skip">Skip</button><button data-t="next" class="on">${i === tips.length - 1 ? 'Got it' : 'Next'}</button></div></div>`;
+    // tall sections scroll to just under the header; small ones to the middle
+    const tall = el.getBoundingClientRect().height > (innerHeight - HEADER - TABS) * 0.35;
+    if (tall) scrollTo({ top: scrollY + el.getBoundingClientRect().top - HEADER - 10 }); else el.scrollIntoView({ block: 'center' });
+    place(); requestAnimationFrame(place); setTimeout(place, 150); setTimeout(place, 400);
   };
   ov.onclick = e => {
     const b = (e.target as HTMLElement).closest('[data-t]') as HTMLElement | null; if (!b) return;
     if (b.dataset.t === 'next' && i < tips.length - 1) { i++; draw(); } else finish();
   };
+  addEventListener('scroll', place, { passive: true }); addEventListener('resize', place);
   document.body.append(ov); draw();
 }

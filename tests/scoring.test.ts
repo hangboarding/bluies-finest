@@ -273,3 +273,25 @@ describe('CATEGORIES', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe('favouriteProtocol', () => {
+  it('returns null with no sessions and ignores warm-ups', async () => {
+    const { favouriteProtocol } = await import('../src/lib/scoring');
+    const { session } = await import('./helpers');
+    expect(favouriteProtocol([])).toBeNull();
+    expect(favouriteProtocol([session({ protocolKey: 'warm', protocolName: 'Warm-up' })])).toBeNull();
+  });
+  it('picks the most used, breaking ties by most recent', async () => {
+    const { favouriteProtocol } = await import('../src/lib/scoring');
+    const { session } = await import('./helpers');
+    const xs = [
+      session({ protocolKey: 'max', protocolName: 'Max Hangs', createdAt: '2026-11-01T10:00:00Z' }),
+      session({ protocolKey: 'rep', protocolName: 'Repeaters', createdAt: '2026-11-03T10:00:00Z' }),
+      session({ protocolKey: 'max', protocolName: 'Max Hangs', createdAt: '2026-11-02T10:00:00Z' }),
+      session({ protocolKey: 'warm', protocolName: 'Warm-up', createdAt: '2026-11-04T10:00:00Z' }),
+    ];
+    expect(favouriteProtocol(xs)).toEqual({ key: 'max', name: 'Max Hangs', count: 2, pct: 67 });
+    const tie = [xs[0]!, xs[1]!];
+    expect(favouriteProtocol(tie)!.key).toBe('rep');
+  });
+});

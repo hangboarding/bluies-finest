@@ -1,7 +1,7 @@
 import { $, $$, esc, sheet, confirmSheet, toast, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
-import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, CATEGORIES } from '../lib/scoring';
+import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, CATEGORIES } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
 import type { Session } from '../lib/types';
 
@@ -17,7 +17,7 @@ export function renderStats(root: HTMLElement) {
     const i = rows.findIndex(r => r.id === state.me?.id); return i >= 0 ? `#${i + 1}` : '–';
   })();
   root.innerHTML = `
-  <div class="card"><div class="stats" style="margin:0"><div class="stat"><b>${mine.length}</b>sessions</div><div class="stat"><b>${weekStreak(mine)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank}</b>rank</div></div></div>
+  <div class="card"><div class="stats" style="margin:0"><div class="stat"><b>${mine.length}</b>sessions</div><div class="stat"><b>${weekStreak(mine)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank}</b>rank</div></div>${(() => { const f = favouriteProtocol(mine); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}</div>
   <div class="card"><h3>${ic('calendar')} Consistency</h3>
     <div class="chips g g4" id="hscale" style="margin-bottom:10px">${(['w', 'm', 'q', 'y'] as const).map(k => `<span class="chip ${hs === k ? 'on' : ''}" data-s="${k}">${{ w: 'Week', m: 'Month', q: '3 months', y: 'Year' }[k]}</span>`).join('')}</div>
     <div class="hnav"><button id="hPrev" aria-label="Previous period">‹</button><b id="hLbl"></b><button id="hNext" aria-label="Next period">›</button></div>
