@@ -23,11 +23,10 @@ const PAGE_TIPS: Record<string, Tip[]> = {
   profile: [
     { sel: '.upl', title: 'Your photo', body: 'Tap to add a photo. It shows next to your name on the leaderboard and in the activity feed.' },
     { sel: '.about', title: 'Your details', body: 'Set your bodyweight — it’s needed for accurate stats, because strength is scored as % of bodyweight. Age, height and location are optional. All of this is private. Tap Save when you’re done.' },
-    { sel: '.card:has(#pw1)', title: 'Password', body: 'Change your password here any time.' },
     { sel: '.boards', title: 'Your hangboards', body: 'Add the boards you train on. The ⭐ one is picked by default for new sessions, and you can remove any you don’t use.' },
     { sel: '.card:has(#mode)', title: 'Look & feel', body: 'Switch between dark and light mode, emoji or flat icons, and pick an accent colour.' },
     { sel: '.card:has([data-set="sound"])', title: 'Settings', body: 'Turn countdown sounds, vibration and safety reminders on or off, choose which sections show on the Hang screen, and replay this tour.' },
-    { sel: '.card:has(#dl)', title: 'Your data', body: 'Download everything you’ve logged as a file whenever you like. Delete account is at the very bottom if you ever need it.' },
+    { sel: '.card:has(#dl)', title: 'Your data', body: 'Download everything you’ve logged as a file whenever you like. Change password and Delete account are at the very bottom.' },
   ],
 };
 

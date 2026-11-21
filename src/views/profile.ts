@@ -1,4 +1,4 @@
-import { $, $$, esc, toast, confirmSheet, promptSheet, bubble, avatar } from '../lib/ui';
+import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, avatar } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, saveSettings, flushSettings, mySessions } from '../lib/state';
 import { TIPS } from '../lib/protocols';
@@ -30,10 +30,6 @@ export function renderProfile(root: HTMLElement) {
     <button class="big" id="saveName">Save</button>
     ${state.store.kind === 'local' ? '<p class="sub" style="margin-top:10px">Demo mode — data is stored in this browser only.</p>' : ''}
   </div>
-  <div class="card"><h3>${ic('lock')} Password</h3>
-    <div class="fld"><input class="tx" type="password" id="pw1" autocomplete="new-password" placeholder="New password (min 6 characters)" aria-label="New password"></div>
-    <div class="fld"><input class="tx" type="password" id="pw2" autocomplete="new-password" placeholder="Repeat new password" aria-label="Repeat new password"></div>
-    <button class="big ghost" id="savePw">Change password</button></div>
   <div class="card boards"><h3>${ic('board')} My hangboards</h3><p class="sub">${ic('star')} = default for new sessions</p>
     <div id="boardList"></div>
     <div class="addrow"><input class="tx" id="newBoard" placeholder="e.g. Garage board" aria-label="New board name"><button id="addBoard" aria-label="Add board">+</button></div></div>
@@ -50,6 +46,7 @@ export function renderProfile(root: HTMLElement) {
     <div class="tg"><span>${ic('help')} App tour<small>Show the intro and page tips again</small></span><button class="pill" id="replay">Replay</button></div></div>
   <div class="card"><h3>${ic('download')} Your data</h3><p class="sub">Download every session, setting and board as a JSON file.</p>
     <button class="big ghost" id="dl">${ic('download')} Download my data</button></div>
+  <button class="big ghost" id="chgPw" style="margin-bottom:10px">${ic('lock')} Change password</button>
   <button class="big ghost" id="logout">${ic('logout')} Log out</button>
   <button class="big ghost danger-text" id="delAcc" style="margin-top:10px">${ic('trash')} Delete account</button>`;
   drawBoardList(); hydrateIcons(root);
@@ -62,6 +59,28 @@ function drawBoardList() {
   const B = state.settings.boards;
   $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star')}</button><span class="nm">${esc(b)}</span><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet — add one below.</p>';
   hydrateIcons($('#boardList'));
+}
+
+/** Password fields only exist inside this popup, so browsers don't keep offering to save
+ *  or fill a password every time someone edits their profile. */
+async function changePassword() {
+  for (;;) {
+    let el!: HTMLElement;
+    const i = await sheet({
+      title: 'Change password',
+      body: `<form onsubmit="return false" style="text-align:left">
+        <input class="tx" type="password" id="pw1" autocomplete="new-password" placeholder="New password (min 6 characters)" aria-label="New password" style="margin-bottom:10px">
+        <input class="tx" type="password" id="pw2" autocomplete="new-password" placeholder="Repeat new password" aria-label="Repeat new password" style="margin-bottom:12px"></form>`,
+      buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Change', kind: 'primary' }],
+      onMount: e => { el = e; },
+    });
+    if (i !== 1) return;
+    const a = (el.querySelector('#pw1') as HTMLInputElement).value, b = (el.querySelector('#pw2') as HTMLInputElement).value;
+    if (a.length < 6) { toast('Password must be at least 6 characters'); continue; }
+    if (a !== b) { toast('Passwords don’t match'); continue; }
+    try { await state.store.updatePassword(a); toast('Password changed'); } catch (err: any) { toast(err.message ?? 'Couldn’t change password'); }
+    return;
+  }
 }
 
 /** Parse an optional number field; returns undefined when invalid, null when empty. */
@@ -134,11 +153,7 @@ async function onClick(e: MouseEvent) {
   if (delb) { const b = delb.dataset.delb!; S.boards.list = S.boards.list.filter(x => x !== b); if (S.boards.def === b) S.boards.def = S.boards.list[0] ?? ''; if (S.board === b) S.board = S.boards.def; saveSettings(); drawBoardList(); return; }
   if (t.closest('#addBoard')) { const i = $('#newBoard') as HTMLInputElement; if (i.value.trim()) { await addBoard(i.value); i.value = ''; drawBoardList(); } return; }
   if (t.closest('#saveName')) { await saveAbout(); return; }
-  if (t.closest('#savePw')) {
-    const a = ($('#pw1') as HTMLInputElement).value, b = ($('#pw2') as HTMLInputElement).value;
-    if (a.length < 6) return toast('Password must be at least 6 characters'); if (a !== b) return toast('Passwords don’t match');
-    try { await state.store.updatePassword(a); ($('#pw1') as HTMLInputElement).value = ($('#pw2') as HTMLInputElement).value = ''; toast('Password changed'); } catch (err: any) { toast(err.message); } return;
-  }
+  if (t.closest('#chgPw')) { await changePassword(); return; }
   if (t.closest('#replay')) { resetTours(); await flushSettings(); location.hash = ''; location.reload(); return; }
   if (t.closest('#dl')) {
     const data = { exported: new Date().toISOString(), app: 'Bluies Finest', profile: { name: state.me?.name }, bodyweightKg: state.priv.bodyweightKg, settings: S, sessions: mySessions() };
