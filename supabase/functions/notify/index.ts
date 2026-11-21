@@ -94,6 +94,6 @@ Deno.serve(async (req) => {
     return json(200, { sent, removed: gone.length, failed: results.length - sent - gone.length });
   } catch (e) {
     console.error(e);
-    return json(500, { error: e instanceof Error ? e.message : String(e) });
+    return json(500, { error: 'internal error — see function logs' });
   }
 });

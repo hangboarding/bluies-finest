@@ -21,14 +21,22 @@ export function queuedSessions(): Session[] {
 }
 export const queuedCount = () => queuedSessions().length;
 
+/** Errors where the server definitely rejected the data — retrying won't help. Anything else
+ *  (offline, expired login, server hiccup) keeps the session queued so it's never lost. */
+const REJECTED = new Set(['23514', '23502', '22P02', '22003', '23503', '22001']);
+const isRejected = (e: any) => REJECTED.has(String(e?.code ?? ''));
+const newId = () => (crypto as any).randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
+
 /** Save a session; falls back to the outbox when offline. Returns the session either way. */
 export async function saveOrQueue(s: NewSession): Promise<{ session: Session; queued: boolean }> {
-  const withTime = { ...s, createdAt: s.createdAt ?? new Date().toISOString() };
+  // The id is chosen here, so if a save reaches the server but the reply is lost, the retry
+  // recognises it instead of creating a duplicate.
+  const withTime = { ...s, id: newId(), createdAt: s.createdAt ?? new Date().toISOString() } as NewSession & { id: string };
   try {
     return { session: await state.store.addSession(withTime), queued: false };
   } catch (e) {
-    if (!isNetworkError(e)) throw e;
-    const tempId = 'local-' + Date.now().toString(36);
+    if (isRejected(e)) throw e;
+    const tempId = withTime.id;
     write([...read(), { tempId, userId: state.me!.id, session: withTime }]);
     return { session: { ...withTime, id: tempId, userId: state.me!.id, pendingUpload: true } as Session, queued: true };
   }
@@ -50,8 +58,8 @@ export async function flushOutbox() {
         if (i >= 0) state.sessions[i] = saved; else state.sessions.unshift(saved);
         sent++;
       } catch (e) {
-        if (isNetworkError(e)) break; // still offline — try again later
-        // The server rejected it (e.g. invalid values). Drop it so it doesn't block the queue forever.
+        if (!isRejected(e)) break; // offline, expired login or server hiccup — try again later
+        // The server rejected the data itself (e.g. out-of-range values). Drop it so it doesn't block the queue.
         write(read().filter(x => x.tempId !== q.tempId));
         state.sessions = state.sessions.filter(x => x.id !== q.tempId);
         toast(`A saved-offline session couldn't be uploaded: ${(e as any)?.message ?? 'rejected'}`, 6000);

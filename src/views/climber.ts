@@ -37,12 +37,12 @@ export async function openClimber(uid: string) {
   const maxBy = <T,>(a: T[], f: (x: T) => number) => a.reduce<T | null>((m, x) => (m == null || f(x) > f(m) ? x : m), null);
   const heavy = maxBy(hangs.filter(s => s.hang <= 15), s => s.addedKg - s.assistKg);
   const edge = maxBy(hangs.filter(s => s.assistKg === 0), s => -s.edgeMm);
-  const long = maxBy(xs.flatMap(s => s.hangs.map(h => ({ s, h }))), x => x.h.held);
+  const long = maxBy(xs.flatMap(s => s.hangs.map(h => ({ s, h }))), x => Number(x.h.held) || 0);
   const lift = maxBy(xs.filter(s => s.mode === 'lift'), s => s.liftKg);
   const pb = (icon: string, name: string, v: string) => `<div class="cpb">${ic(icon)}<span>${name}</span><b>${v}</b></div>`;
   const kg = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n)} kg`;
   const pbs = [heavy && pb('add', 'Heaviest hang', kg(heavy.addedKg - heavy.assistKg)), edge && pb('edge', 'Smallest edge', `${edge.edgeMm} mm`),
-    long && pb('hang', 'Longest hang', `${long.h.held} s`), lift && pb('lift', 'No-hang lift', `${lift.liftKg} kg`)].filter(Boolean).join('');
+    long && pb('hang', 'Longest hang', `${Math.round(Number(long.h.held) || 0)} s`), lift && pb('lift', 'No-hang lift', `${lift.liftKg} kg`)].filter(Boolean).join('');
 
   // last 5 weeks of consistency
   const days = new Set(xs.map(s => dayKey(new Date(s.createdAt))));

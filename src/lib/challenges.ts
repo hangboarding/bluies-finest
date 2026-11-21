@@ -28,7 +28,8 @@ export function inRange(s: Session, c: Challenge) { const { start, end } = range
 
 /** Progress for each climber and the crew total. */
 export function progress(c: Challenge, sessions: Session[]) {
-  const xs = sessions.filter(s => !s.pendingUpload && inRange(s, c));
+  const { start, end } = rangeOf(c), a = +start, b = +end; // once, not per session
+  const xs = sessions.filter(s => { if (s.pendingUpload) return false; const t = +new Date(s.createdAt); return t >= a && t < b; });
   const per = new Map<string, number>();
   const add = (u: string, v: number) => per.set(u, (per.get(u) ?? 0) + v);
   for (const s of xs) {

@@ -89,7 +89,7 @@ function drawPBs(mine: Session[]) {
     heavy && row('add', 'Heaviest hang', `${heavy.edgeMm}mm · ${heavy.grip} · ${heavy.hang}s`, `${heavy.addedKg - heavy.assistKg >= 0 ? '+' : ''}${heavy.addedKg - heavy.assistKg} kg`),
     pct && row('bolt', 'Strength-to-weight', `${pct.edgeMm}mm · ${pct.grip}`, `${pct.loadPct}%`),
     edge && row('edge', 'Smallest edge', `${edge.addedKg ? '+' + edge.addedKg + 'kg' : 'bodyweight'} · ${edge.grip}`, `${edge.edgeMm} mm`),
-    long && row('hang', 'Longest hang', `${long.s.edgeMm}mm · ${long.s.protocolName}`, `${long.h.held} s`),
+    long && row('hang', 'Longest hang', `${long.s.edgeMm}mm · ${long.s.protocolName}`, `${Math.round(Number(long.h.held) || 0)} s`),
     lift && row('lift', 'Heaviest lift (no-hang)', `${lift.edgeMm}mm · ${lift.grip}`, `${lift.liftKg} kg`),
   ].filter(Boolean);
   $('#pbs').innerHTML = rows.join('') || '<p class="sub">Your bests will show up here after your first session.</p>';

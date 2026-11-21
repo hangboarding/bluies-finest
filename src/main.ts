@@ -123,7 +123,8 @@ async function boot() {
   await maybeWelcome();
   // opened from a phone notification: ?post=<id>#feed
   const post = new URLSearchParams(location.search).get('post');
-  if (post) { history.replaceState(null, '', location.pathname); focusPost(post); await go('feed'); }
+  if (post) history.replaceState(null, '', location.pathname);
+  if (post && UUID.test(post)) { focusPost(post); await go('feed'); }
   else await go('hang');
 }
 
@@ -137,6 +138,14 @@ const updateSW = registerSW({
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') navigator.serviceWorker?.getRegistration().then(r => r?.update()).catch(() => {});
+});
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// A tapped phone notification while the app is already open: jump to the post without reloading
+// (go() refuses to leave a running or unsaved session, so nothing is lost).
+navigator.serviceWorker?.addEventListener('message', e => {
+  if (e.data?.type !== 'open-post' || !state.me) return;
+  const id = new URL(e.data.url, location.href).searchParams.get('post') ?? '';
+  if (UUID.test(id)) { focusPost(id); go('feed'); }
 });
 // Re-draw Stats when offline sessions finish uploading.
 document.addEventListener('bf:sessions-changed', () => { if (current === 'stats') renderStats($('#view-stats')); });

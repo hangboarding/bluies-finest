@@ -6,7 +6,7 @@ import { applyTheme, ACCENTS, refreshHeader, rerender } from '../main';
 import { bumpDaily } from '../lib/achievements';
 import { setSound } from '../lib/timer';
 import { resetTours } from './tour';
-import { addBoard } from './hang';
+import { addBoard, hangBusy, hangPending } from './hang';
 import { openAdmin } from './admin';
 import { pushSupport, pushEnabled, enablePush, disablePush } from '../lib/push';
 
@@ -186,6 +186,7 @@ async function onClick(e: MouseEvent) {
   const m = t.closest('#mode [data-m]') as HTMLElement | null;
   if (m) { S.prefs.mode = m.dataset.m as any; applyTheme(); $$('#mode button').forEach(b => b.classList.toggle('on', b === m)); saveSettings(); return; }
   const ii = t.closest('#icons [data-i]') as HTMLElement | null;
+  if (ii && (hangBusy() || hangPending())) { toast('Save or finish your session first'); return; }
   if (ii) { S.prefs.icons = ii.dataset.i as any; saveSettings(); applyTheme(); await rerender(); toast(S.prefs.icons === 'flat' ? 'Flat icons on' : 'Emoji icons on'); return; }
   const sw = t.closest('#sw [data-c]') as HTMLElement | null;
   if (sw) { setAccent(sw.dataset.c!); return; }

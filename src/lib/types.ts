@@ -103,7 +103,8 @@ export interface Store {
   deleteInviteCode(code: string): Promise<void>;
   // seasons & challenges
   /** Winners of every finished season (ties share the title). */
-  seasonChampions(): Promise<SeasonChampion[]>;
+  /** null = the season_champions function isn't installed on the server yet. */
+  seasonChampions(): Promise<SeasonChampion[] | null>;
   listChallenges(): Promise<ChallengeRow[]>;
   /** Admin only. Creates when id is empty, otherwise updates. */
   saveChallenge(c: Omit<ChallengeRow, 'id'> & { id?: string }): Promise<void>;

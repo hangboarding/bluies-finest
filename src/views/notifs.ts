@@ -24,8 +24,8 @@ export async function refreshNotifs() {
   loading = true;
   try {
     items = await state.store.notifications(40);
-    // first ever load: don't flood a new user with old activity
-    if (!seenAt() && items.length) { (state.settings as any).notifSeen = items[0]!.createdAt; saveSettings(); }
+    // first ever load: don't flood a new user with old activity — but do start the clock even if there's none yet
+    if (!seenAt()) { (state.settings as any).notifSeen = items[0]?.createdAt ?? new Date().toISOString(); saveSettings(); }
     paintBadge();
   } catch { /* offline or not set up — try again later */ }
   finally { loading = false; }
@@ -63,5 +63,5 @@ export function wireBell(goToFeed: (sessionId: string) => void) {
 }
 
 // keep it fresh without hammering the server
-setInterval(refreshNotifs, 2 * 60e3);
+setInterval(() => { if (!document.hidden) refreshNotifs(); }, 2 * 60e3);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshNotifs(); });

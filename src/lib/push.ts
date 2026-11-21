@@ -84,7 +84,9 @@ async function save(sub: PushSubscription): Promise<boolean> {
 }
 
 /** Subscribe (or reuse the existing subscription) and store it; resubscribes if the endpoint is taken. */
+const OWNER_KEY = 'bf.pushOwner';
 async function subscribeAndSave(reg: ServiceWorkerRegistration): Promise<void> {
+  try { if (state.me) localStorage.setItem(OWNER_KEY, state.me.id); } catch { /* storage blocked */ }
   let sub = await reg.pushManager.getSubscription();
   if (sub && !sameKey(sub)) { await sub.unsubscribe().catch(() => {}); sub = null; }
   if (!sub) sub = await subscribe(reg);
@@ -117,6 +119,7 @@ export async function enablePush(): Promise<void> {
 
 /** Unsubscribe this device and remove it from the server. */
 export async function disablePush(): Promise<void> {
+  try { localStorage.removeItem(OWNER_KEY); } catch { /* storage blocked */ }
   if (!('serviceWorker' in navigator)) return;
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
@@ -137,7 +140,12 @@ export async function syncPush(): Promise<void> {
   try {
     if (pushSupport() !== 'ok' || !state.me || Notification.permission !== 'granted') return;
     const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg || !(await reg.pushManager.getSubscription())) return; // user hasn't turned it on here
+    const sub = await reg?.pushManager.getSubscription();
+    if (!reg || !sub) return; // user hasn't turned it on here
+    // Only keep notifications for the person who switched them on. If someone else is now
+    // signed in on this device, stop the old subscription rather than silently moving it.
+    const owner = localStorage.getItem(OWNER_KEY);
+    if (owner && owner !== state.me.id) { await sub.unsubscribe().catch(() => {}); localStorage.removeItem(OWNER_KEY); return; }
     await subscribeAndSave(reg);
   } catch (e) {
     console.warn('Push sync failed:', e);

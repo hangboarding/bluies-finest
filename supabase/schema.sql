@@ -395,7 +395,9 @@ begin
     ('sessions_hangs_range',    'total_hangs between 0 and 3000 and full_hangs between 0 and total_hangs'),
     ('sessions_tut_range',      'tut_s >= 0 and tut_s <= 300 * total_hangs + 1'),
     ('sessions_rpe_range',      'rpe is null or rpe between 1 and 10'),
-    ('sessions_loadpct_range',  'load_pct is null or load_pct between 10 and 400')
+    ('sessions_loadpct_range',  'load_pct is null or load_pct between 10 and 400'),
+    ('sessions_tut_cap',        'tut_s <= 7200 and total_hangs <= 1500'),
+    ('sessions_hangs_shape',    $c$not jsonb_path_exists(hangs, '$[*] ? (@.held.type() != "number" || @.held < 0 || @.held > 300 || @.target.type() != "number")')$c$)
   ) as t(name, expr)
   loop
     if not exists (select 1 from pg_constraint where conname = c.name) then
@@ -438,7 +440,8 @@ begin
              else coalesce(new.load_pct, 100) / 100.0 end;
   lf := least(2, greatest(0.4, lf));
   ef := least(1.6, greatest(0.6, 20.0 / greatest(1, new.edge_mm)));
-  new.points := round(5 + new.tut_s * lf * ef / 2 + 2 * new.full_hangs + case when new.is_pb then 20 else 0 end);
+  -- numeric rounding (halves round up) to match JavaScript's Math.round exactly
+  new.points := round((5 + new.tut_s * lf * ef / 2 + 2 * new.full_hangs + case when new.is_pb then 20 else 0 end)::numeric);
   return new;
 end $$;
 

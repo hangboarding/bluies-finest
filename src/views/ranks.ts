@@ -42,7 +42,7 @@ function draw() {
     .sort((a, b) => (c.lower ? a.v! - b.v! : b.v! - a.v!));
   const se = seasonOf(now), left = daysLeft(se, now);
   $('#catDesc').innerHTML = c.id === 'season'
-    ? `${ic('crown')} <b>${se.name}</b> · ${left ? `ends in ${left} day${left > 1 ? 's' : ''}` : 'ends today'} — most points wins the season`
+    ? `${ic('crown')} <b>${se.name}</b> · ${left ? `${left + 1} days left` : 'last day!'} — most points wins the season`
     : `${ic(c.icon)} ${esc(c.desc)}`;
   const me = state.me?.id;
   const nm = (r: (typeof rows)[0]) => esc(r.p.name) + (r.p.id === me ? ' (you)' : '');

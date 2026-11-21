@@ -6,7 +6,8 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : '' }; }
   const scope = self.registration.scope;
-  const url = new URL(data.url || '#feed', scope).href;
+  let url = new URL(data.url || '#feed', scope).href;
+  if (!url.startsWith(scope)) url = new URL('#feed', scope).href; // only ever open our own app
   const title = data.title || 'Bluies Finest';
   event.waitUntil(Promise.all([
     self.registration.showNotification(title, {
@@ -30,9 +31,10 @@ self.addEventListener('notificationclick', (event) => {
     const win = wins.find((c) => c.url.startsWith(scope)) || wins[0];
     if (win) {
       try {
-        const focused = await win.focus();
-        // navigate() reloads the app at the post URL; it only works on clients this worker controls.
-        if (await (focused || win).navigate(url)) return;
+        // Don't reload an open app (it could be mid-session) — ask it to show the post instead.
+        win.postMessage({ type: 'open-post', url });
+        await win.focus();
+        return;
       } catch { /* fall through to openWindow */ }
     }
     await self.clients.openWindow(url);

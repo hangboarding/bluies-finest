@@ -24,7 +24,8 @@ describe('seasons (Blue Mountains time, southern hemisphere)', () => {
   it('previous season and days left', () => {
     const s = seasonOf(new Date('2026-11-21T20:00:00Z'));
     expect(previousSeason(s).name).toBe('Winter 2026');
-    expect(daysLeft(s, new Date('2026-11-21T20:00:00Z'))).toBe(9);
+    expect(daysLeft(s, new Date('2026-11-21T20:00:00Z'))).toBe(8); // 22 Nov → 30 Nov
+    expect(daysLeft(s, new Date('2026-11-30T05:00:00Z'))).toBe(0); // last day
     expect(seasonNameFromStart('2026-12-01')).toBe('Summer 2026/27');
   });
   it('standings and champions (ties share, current season excluded)', () => {

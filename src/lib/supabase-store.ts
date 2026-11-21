@@ -91,7 +91,12 @@ function rowToComment(r: any): Comment {
 
 const INVITE_ERROR = "That invite code isn't valid";
 
+/** Friendly message, keeping the original Postgres/HTTP code so callers can tell retryable errors apart. */
 function friendly(err: unknown, fallback = 'Something went wrong. Please try again.'): Error {
+  const e = friendlyMessage(err, fallback);
+  return Object.assign(e, { code: String((err as any)?.code ?? ''), status: (err as any)?.status });
+}
+function friendlyMessage(err: unknown, fallback: string): Error {
   const raw = String((err as any)?.message ?? err ?? '');
   const msg = raw.toLowerCase();
   const code = String((err as any)?.code ?? '');
@@ -377,9 +382,15 @@ export class SupabaseStore implements Store {
 
   async addSession(s: NewSession): Promise<Session> {
     const uid = this.requireUid();
-    const row = { ...sessionToRow(s), user_id: uid };
-    const inserted = check(await this.client.from('sessions').insert(row).select(SESSION_SELECT).single());
-    return rowToSession(inserted);
+    const id = (s as any).id as string | undefined; // set by the offline queue so retries can't duplicate
+    const row: Record<string, unknown> = { ...sessionToRow(s), user_id: uid };
+    if (id && /^[0-9a-f-]{36}$/i.test(id)) row.id = id;
+    const res = await this.client.from('sessions').insert(row).select(SESSION_SELECT).single();
+    if (res.error && (res.error as any).code === '23505' && row.id) {
+      // Already saved (an earlier attempt reached the server but its reply was lost).
+      return rowToSession(check(await this.client.from('sessions').select(SESSION_SELECT).eq('id', row.id as string).single()));
+    }
+    return rowToSession(check(res));
   }
 
   async updateSession(id: string, patch: Partial<NewSession>): Promise<void> {
@@ -514,12 +525,12 @@ export class SupabaseStore implements Store {
     if (!rows?.length) throw new Error("Couldn't delete that code — are you an admin?");
   }
 
-  async seasonChampions(): Promise<SeasonChampion[]> {
+  async seasonChampions(): Promise<SeasonChampion[] | null> {
     this.requireUid();
     const { data, error } = await this.client.rpc('season_champions');
     if (error) {
       // seasons.sql not run yet — the app falls back to working champions out locally
-      if (/season_champions|function|schema cache/i.test(error.message)) return [];
+      if ((error as any).code === 'PGRST202' || /could not find the function|schema cache/i.test(error.message)) return null;
       throw friendly(error);
     }
     return ((data ?? []) as any[]).map(r => ({ seasonStart: String(r.season_start), userId: r.user_id, points: Math.round(r.points) }));

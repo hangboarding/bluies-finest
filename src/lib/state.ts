@@ -73,7 +73,7 @@ export async function loadUserData() {
   // …and always back to the start of the current season, so season standings are complete.
   const since = new Date(Math.min(Date.now() - RECENT_DAYS * 864e5, +seasonOf(new Date()).start)).toISOString();
   const [profiles, priv, mine, recent, social, champions, challenges] = await Promise.all([s.listProfiles(), s.getPrivate(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }), s.socialCounts(),
-    s.seasonChampions().catch(() => []), s.listChallenges().catch(() => [])]);
+    s.seasonChampions().catch(() => [] as SeasonChampion[]), s.listChallenges().catch(() => [])]);
   const byId = new Map<string, Session>();
   for (const x of [...mine, ...recent]) byId.set(x.id, x);
   const sessions = [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -101,7 +101,8 @@ export async function loadUserData() {
   state.sessions = sessions;
   state.social = social;
   // Server-side champions cover all history; if that isn't set up yet, work out what we can locally.
-  state.champions = champions.length ? champions : championsFrom(sessions);
+  // Only seasons fully inside what we loaded can be worked out locally (older ones would be missing other climbers).
+  state.champions = champions ?? championsFrom(sessions).filter(c => c.seasonStart >= since.slice(0, 10));
   state.challenges = challenges;
   state.loaded = true;
   if (localNewer || migrate) saveSettings();

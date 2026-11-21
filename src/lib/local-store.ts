@@ -119,7 +119,9 @@ export class LocalStore implements Store {
     return structuredClone(this.db.sessions.filter(s => (!o.userId || s.userId === o.userId) && (!o.sinceIso || s.createdAt >= o.sinceIso)));
   }
   async addSession(s: NewSession) {
-    const full: Session = { ...s, id: uid(), userId: this.need(), createdAt: s.createdAt ?? new Date().toISOString() } as Session;
+    const given = (s as any).id as string | undefined, dup = given && this.db.sessions.find(x => x.id === given);
+    if (dup) return structuredClone(dup);
+    const full: Session = { ...s, id: given || uid(), userId: this.need(), createdAt: s.createdAt ?? new Date().toISOString() } as Session;
     this.db.sessions.unshift(full); this.save(); return structuredClone(full);
   }
   async updateSession(id: string, patch: Partial<NewSession>) {

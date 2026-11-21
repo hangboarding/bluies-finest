@@ -25,9 +25,9 @@ export async function renderFeed(root: HTMLElement) {
   if (focusId) { filter = 'all'; open = focusId; }
   draw();
   if (focusId) {
-    const el = document.querySelector(`.post[data-id="${focusId}"]`) as HTMLElement | null;
+    const id = focusId; focusId = '';
+    const el = document.querySelector(`.post[data-id="${CSS.escape(id)}"]`) as HTMLElement | null;
     el?.scrollIntoView({ block: 'center' }); el?.classList.add('flash');
-    focusId = '';
   }
 }
 
