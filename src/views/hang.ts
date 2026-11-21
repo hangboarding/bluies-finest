@@ -187,21 +187,23 @@ function undoSuggestion() {
 
 // ---------- safety nudges before hard sessions ----------
 async function preStartCheck(): Promise<boolean> {
-  if (!state.settings.prefs.nudges || !MAX_EFFORT.has(cur)) return true;
+  const P = state.settings.prefs, warmCheck = P.warmup !== false, overCheck = P.nudges !== false;
+  if ((!warmCheck && !overCheck) || !MAX_EFFORT.has(cur)) return true;
   const now = Date.now(), mine = mySessions();
   const hard = mine.filter(s => MAX_EFFORT.has(s.protocolKey));
   const week = hard.filter(s => now - +new Date(s.createdAt) < 7 * 864e5).length;
   const lastHard = hard.reduce((m, s) => Math.max(m, +new Date(s.createdAt)), 0);
-  const warmedUp = mine.some(s => now - +new Date(s.createdAt) < 60 * 60e3); // any session in the last hour counts
+  const recentlyActive = mine.some(s => now - +new Date(s.createdAt) < 60 * 60e3); // any session in the last hour counts as warm
+  const needWarm = warmCheck && !recentlyActive;
   const notes: string[] = [];
-  if (lastHard && now - lastHard < 24 * 3600e3) notes.push('You did a max-effort session in the last 24 hours. Fingers recover slower than muscles — 48 hours between hard sessions is the usual advice.');
-  if (week >= 3) notes.push(`That would be ${week + 1} max-effort sessions this week. Most protocols recommend 2, at most 3.`);
-  if (!warmedUp) notes.unshift('Hard hangs on cold fingers are the classic way to tweak a pulley. A few minutes of easy hangs first makes a real difference.');
+  if (overCheck && lastHard && now - lastHard < 24 * 3600e3) notes.push('You did a max-effort session in the last 24 hours. Fingers recover slower than muscles — 48 hours between hard sessions is the usual advice.');
+  if (overCheck && week >= 3) notes.push(`That would be ${week + 1} max-effort sessions this week. Most protocols recommend 2, at most 3.`);
+  if (needWarm) notes.unshift('Hard hangs on cold fingers are the classic way to tweak a pulley. A few minutes of easy hangs first makes a real difference.');
   if (!notes.length) return true;
-  const buttons = warmedUp ? [{ label: 'Change plan', kind: 'ghost' as const }, { label: 'Start anyway', kind: 'primary' as const }]
+  const buttons = !needWarm ? [{ label: 'Change plan', kind: 'ghost' as const }, { label: 'Start anyway', kind: 'primary' as const }]
     : [{ label: 'Skip, I’m warm', kind: 'ghost' as const }, { label: 'Warm up first', kind: 'primary' as const }];
-  const i = await sheet({ title: warmedUp ? 'Quick check' : 'Warm up first?', body: notes.map(n => `<p class="sub" style="text-align:left">${n}</p>`).join('') + '<p class="sub" style="font-size:12px">Turn these reminders off in Profile → Settings.</p>', buttons });
-  if (warmedUp) return i === 1;
+  const i = await sheet({ title: needWarm ? 'Warm up first?' : 'Quick check', body: notes.map(n => `<p class="sub" style="text-align:left">${n}</p>`).join('') + '<p class="sub" style="font-size:12px">You can turn these off in Profile → Settings.</p>', buttons });
+  if (!needWarm) return i === 1;
   if (i === 1) { state.settings.returnTo = cur; saveSettings(); loadProto('warm'); persist(); toast('Warm-up loaded — you’ll be brought back after'); return false; }
   return i === 0;
 }

@@ -12,7 +12,7 @@ export interface Settings {
   board?: string;
   boards: { list: string[]; def: string; custom: string[] };
   customProtos: Record<string, Protocol>;
-  prefs: { sound: boolean; vib: boolean; icons: 'emoji' | 'flat'; pgrip: boolean; psetup: boolean; mode: 'dark' | 'light'; acc: string; nudges: boolean };
+  prefs: { sound: boolean; vib: boolean; icons: 'emoji' | 'flat'; pgrip: boolean; psetup: boolean; mode: 'dark' | 'light'; acc: string; nudges: boolean; warmup: boolean };
   panels: Record<string, boolean>;                  // remembered open/closed sections
   toursSeen: Record<string, boolean>;
   chart?: string;
@@ -32,7 +32,7 @@ export const DEFAULT_SETTINGS = (): Settings => ({
   proto: 'max', vals: {}, chips: {},
   boards: { list: [...BUILTIN_BOARDS], def: BUILTIN_BOARDS[0]!, custom: [] },
   customProtos: {},
-  prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#3ddc84', nudges: true },
+  prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#3ddc84', nudges: true, warmup: true },
   panels: { extras: false }, toursSeen: {}, flags: {},
 });
 
