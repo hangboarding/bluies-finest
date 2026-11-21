@@ -1,0 +1,158 @@
+// Demo backend: everything lives in this browser's localStorage, seeded with a few
+// pretend climbers so the leaderboard and feed have something in them.
+// Used when no Supabase keys are configured. Not secure — demo only.
+import type { Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store } from './types';
+import { sessionPoints } from './scoring';
+import { PROTOCOLS } from './protocols';
+
+interface DB {
+  users: { id: string; email: string; password: string }[];
+  profiles: Profile[]; priv: Record<string, PrivateData>;
+  sessions: Session[]; likes: { s: string; u: string }[]; comments: Comment[];
+  me: string | null;
+}
+const KEY = 'bf.demo.v1';
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+function rnd(seed: number) { const x = Math.sin(seed * 9301 + 49297) * 233280; return x - Math.floor(x); }
+
+function seed(): DB {
+  const names = ['Alex J.', 'Mika', 'Sam R.', 'Priya', 'Tom B.', 'Jo', 'Kai'];
+  const strength = [1.32, 1.27, 1.2, 1.12, 1.0, 0.9, 1.06];
+  const freq = [0.5, 0.45, 0.35, 0.55, 0.25, 0.6, 0.3];
+  const profiles: Profile[] = names.map((n, i) => ({ id: 'demo' + i, name: n, avatarUrl: null, isAdmin: false, createdAt: new Date(Date.now() - 200 * 864e5).toISOString() }));
+  const sessions: Session[] = [];
+  const keys = ['max', 'max', 'rep', 'abra', 'min', 'dens', 'oneA', 'int'];
+  const grips = ['Open', 'Half crimp', 'Full crimp', 'Open', 'Half crimp'];
+  for (let i = 0; i < names.length; i++) for (let d = 120; d >= 0; d--) {
+    if (rnd(i * 1000 + d) > freq[i]!) continue;
+    const k = keys[Math.floor(rnd(i * 77 + d) * keys.length)]!, p = PROTOCOLS[k]!;
+    const prog = 1 - d / 400, lp = Math.round(strength[i]! * prog * 1000) / 10;
+    const bw = 70, add = Math.max(0, Math.round((lp / 100 * bw - bw) * 2) / 2), assist = add > 0 ? 0 : Math.round((bw - lp / 100 * bw) * 2) / 2;
+    const hands = p.hands === 'LR' ? ['L', 'R'] as const : ['both'] as const;
+    const hangs = [] as Session['hangs'];
+    for (let s = 1; s <= p.sets; s++) for (let r = 1; r <= p.reps; r++) for (const h of hands) {
+      const full = rnd(i + d + s * 7 + r) > 0.12; const held = full ? p.hang : Math.max(1, Math.floor(p.hang * 0.6));
+      hangs.push({ set: s, rep: r, hand: h, target: p.hang, held, full });
+    }
+    const t = new Date(Date.now() - d * 864e5); t.setHours(7 + Math.floor(rnd(i * 3 + d) * 13), Math.floor(rnd(d + i) * 60));
+    const base = {
+      protocolKey: k, protocolName: p.n, mode: p.mode ?? 'hang', hang: p.hang, rest: p.rest, sets: p.sets, reps: p.reps, setRest: p.setRest ?? 180,
+      edgeMm: k === 'min' ? Math.max(8, Math.round(18 - strength[i]! * 4 * prog)) : p.edge, addedKg: p.mode === 'lift' ? 0 : add, assistKg: p.mode === 'lift' ? 0 : assist,
+      liftKg: p.mode === 'lift' ? Math.round(30 * strength[i]! * prog) : 0, effortPct: p.effort ?? 60, hands: p.hands ?? 'both',
+      grip: grips[Math.floor(rnd(i * 5 + d) * grips.length)]!, fingers: 'All 4', board: 'Beastmaker 1000', edgeMaterial: 'Wood', edgeProfile: 'Flat',
+      feel: '🙂', rpe: 6 + Math.floor(rnd(d * i + 1) * 4), tutS: hangs.reduce((a, h) => a + h.held, 0), fullHangs: hangs.filter(h => h.full).length,
+      totalHangs: hangs.length, hangs, loadPct: p.mode === 'lift' ? null : lp, isPb: rnd(i * 11 + d) > 0.93, note: '',
+    } as Omit<Session, 'id' | 'userId' | 'createdAt' | 'points'>;
+    sessions.push({ ...base, id: uid(), userId: 'demo' + i, createdAt: t.toISOString(), points: sessionPoints(base as any) } as Session);
+  }
+  sessions.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  const notes = ['New PB!! 💀', 'Forearms are toast 🍞', 'First time on this edge!', 'Week done ✅', 'Felt strong today', ''];
+  sessions.slice(0, 12).forEach((s, i) => { s.note = notes[i % notes.length]!; });
+  const likes = sessions.slice(0, 15).flatMap((s, i) => profiles.filter((_, j) => rnd(i * 13 + j) > 0.5 && 'demo' + j !== s.userId).map(p => ({ s: s.id, u: p.id })));
+  const comments: Comment[] = [
+    { id: uid(), sessionId: sessions[0]!.id, userId: 'demo1', body: 'absolute unit 😳', createdAt: new Date().toISOString() },
+    { id: uid(), sessionId: sessions[0]!.id, userId: 'demo3', body: 'teach me your ways', createdAt: new Date().toISOString() },
+    { id: uid(), sessionId: sessions[1]!.id, userId: 'demo0', body: 'toast but make it strong', createdAt: new Date().toISOString() },
+  ];
+  return { users: [], profiles, priv: {}, sessions, likes, comments, me: null };
+}
+
+export class LocalStore implements Store {
+  readonly kind = 'local' as const;
+  private db: DB;
+  private listeners: ((id: string | null) => void)[] = [];
+  constructor() {
+    let db: DB | null = null;
+    try { db = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { /* storage blocked */ }
+    this.db = db ?? seed();
+    this.save();
+  }
+  async ready() { /* nothing to wait for */ }
+  private save() { try { localStorage.setItem(KEY, JSON.stringify(this.db)); } catch { /* storage blocked or full */ } }
+  private need() { if (!this.db.me) throw new Error('Please sign in first'); return this.db.me; }
+  private emit() { this.listeners.forEach(f => f(this.db.me)); }
+
+  currentUserId() { return this.db.me; }
+  onAuthChange(cb: (id: string | null) => void) { this.listeners.push(cb); }
+  async signUp({ email, password, name, inviteCode }: { email: string; password: string; name: string; inviteCode: string }) {
+    if (inviteCode.trim().toUpperCase() !== 'BLUIES') throw new Error("That invite code isn't valid");
+    if (this.db.users.some(u => u.email === email.toLowerCase())) throw new Error('An account with that email already exists');
+    if (password.length < 6) throw new Error('Password must be at least 6 characters');
+    const id = uid();
+    this.db.users.push({ id, email: email.toLowerCase(), password });
+    this.db.profiles.push({ id, name, avatarUrl: null, isAdmin: this.db.users.length === 1, createdAt: new Date().toISOString() });
+    this.db.priv[id] = { bodyweightKg: null, settings: {} };
+    this.db.me = id; this.save(); this.emit();
+  }
+  async signIn(email: string, password: string) {
+    const u = this.db.users.find(x => x.email === email.toLowerCase() && x.password === password);
+    if (!u) throw new Error('Wrong email or password');
+    this.db.me = u.id; this.save(); this.emit();
+  }
+  async signOut() { this.db.me = null; this.save(); this.emit(); }
+  async requestPasswordReset() { throw new Error('Password reset emails only work once Supabase is connected'); }
+  async updatePassword(p: string) { const u = this.db.users.find(x => x.id === this.need())!; u.password = p; this.save(); }
+  async deleteAccount() {
+    const me = this.need(), d = this.db;
+    const mine = new Set(d.sessions.filter(s => s.userId === me).map(s => s.id));
+    d.sessions = d.sessions.filter(s => s.userId !== me);
+    d.likes = d.likes.filter(l => l.u !== me && !mine.has(l.s));
+    d.comments = d.comments.filter(c => c.userId !== me && !mine.has(c.sessionId));
+    d.profiles = d.profiles.filter(p => p.id !== me); d.users = d.users.filter(u => u.id !== me); delete d.priv[me];
+    d.me = null; this.save(); this.emit();
+  }
+
+  async listProfiles() { return structuredClone(this.db.profiles); }
+  async updateProfile(p: { name?: string }) { const pr = this.db.profiles.find(x => x.id === this.need())!; if (p.name) pr.name = p.name; this.save(); }
+  async uploadAvatar(file: Blob) {
+    const url = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
+    this.db.profiles.find(x => x.id === this.need())!.avatarUrl = url; this.save(); return url;
+  }
+  async getPrivate() { return structuredClone(this.db.priv[this.need()] ?? { bodyweightKg: null, settings: {} }); }
+  async savePrivate(d: Partial<PrivateData>) { const me = this.need(); this.db.priv[me] = { ...(this.db.priv[me] ?? { bodyweightKg: null, settings: {} }), ...d }; this.save(); }
+
+  async listSessions(o: { userId?: string; sinceIso?: string } = {}) {
+    return structuredClone(this.db.sessions.filter(s => (!o.userId || s.userId === o.userId) && (!o.sinceIso || s.createdAt >= o.sinceIso)));
+  }
+  async addSession(s: NewSession) {
+    const full: Session = { ...s, id: uid(), userId: this.need(), createdAt: s.createdAt ?? new Date().toISOString() } as Session;
+    this.db.sessions.unshift(full); this.save(); return structuredClone(full);
+  }
+  async updateSession(id: string, patch: Partial<NewSession>) {
+    const s = this.db.sessions.find(x => x.id === id && x.userId === this.need()); if (!s) throw new Error('Session not found');
+    Object.assign(s, patch); this.save();
+  }
+  async deleteSession(id: string) {
+    const me = this.need(), admin = this.db.profiles.find(p => p.id === me)?.isAdmin;
+    this.db.sessions = this.db.sessions.filter(s => !(s.id === id && (s.userId === me || admin)));
+    this.db.likes = this.db.likes.filter(l => l.s !== id); this.db.comments = this.db.comments.filter(c => c.sessionId !== id); this.save();
+  }
+
+  async feed(limit = 50): Promise<FeedItem[]> {
+    const me = this.db.me;
+    return this.db.sessions.slice(0, limit).map(s => ({
+      session: structuredClone(s), likes: this.db.likes.filter(l => l.s === s.id).length, likedByMe: this.db.likes.some(l => l.s === s.id && l.u === me),
+      comments: this.db.comments.filter(c => c.sessionId === s.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    }));
+  }
+  async setLike(sessionId: string, liked: boolean) {
+    const me = this.need(); this.db.likes = this.db.likes.filter(l => !(l.s === sessionId && l.u === me));
+    if (liked) this.db.likes.push({ s: sessionId, u: me }); this.save();
+  }
+  async addComment(sessionId: string, body: string) {
+    const c: Comment = { id: uid(), sessionId, userId: this.need(), body: body.slice(0, 500), createdAt: new Date().toISOString() };
+    this.db.comments.push(c); this.save(); return c;
+  }
+  async deleteComment(id: string) {
+    const me = this.need(), admin = this.db.profiles.find(p => p.id === me)?.isAdmin;
+    this.db.comments = this.db.comments.filter(c => !(c.id === id && (c.userId === me || admin))); this.save();
+  }
+  async socialCounts() {
+    const me = this.need(), mine = new Set(this.db.sessions.filter(s => s.userId === me).map(s => s.id));
+    return {
+      heartsReceived: this.db.likes.filter(l => mine.has(l.s) && l.u !== me).length,
+      commentsGiven: this.db.comments.filter(c => c.userId === me && !mine.has(c.sessionId)).length,
+    };
+  }
+}

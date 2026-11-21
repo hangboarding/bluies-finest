@@ -1,0 +1,367 @@
+-- =====================================================================
+-- Bluies Finest - Supabase schema
+-- Paste this whole file into Supabase -> SQL Editor -> New query -> Run.
+-- It is safe to run again later (it updates things in place).
+-- =====================================================================
+
+create extension if not exists pgcrypto;
+
+-- ---------------------------------------------------------------------
+-- Tables
+-- ---------------------------------------------------------------------
+
+create table if not exists public.profiles (
+  id          uuid primary key references auth.users (id) on delete cascade,
+  name        text not null check (char_length(name) between 1 and 40),
+  avatar_url  text,
+  is_admin    boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+
+-- Owner-only data. Bodyweight lives here and nowhere else.
+create table if not exists public.private_data (
+  id             uuid primary key references public.profiles (id) on delete cascade,
+  bodyweight_kg  numeric check (bodyweight_kg is null or (bodyweight_kg > 0 and bodyweight_kg < 500)),
+  settings       jsonb not null default '{}'::jsonb check (jsonb_typeof(settings) = 'object')
+);
+
+create table if not exists public.sessions (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  created_at     timestamptz not null default now(),
+  protocol_key   text not null default '',
+  protocol_name  text not null default '',
+  mode           text not null default 'hang' check (mode in ('hang', 'lift')),
+  hang           double precision not null default 0,
+  rest           double precision not null default 0,
+  sets           integer not null default 0,
+  reps           integer not null default 0,
+  set_rest       double precision not null default 0,
+  edge_mm        double precision not null default 0,
+  added_kg       double precision not null default 0,
+  assist_kg      double precision not null default 0,
+  lift_kg        double precision not null default 0,
+  effort_pct     double precision not null default 0,
+  hands          text not null default 'both' check (hands in ('both', 'L', 'R', 'LR')),
+  grip           text not null default '',
+  fingers        text not null default '',
+  board          text not null default '',
+  edge_material  text not null default '',
+  edge_profile   text not null default '',
+  feel           text not null default '',
+  rpe            double precision,
+  tut_s          double precision not null default 0,
+  full_hangs     integer not null default 0,
+  total_hangs    integer not null default 0,
+  hangs          jsonb not null default '[]'::jsonb check (jsonb_typeof(hangs) = 'array'),
+  load_pct       double precision,
+  points         double precision not null default 0,
+  is_pb          boolean not null default false,
+  note           text not null default '' check (char_length(note) <= 2000)
+);
+
+create table if not exists public.likes (
+  session_id  uuid not null references public.sessions (id) on delete cascade,
+  user_id     uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (session_id, user_id)
+);
+
+create table if not exists public.comments (
+  id          uuid primary key default gen_random_uuid(),
+  session_id  uuid not null references public.sessions (id) on delete cascade,
+  user_id     uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  body        text not null check (char_length(btrim(body)) between 1 and 1000),
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists public.invite_codes (
+  code        text primary key,
+  max_uses    integer check (max_uses is null or max_uses >= 0),
+  uses        integer not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
+-- Indexes
+-- ---------------------------------------------------------------------
+
+create index if not exists sessions_user_created_idx on public.sessions (user_id, created_at desc);
+create index if not exists sessions_created_idx      on public.sessions (created_at desc);
+create index if not exists likes_session_idx         on public.likes (session_id);
+create index if not exists likes_user_idx            on public.likes (user_id);
+create index if not exists comments_session_idx      on public.comments (session_id, created_at);
+create index if not exists comments_user_idx         on public.comments (user_id);
+
+-- ---------------------------------------------------------------------
+-- Helper: is the current user an admin? (security definer = no RLS recursion)
+-- ---------------------------------------------------------------------
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select p.is_admin from public.profiles p where p.id = auth.uid()), false);
+$$;
+
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Invite-gated signup: runs when a new auth user is created.
+-- ---------------------------------------------------------------------
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_code text := upper(btrim(coalesce(new.raw_user_meta_data ->> 'invite_code', '')));
+  v_name text := btrim(coalesce(new.raw_user_meta_data ->> 'name', ''));
+  v_hit  text;
+begin
+  -- Atomically consume one use of the code (no race between check and increment).
+  update public.invite_codes
+     set uses = uses + 1
+   where code = v_code
+     and (max_uses is null or uses < max_uses)
+  returning code into v_hit;
+
+  if v_hit is null then
+    raise exception 'INVALID_INVITE_CODE' using errcode = 'P0001';
+  end if;
+
+  if v_name = '' then
+    v_name := split_part(coalesce(new.email, 'Climber'), '@', 1);
+  end if;
+  v_name := left(v_name, 40);
+
+  insert into public.profiles (id, name) values (new.id, v_name)
+  on conflict (id) do nothing;
+
+  insert into public.private_data (id) values (new.id)
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Lets the signup form check a code before creating the account.
+-- Returns only true/false; never exposes the codes themselves.
+create or replace function public.check_invite_code(p_code text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.invite_codes
+     where code = upper(btrim(coalesce(p_code, '')))
+       and (max_uses is null or uses < max_uses)
+  );
+$$;
+
+revoke all on function public.check_invite_code(text) from public;
+grant execute on function public.check_invite_code(text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Stop users from making themselves admin (or changing id / created_at).
+-- Changes made from the SQL editor (role "postgres") are allowed.
+-- ---------------------------------------------------------------------
+
+create or replace function public.protect_profile_columns()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user in ('anon', 'authenticated') then
+    if new.is_admin is distinct from old.is_admin then
+      raise exception 'You cannot change admin status';
+    end if;
+    if new.id is distinct from old.id or new.created_at is distinct from old.created_at then
+      raise exception 'You cannot change that field';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_profile_columns on public.profiles;
+create trigger protect_profile_columns
+  before update on public.profiles
+  for each row execute function public.protect_profile_columns();
+
+-- ---------------------------------------------------------------------
+-- Delete my account (cascades to everything I own).
+-- The app removes avatar files via the Storage API before calling this.
+-- ---------------------------------------------------------------------
+
+create or replace function public.delete_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in';
+  end if;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+revoke all on function public.delete_account() from public, anon;
+grant execute on function public.delete_account() to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Privileges (RLS below does the row-level filtering)
+-- ---------------------------------------------------------------------
+
+revoke all on public.profiles, public.private_data, public.sessions,
+              public.likes, public.comments, public.invite_codes from anon;
+revoke all on public.invite_codes from authenticated;
+
+-- Profiles: clients may only ever update name and avatar_url.
+revoke insert, update, delete on public.profiles from authenticated;
+grant select on public.profiles to authenticated;
+grant update (name, avatar_url) on public.profiles to authenticated;
+
+grant select, insert, update on public.private_data to authenticated;
+grant select, insert, update, delete on public.sessions to authenticated;
+grant select, insert, delete on public.likes to authenticated;
+grant select, insert, delete on public.comments to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Row Level Security
+-- ---------------------------------------------------------------------
+
+alter table public.profiles     enable row level security;
+alter table public.private_data enable row level security;
+alter table public.sessions     enable row level security;
+alter table public.likes        enable row level security;
+alter table public.comments     enable row level security;
+alter table public.invite_codes enable row level security;  -- no policies = no client access
+
+-- profiles
+drop policy if exists "profiles: members read" on public.profiles;
+create policy "profiles: members read" on public.profiles
+  for select to authenticated using (true);
+
+drop policy if exists "profiles: update own" on public.profiles;
+create policy "profiles: update own" on public.profiles
+  for update to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid()));
+
+-- private_data (owner only, never shared)
+drop policy if exists "private: read own" on public.private_data;
+create policy "private: read own" on public.private_data
+  for select to authenticated using (id = (select auth.uid()));
+
+drop policy if exists "private: insert own" on public.private_data;
+create policy "private: insert own" on public.private_data
+  for insert to authenticated with check (id = (select auth.uid()));
+
+drop policy if exists "private: update own" on public.private_data;
+create policy "private: update own" on public.private_data
+  for update to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid()));
+
+-- sessions
+drop policy if exists "sessions: members read" on public.sessions;
+create policy "sessions: members read" on public.sessions
+  for select to authenticated using (true);
+
+drop policy if exists "sessions: insert own" on public.sessions;
+create policy "sessions: insert own" on public.sessions
+  for insert to authenticated with check (user_id = (select auth.uid()));
+
+drop policy if exists "sessions: update own" on public.sessions;
+create policy "sessions: update own" on public.sessions
+  for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+drop policy if exists "sessions: delete own or admin" on public.sessions;
+create policy "sessions: delete own or admin" on public.sessions
+  for delete to authenticated
+  using (user_id = (select auth.uid()) or (select public.is_admin()));
+
+-- likes
+drop policy if exists "likes: members read" on public.likes;
+create policy "likes: members read" on public.likes
+  for select to authenticated using (true);
+
+drop policy if exists "likes: insert own" on public.likes;
+create policy "likes: insert own" on public.likes
+  for insert to authenticated with check (user_id = (select auth.uid()));
+
+drop policy if exists "likes: delete own" on public.likes;
+create policy "likes: delete own" on public.likes
+  for delete to authenticated using (user_id = (select auth.uid()));
+
+-- comments
+drop policy if exists "comments: members read" on public.comments;
+create policy "comments: members read" on public.comments
+  for select to authenticated using (true);
+
+drop policy if exists "comments: insert own" on public.comments;
+create policy "comments: insert own" on public.comments
+  for insert to authenticated with check (user_id = (select auth.uid()));
+
+drop policy if exists "comments: delete own or admin" on public.comments;
+create policy "comments: delete own or admin" on public.comments
+  for delete to authenticated
+  using (user_id = (select auth.uid()) or (select public.is_admin()));
+
+-- ---------------------------------------------------------------------
+-- Storage: public "avatars" bucket, each user writes only to "<uid>/..."
+-- ---------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+  set public = true,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "avatars: read own folder" on storage.objects;
+create policy "avatars: read own folder" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "avatars: upload own folder" on storage.objects;
+create policy "avatars: upload own folder" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "avatars: update own folder" on storage.objects;
+create policy "avatars: update own folder" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text)
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "avatars: delete own folder" on storage.objects;
+create policy "avatars: delete own folder" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- ---------------------------------------------------------------------
+-- Seed: the starting invite code (unlimited uses). See docs/SUPABASE.md.
+-- ---------------------------------------------------------------------
+
+insert into public.invite_codes (code, max_uses) values ('BLUIES', null)
+on conflict (code) do nothing;

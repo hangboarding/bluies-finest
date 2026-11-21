@@ -1,0 +1,73 @@
+import type { Hands, Mode } from './types';
+
+export interface Protocol {
+  n: string; by: string; use: string; d: string; int: string; freq: string;
+  hang: number; rest: number; sets: number; reps: number; edge: number;
+  setRest?: number; mode?: Mode; hands?: Hands; sw?: number; effort?: number;
+  simple?: boolean; custom?: boolean;
+}
+
+export const PROTOCOLS: Record<string, Protocol> = {
+  jlmh: { n: 'JUST LET ME HANG', simple: true, by: 'No theory, no fuss', use: 'Quick hangs with zero setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },
+  max: { n: 'Max Hangs', by: 'Eva López (2012–14 studies) · popularised by Eric Hörst', use: 'Max finger strength', hang: 10, rest: 180, sets: 5, reps: 1, edge: 20, int: '~85–90%, 2–3s in reserve', freq: '2×/week', d: 'Near-max load on a medium edge with full recovery between hangs.' },
+  abra: { n: 'Abrahangs', by: "Emil Abrahamsson · based on Keith Baar's tendon research", use: 'Tendon health, rehab, recovery', mode: 'lift', hang: 10, rest: 20, sets: 10, reps: 1, edge: 20, effort: 50, int: '40–60%, never to failure', freq: 'Daily is fine', d: 'Light, feet-assisted hangs or lifts, done often to load tendons gently.' },
+  rep: { n: 'Repeaters', by: "Mark & Mike Anderson — The Rock Climber's Training Manual", use: 'Strength-endurance', hang: 7, rest: 3, sets: 6, reps: 6, setRest: 180, edge: 20, int: '~60–80%', freq: '2×/week', d: '7s on / 3s off × 6 makes one set. Builds power you can repeat on a route.' },
+  min: { n: 'Min Edge', by: 'Eva López — MinEdge protocol', use: 'Max strength on small holds', hang: 10, rest: 120, sets: 5, reps: 1, edge: 14, int: 'Bodyweight, smallest edge for 10s', freq: '2×/week', d: 'Instead of adding weight, shrink the edge until 10s is hard.' },
+  dens: { n: 'Density Hangs', by: 'Tyler Nelson — Camp4 Human Performance', use: 'Connective-tissue adaptation', hang: 30, rest: 60, sets: 4, reps: 1, edge: 20, int: '~60–70%', freq: '2–3×/week', d: 'Long, moderate hangs (20–40s) to thicken and strengthen tendons.' },
+  int: { n: 'IntHangs', by: 'Eva López — intermittent hangs', use: 'Base strength, early season', hang: 10, rest: 5, sets: 4, reps: 5, setRest: 60, edge: 20, int: 'Submaximal, ~70%', freq: '2×/week', d: '10s on / 5s off × 5 per set. A gentler lead-in to max hangs.' },
+  s753: { n: '7/53', by: 'Eric Hörst — Training for Climbing', use: 'Max strength', hang: 7, rest: 53, sets: 3, reps: 3, setRest: 240, edge: 20, int: '~90%', freq: '1–2×/week', d: '7s heavy hang, 53s rest, 3 hangs per set. Long rests keep quality high.' },
+  oneA: { n: 'One-Arm Max', by: 'Tom Randall & Ollie Torr — Lattice Training', use: 'Max strength, imbalance check', hang: 10, rest: 180, sets: 4, reps: 1, edge: 20, hands: 'LR', sw: 10, int: '~85–90%', freq: '1–2×/week', d: 'Single-arm hangs, left then right. Advanced climbers only.' },
+  rec: { n: 'Recruitment Pulls', by: 'Tyler Nelson — Camp4 Human Performance', use: 'Neural recruitment / power', mode: 'lift', hang: 3, rest: 120, sets: 6, reps: 1, edge: 20, effort: 100, int: 'Maximal intent', freq: '2×/week', d: 'Short, explosive max pulls on a lifting edge or no-hang device.' },
+  beg: { n: 'Beginner', by: 'Eric Hörst — Training for Climbing', use: 'First 6–12 months of hangboarding', hang: 10, rest: 120, sets: 4, reps: 1, edge: 25, int: '~60%, well short of failure', freq: '2×/week', d: 'Big edge, open hand, assistance if needed. Builds the habit safely.' },
+};
+
+export interface Values {
+  hang: number; rest: number; sets: number; reps: number; setRest: number; edge: number;
+  add: number; rem: number; lift: number; effort: number; sw: number; ready: number;
+  mode: Mode; hands: Hands; simple?: boolean;
+}
+export const DEFAULTS: Omit<Values, 'hang' | 'rest' | 'sets' | 'edge'> = { add: 0, rem: 0, lift: 20, effort: 60, setRest: 180, sw: 10, ready: 10, reps: 1, mode: 'hang', hands: 'both' };
+
+export type FieldKey = 'hang' | 'rest' | 'sets' | 'reps' | 'setRest' | 'edge' | 'add' | 'rem' | 'lift' | 'effort' | 'sw' | 'ready';
+export interface Field { k: FieldKey; label: string; unit: string; step: number; icon: string; colour: string; show?: (v: Values) => boolean; }
+export const FIELDS: Field[] = [
+  { k: 'hang', label: 'Hang time', unit: 's', step: 1, icon: 'hang', colour: '#3ddc84' },
+  { k: 'rest', label: 'Rest time', unit: 's', step: 1, icon: 'rest', colour: '#5aa9e6' },
+  { k: 'sets', label: 'Sets', unit: '×', step: 1, icon: 'sets', colour: '#f2c14e' },
+  { k: 'reps', label: 'Reps / set', unit: '×', step: 1, icon: 'reps', colour: '#f78fb3', show: v => !v.simple },
+  { k: 'setRest', label: 'Rest between sets', unit: 's', step: 15, icon: 'setRest', colour: '#7ad7f0', show: v => v.reps > 1 && !v.simple },
+  { k: 'edge', label: 'Edge size', unit: 'mm', step: 1, icon: 'edge', colour: '#ff9f43' },
+  { k: 'add', label: 'Added weight', unit: 'kg', step: 0.5, icon: 'add', colour: '#ff5a4e', show: v => v.mode !== 'lift' },
+  { k: 'rem', label: 'Assist (removed)', unit: 'kg', step: 0.5, icon: 'rem', colour: '#4ecdc4', show: v => v.mode !== 'lift' },
+  { k: 'lift', label: 'Load lifted', unit: 'kg', step: 0.5, icon: 'lift', colour: '#ff5a4e', show: v => v.mode === 'lift' && !v.simple },
+  { k: 'effort', label: 'Target effort', unit: '%', step: 5, icon: 'effort', colour: '#4ecdc4', show: v => v.mode === 'lift' && !v.simple },
+  { k: 'sw', label: 'Hand switch rest', unit: 's', step: 1, icon: 'switch', colour: '#c9d1d9', show: v => v.hands === 'LR' && !v.simple },
+  { k: 'ready', label: 'Get-ready', unit: 's', step: 1, icon: 'ready', colour: '#b48cff' },
+];
+
+export const TIPS: Record<string, [string, string]> = {
+  add: ['Added weight', 'Extra weight on a harness or belt. Can’t be combined with Assist.'],
+  rem: ['Assist (removed)', 'Weight taken off you — a pulley counterweight or feet on a chair. Can’t be combined with Added weight.'],
+  sw: ['Hand switch rest', 'Rest between your left-hand and right-hand hang in “L then R” mode.'],
+  ready: ['Get-ready', 'Countdown before the first hang so you can chalk up and get into position. Set to 0 to skip it.'],
+  lift: ['Load lifted', 'Weight you pull off the floor with a lifting edge or block, per hand.'],
+  effort: ['Target effort', 'How hard to pull, as % of your max. Abrahangs ≈ 40–60%, recruitment pulls ≈ 100%.'],
+  setRest: ['Rest between sets', 'Longer rest after finishing all reps in a set.'],
+  mode: ['Load method', 'Hang: you hang off the board, adding or removing weight. No-hang: you stand and lift a weight with a portable edge — easier to dose precisely.'],
+  bodyweight: ['Why bodyweight?', 'Used to work out load as a % of bodyweight so scoring is fair. Only you can ever see it.'],
+};
+
+export const QUOTES: [string, string][] = [
+  ['The board has been humbled.', 'You walked in, hung, and left it shook. Iconic.'],
+  ['Fierce. Fabulous. Forearms.', 'Rest up, superstar — you earned every second.'],
+  ['Ate and left no crimps.', "That session was a full-course meal. Chef's kiss."],
+  ['Crimp royalty has entered the chat 👑', 'Bow down — then go hydrate, queen.'],
+  ['Not you making it look easy 🙄💖', 'Rude of you to be this strong. Keep it up.'],
+  ['The edge is SHOOK.', 'That edge never stood a chance against you.'],
+  ['Slay of the day 🔥', 'Tendons thank you — rest well, legend.'],
+  ["It's giving… unstoppable.", 'Consistency looks gorgeous on you.'],
+  ['Serve, sweat, repeat 💦', 'Another deposit in the strength bank, darling.'],
+  ['Gagged. Absolutely gagged.', "We'd clap but you've got chalk everywhere."],
+];
+
+export const BUILTIN_BOARDS = ['Beastmaker 1000', 'Beastmaker 2000', 'Tension Block', 'Lattice Edge', 'Gym board'];

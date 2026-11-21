@@ -1,0 +1,478 @@
+// Real multi-user backend on Supabase. See docs/SUPABASE.md and supabase/schema.sql.
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type {
+  Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store,
+} from './types';
+
+// ---------------------------------------------------------------------------
+// Row <-> object mapping
+// ---------------------------------------------------------------------------
+
+/** Session fields (camelCase) -> sessions columns (snake_case). */
+const SESSION_COLUMNS = {
+  id: 'id',
+  userId: 'user_id',
+  createdAt: 'created_at',
+  protocolKey: 'protocol_key',
+  protocolName: 'protocol_name',
+  mode: 'mode',
+  hang: 'hang',
+  rest: 'rest',
+  sets: 'sets',
+  reps: 'reps',
+  setRest: 'set_rest',
+  edgeMm: 'edge_mm',
+  addedKg: 'added_kg',
+  assistKg: 'assist_kg',
+  liftKg: 'lift_kg',
+  effortPct: 'effort_pct',
+  hands: 'hands',
+  grip: 'grip',
+  fingers: 'fingers',
+  board: 'board',
+  edgeMaterial: 'edge_material',
+  edgeProfile: 'edge_profile',
+  feel: 'feel',
+  rpe: 'rpe',
+  tutS: 'tut_s',
+  fullHangs: 'full_hangs',
+  totalHangs: 'total_hangs',
+  hangs: 'hangs',
+  loadPct: 'load_pct',
+  points: 'points',
+  isPb: 'is_pb',
+  note: 'note',
+} as const satisfies Record<keyof Session, string>;
+
+const SESSION_SELECT = Object.values(SESSION_COLUMNS).join(',');
+const COMMENT_SELECT = 'id,session_id,user_id,body,created_at';
+const PAGE = 1000; // PostgREST default max rows per request
+
+function rowToSession(r: any): Session {
+  const s: any = {};
+  for (const [key, col] of Object.entries(SESSION_COLUMNS)) s[key] = r[col];
+  s.hangs = Array.isArray(s.hangs) ? s.hangs : [];
+  s.note = s.note ?? '';
+  return s as Session;
+}
+
+/** Only maps keys that are present (and not undefined), so it works for patches. */
+function sessionToRow(s: Partial<NewSession>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const [key, col] of Object.entries(SESSION_COLUMNS)) {
+    if (key === 'id' || key === 'userId') continue; // never client-controlled
+    const v = (s as any)[key];
+    if (v !== undefined) row[col] = v;
+  }
+  return row;
+}
+
+function rowToProfile(r: any): Profile {
+  return {
+    id: r.id,
+    name: r.name,
+    avatarUrl: r.avatar_url ?? null,
+    isAdmin: !!r.is_admin,
+    createdAt: r.created_at,
+  };
+}
+
+function rowToComment(r: any): Comment {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    userId: r.user_id,
+    body: r.body,
+    createdAt: r.created_at,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Friendly errors
+// ---------------------------------------------------------------------------
+
+const INVITE_ERROR = "That invite code isn't valid";
+
+function friendly(err: unknown, fallback = 'Something went wrong. Please try again.'): Error {
+  const raw = String((err as any)?.message ?? err ?? '');
+  const msg = raw.toLowerCase();
+  const code = String((err as any)?.code ?? '');
+
+  if (msg.includes('invalid_invite_code') || msg.includes('database error saving new user')) {
+    return new Error(INVITE_ERROR);
+  }
+  if (msg.includes('invalid login credentials')) return new Error('Wrong email or password.');
+  if (msg.includes('email not confirmed')) {
+    return new Error('Please confirm your email first - check your inbox for the link.');
+  }
+  if (msg.includes('already registered') || msg.includes('already been registered') || code === 'user_already_exists') {
+    return new Error('An account with that email already exists. Try signing in instead.');
+  }
+  if (msg.includes('rate limit') || msg.includes('too many') || code === 'over_email_send_rate_limit') {
+    return new Error('Too many attempts. Please wait a minute and try again.');
+  }
+  if (msg.includes('should be different from the old password') || code === 'same_password') {
+    return new Error('Your new password must be different from the old one.');
+  }
+  if (msg.includes('password should') || msg.includes('weak password') || code === 'weak_password') {
+    return new Error('That password is too weak. Use at least 6 characters (longer is better).');
+  }
+  if (msg.includes('unable to validate email') || msg.includes('invalid email') || code === 'email_address_invalid') {
+    return new Error("That email address doesn't look right.");
+  }
+  if (msg.includes('auth session missing') || msg.includes('jwt expired') || code === 'PGRST301') {
+    return new Error('Your session has expired. Please sign in again.');
+  }
+  if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('network request failed')) {
+    return new Error("Can't reach the server. Check your internet connection.");
+  }
+  if (msg.includes('row-level security') || code === '42501') {
+    return new Error("You don't have permission to do that.");
+  }
+  if (msg.includes('cannot change admin')) return new Error("You can't change admin status.");
+  if (code === '23514') return new Error('Some of that data is invalid (too long or out of range).');
+  if (msg.includes('payload too large') || msg.includes('exceeded the maximum allowed size')) {
+    return new Error('That image is too big (max 2 MB).');
+  }
+  if (msg.includes('mime type') || msg.includes('invalid_mime_type')) {
+    return new Error('Please choose a JPEG, PNG or WebP image.');
+  }
+  console.warn('[SupabaseStore]', err);
+  return new Error(raw && raw.length < 200 ? raw : fallback);
+}
+
+/** Unwraps a Supabase { data, error } result, throwing a friendly Error. */
+function check<T>(res: { data: T; error: any }): T {
+  if (res.error) throw friendly(res.error);
+  return res.data;
+}
+
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
+
+export class SupabaseStore implements Store {
+  readonly kind = 'supabase' as const;
+  readonly client: SupabaseClient;
+
+  private uid: string | null = null;
+  private listeners: Array<(userId: string | null) => void> = [];
+  private readyPromise: Promise<void>;
+
+  constructor(url: string, anonKey: string) {
+    this.client = createClient(url, anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        // PKCE keeps the app's own "#reset" hash intact on password-reset links.
+        flowType: 'pkce',
+      },
+    });
+
+    this.client.auth.onAuthStateChange((_event, session) => {
+      // Never await Supabase calls inside this callback (supabase-js deadlock), so
+      // just update the cache and notify listeners on the next tick.
+      this.setUid(session?.user?.id ?? null);
+    });
+
+    this.readyPromise = this.client.auth
+      .getSession()
+      .then(({ data }) => { this.setUid(data.session?.user?.id ?? null); })
+      .catch((e) => { console.warn('[SupabaseStore] could not restore session', e); });
+  }
+
+  /** Resolves once the stored session (if any) has been restored. Await before first render. */
+  ready(): Promise<void> {
+    return this.readyPromise;
+  }
+
+  private setUid(next: string | null) {
+    if (next === this.uid) return;
+    this.uid = next;
+    for (const cb of this.listeners) {
+      setTimeout(() => {
+        try { cb(next); } catch (e) { console.error(e); }
+      }, 0);
+    }
+  }
+
+  private requireUid(): string {
+    if (!this.uid) throw new Error('You need to be signed in to do that.');
+    return this.uid;
+  }
+
+  private get appUrl(): string {
+    return location.origin + import.meta.env.BASE_URL;
+  }
+
+  // ---------------------------------------------------------------- auth
+
+  currentUserId(): string | null {
+    return this.uid;
+  }
+
+  onAuthChange(cb: (userId: string | null) => void): void {
+    this.listeners.push(cb);
+  }
+
+  async signUp(p: { email: string; password: string; name: string; inviteCode: string }): Promise<void> {
+    const name = p.name.trim();
+    const inviteCode = p.inviteCode.trim().toUpperCase();
+    if (!name) throw new Error('Please enter your name.');
+    if (name.length > 40) throw new Error('Name must be 40 characters or fewer.');
+    if (!inviteCode) throw new Error('Please enter your invite code.');
+
+    // Friendly pre-check (the database trigger enforces it for real).
+    const pre = await this.client.rpc('check_invite_code', { p_code: inviteCode });
+    if (!pre.error && pre.data === false) throw new Error(INVITE_ERROR);
+
+    const { data, error } = await this.client.auth.signUp({
+      email: p.email.trim(),
+      password: p.password,
+      options: {
+        data: { name, invite_code: inviteCode },
+        emailRedirectTo: this.appUrl,
+      },
+    });
+    if (error) throw friendly(error);
+    // With email confirmation on, an existing email returns a user with no identities.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      throw new Error('An account with that email already exists. Try signing in instead.');
+    }
+    if (data.session) this.setUid(data.session.user.id);
+  }
+
+  async signIn(email: string, password: string): Promise<void> {
+    const { data, error } = await this.client.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) throw friendly(error);
+    this.setUid(data.session?.user?.id ?? null);
+  }
+
+  async signOut(): Promise<void> {
+    const { error } = await this.client.auth.signOut();
+    if (error) {
+      // Still clear the local session so the user is never stuck signed in.
+      await this.client.auth.signOut({ scope: 'local' }).catch(() => {});
+    }
+    this.setUid(null);
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const { error } = await this.client.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: location.origin + import.meta.env.BASE_URL + '#reset',
+    });
+    if (error) throw friendly(error);
+  }
+
+  async updatePassword(newPassword: string): Promise<void> {
+    const { error } = await this.client.auth.updateUser({ password: newPassword });
+    if (error) throw friendly(error);
+  }
+
+  async deleteAccount(): Promise<void> {
+    const uid = this.requireUid();
+    // Remove avatar files first (Storage files can't be deleted from SQL).
+    try {
+      const { data: files } = await this.client.storage.from('avatars').list(uid, { limit: 1000 });
+      if (files?.length) {
+        await this.client.storage.from('avatars').remove(files.map((f) => `${uid}/${f.name}`));
+      }
+    } catch (e) {
+      console.warn('[SupabaseStore] could not remove avatar files', e);
+    }
+    check(await this.client.rpc('delete_account'));
+    await this.client.auth.signOut({ scope: 'local' }).catch(() => {});
+    this.setUid(null);
+  }
+
+  // ---------------------------------------------------------------- profiles
+
+  async listProfiles(): Promise<Profile[]> {
+    const rows = check(
+      await this.client
+        .from('profiles')
+        .select('id,name,avatar_url,is_admin,created_at')
+        .order('created_at', { ascending: true }),
+    );
+    return (rows ?? []).map(rowToProfile);
+  }
+
+  async updateProfile(p: { name?: string }): Promise<void> {
+    const uid = this.requireUid();
+    const patch: Record<string, unknown> = {};
+    if (p.name !== undefined) {
+      const name = p.name.trim();
+      if (!name) throw new Error('Please enter your name.');
+      if (name.length > 40) throw new Error('Name must be 40 characters or fewer.');
+      patch.name = name;
+    }
+    if (!Object.keys(patch).length) return;
+    check(await this.client.from('profiles').update(patch).eq('id', uid));
+  }
+
+  async uploadAvatar(file: Blob): Promise<string> {
+    const uid = this.requireUid();
+    const fileName = `avatar-${Date.now()}.jpg`;
+    const path = `${uid}/${fileName}`;
+    const bucket = this.client.storage.from('avatars');
+
+    check(await bucket.upload(path, file, {
+      upsert: true,
+      contentType: file.type || 'image/jpeg',
+      cacheControl: '31536000',
+    }));
+    const url = bucket.getPublicUrl(path).data.publicUrl;
+    check(await this.client.from('profiles').update({ avatar_url: url }).eq('id', uid));
+
+    // Best-effort cleanup of older avatars.
+    try {
+      const { data: files } = await bucket.list(uid, { limit: 1000 });
+      const old = (files ?? []).filter((f) => f.name !== fileName).map((f) => `${uid}/${f.name}`);
+      if (old.length) await bucket.remove(old);
+    } catch { /* ignore */ }
+
+    return url;
+  }
+
+  async getPrivate(): Promise<PrivateData> {
+    const uid = this.requireUid();
+    const row: any = check(
+      await this.client.from('private_data').select('bodyweight_kg,settings').eq('id', uid).maybeSingle(),
+    );
+    return {
+      bodyweightKg: row?.bodyweight_kg == null ? null : Number(row.bodyweight_kg),
+      settings: row?.settings && typeof row.settings === 'object' ? row.settings : {},
+    };
+  }
+
+  /** Writes only the fields given. `settings`, if given, replaces the whole settings object. */
+  async savePrivate(d: Partial<PrivateData>): Promise<void> {
+    const uid = this.requireUid();
+    const row: Record<string, unknown> = { id: uid };
+    if (d.bodyweightKg !== undefined) row.bodyweight_kg = d.bodyweightKg;
+    if (d.settings !== undefined) row.settings = d.settings ?? {};
+    if (Object.keys(row).length === 1) return;
+    check(await this.client.from('private_data').upsert(row, { onConflict: 'id' }));
+  }
+
+  // ---------------------------------------------------------------- sessions
+
+  /** Newest first. Fetches all matching rows (paged past the 1000-row API limit). */
+  async listSessions(opts: { userId?: string; sinceIso?: string } = {}): Promise<Session[]> {
+    const out: Session[] = [];
+    for (let from = 0; ; from += PAGE) {
+      let q = this.client
+        .from('sessions')
+        .select(SESSION_SELECT)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (opts.userId) q = q.eq('user_id', opts.userId);
+      if (opts.sinceIso) q = q.gte('created_at', opts.sinceIso);
+      const rows = check(await q) as any[];
+      out.push(...(rows ?? []).map(rowToSession));
+      if (!rows || rows.length < PAGE) break;
+    }
+    return out;
+  }
+
+  async addSession(s: NewSession): Promise<Session> {
+    const uid = this.requireUid();
+    const row = { ...sessionToRow(s), user_id: uid };
+    const inserted = check(await this.client.from('sessions').insert(row).select(SESSION_SELECT).single());
+    return rowToSession(inserted);
+  }
+
+  async updateSession(id: string, patch: Partial<NewSession>): Promise<void> {
+    this.requireUid();
+    const row = sessionToRow(patch);
+    if (!Object.keys(row).length) return;
+    const rows = check(await this.client.from('sessions').update(row).eq('id', id).select('id')) as any[];
+    if (!rows?.length) throw new Error("That session doesn't exist or isn't yours to edit.");
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    this.requireUid();
+    const rows = check(await this.client.from('sessions').delete().eq('id', id).select('id')) as any[];
+    if (!rows?.length) throw new Error("That session doesn't exist or you can't delete it.");
+  }
+
+  // ---------------------------------------------------------------- social
+
+  /** Latest sessions with likes and comments, in a single request (embedded resources). */
+  async feed(limit = 50): Promise<FeedItem[]> {
+    const uid = this.requireUid();
+    const rows = check(
+      await this.client
+        .from('sessions')
+        .select(`${SESSION_SELECT},likes(user_id),comments(${COMMENT_SELECT})`)
+        .order('created_at', { ascending: false })
+        .order('created_at', { referencedTable: 'comments', ascending: true })
+        .limit(limit),
+    ) as any[];
+    return (rows ?? []).map((r) => {
+      const likes: any[] = r.likes ?? [];
+      const comments = ((r.comments ?? []) as any[])
+        .map(rowToComment)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      return {
+        session: rowToSession(r),
+        likes: likes.length,
+        likedByMe: likes.some((l) => l.user_id === uid),
+        comments,
+      };
+    });
+  }
+
+  async setLike(sessionId: string, liked: boolean): Promise<void> {
+    const uid = this.requireUid();
+    if (liked) {
+      check(await this.client
+        .from('likes')
+        .upsert({ session_id: sessionId, user_id: uid }, { onConflict: 'session_id,user_id', ignoreDuplicates: true }));
+    } else {
+      check(await this.client.from('likes').delete().eq('session_id', sessionId).eq('user_id', uid));
+    }
+  }
+
+  async addComment(sessionId: string, body: string): Promise<Comment> {
+    const uid = this.requireUid();
+    const text = body.trim();
+    if (!text) throw new Error('Comment is empty.');
+    if (text.length > 1000) throw new Error('Comments can be at most 1000 characters.');
+    const row = check(
+      await this.client
+        .from('comments')
+        .insert({ session_id: sessionId, user_id: uid, body: text })
+        .select(COMMENT_SELECT)
+        .single(),
+    );
+    return rowToComment(row);
+  }
+
+  async deleteComment(id: string): Promise<void> {
+    this.requireUid();
+    const rows = check(await this.client.from('comments').delete().eq('id', id).select('id')) as any[];
+    if (!rows?.length) throw new Error("That comment doesn't exist or you can't delete it.");
+  }
+
+  async socialCounts(): Promise<{ heartsReceived: number; commentsGiven: number }> {
+    const uid = this.requireUid();
+    const [hearts, comments] = await Promise.all([
+      this.client
+        .from('likes')
+        .select('session_id,sessions!inner(user_id)', { count: 'exact', head: true })
+        .eq('sessions.user_id', uid)
+        .neq('user_id', uid),
+      this.client
+        .from('comments')
+        .select('id,sessions!inner(user_id)', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .neq('sessions.user_id', uid),
+    ]);
+    if (hearts.error) throw friendly(hearts.error);
+    if (comments.error) throw friendly(comments.error);
+    return { heartsReceived: hearts.count ?? 0, commentsGiven: comments.count ?? 0 };
+  }
+}
