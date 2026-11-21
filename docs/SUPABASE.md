@@ -71,7 +71,7 @@ Supabase's built-in email sender only delivers to members of your Supabase team,
 
 5. Optionally raise the email limit under **Authentication → Rate Limits**.
 
-If you own a domain, a service like Resend also works. Leave **Confirm email** turned on (Authentication → Sign In / Providers → Email).
+If you own a domain, a service like Resend also works. Leave **Confirm email** turned on (Authentication → Sign In / Providers → Email). On that same page, set **Minimum password length** to **8** to match the app.
 
 ## 8. Make yourself admin
 
@@ -97,4 +97,5 @@ Codes aren't case-sensitive when people sign up.
 
 - **Free projects pause** after about a week with no activity. If the app stops loading, open the Supabase dashboard and click **Restore project**. No data is lost.
 - **Removing someone completely:** delete them in **Authentication → Users**. Their sessions, hearts, comments and private data go with them. Also delete their folder in **Storage → avatars**.
-- **Backups:** the free plan doesn't include downloadable backups. Every user can download their own data from Profile, and you can export tables from the **Table Editor**.
+- **Backups:** the free plan doesn't include downloadable backups. Use **Profile → Admin tools → Back up everything** every month or so. Each member can also download their own data from Profile.
+- **Updates:** Dependabot opens pull requests on GitHub when dependencies have updates. The tests run on each one automatically; merge it if they pass.
