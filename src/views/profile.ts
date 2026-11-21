@@ -7,6 +7,7 @@ import { bumpDaily } from '../lib/achievements';
 import { setSound } from '../lib/timer';
 import { resetTours } from './tour';
 import { addBoard } from './hang';
+import { openAdmin } from './admin';
 
 export function renderProfile(root: HTMLElement) {
   const S = state.settings, P = S.prefs, me = state.me!;
@@ -47,6 +48,7 @@ export function renderProfile(root: HTMLElement) {
     <div class="tg"><span>${ic('help')} App tour<small>Show the intro and page tips again</small></span><button class="pill" id="replay">Replay</button></div></div>
   <div class="card"><h3>${ic('download')} Your data</h3><p class="sub">Download every session, setting and board as a JSON file.</p>
     <button class="big ghost" id="dl">${ic('download')} Download my data</button></div>
+  ${me.isAdmin ? `<button class="big ghost" id="adminBtn" style="margin-bottom:10px">${ic('admin')} Admin tools</button>` : ''}
   <button class="big ghost" id="chgPw" style="margin-bottom:10px">${ic('lock')} Change password</button>
   <button class="big ghost" id="logout">${ic('logout')} Log out</button>
   <button class="big ghost danger-text" id="delAcc" style="margin-top:10px">${ic('trash')} Delete account</button>`;
@@ -171,6 +173,7 @@ async function onClick(e: MouseEvent) {
   if (t.closest('#addBoard')) { const i = $('#newBoard') as HTMLInputElement; if (i.value.trim()) { await addBoard(i.value); i.value = ''; drawBoardList(); } return; }
   if (t.closest('#saveName')) { await saveAbout(); return; }
   if (t.closest('#chgPw')) { await changePassword(); return; }
+  if (t.closest('#adminBtn')) { openAdmin(); return; }
   if (t.closest('#replay')) { resetTours(); await flushSettings(); location.hash = ''; location.reload(); return; }
   if (t.closest('#dl')) {
     const data = { exported: new Date().toISOString(), app: 'Bluies Finest', profile: { name: state.me?.name }, bodyweightKg: state.priv.bodyweightKg, settings: S, sessions: mySessions() };

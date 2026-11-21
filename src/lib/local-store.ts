@@ -1,7 +1,7 @@
 // Demo backend: everything lives in this browser's localStorage, seeded with a few
 // pretend climbers so the leaderboard and feed have something in them.
 // Used when no Supabase keys are configured. Not secure — demo only.
-import type { Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store } from './types';
+import type { Comment, FeedItem, InviteCode, NewSession, Notif, PrivateData, Profile, Session, Store } from './types';
 import { sessionPoints } from './scoring';
 import { PROTOCOLS } from './protocols';
 
@@ -76,7 +76,9 @@ export class LocalStore implements Store {
   currentUserId() { return this.db.me; }
   onAuthChange(cb: (id: string | null) => void) { this.listeners.push(cb); }
   async signUp({ email, password, name, inviteCode }: { email: string; password: string; name: string; inviteCode: string }) {
-    if (inviteCode.trim().toUpperCase() !== 'BLUIES') throw new Error("That invite code isn't valid");
+    const code = this.codes().find(x => x.code === inviteCode.trim().toUpperCase());
+    if (!code || (code.maxUses != null && code.uses >= code.maxUses)) throw new Error("That invite code isn't valid");
+    code.uses++;
     if (this.db.users.some(u => u.email === email.toLowerCase())) throw new Error('An account with that email already exists');
     if (password.length < 6) throw new Error('Password must be at least 6 characters');
     const id = uid();
@@ -138,7 +140,7 @@ export class LocalStore implements Store {
   }
   async setLike(sessionId: string, liked: boolean) {
     const me = this.need(); this.db.likes = this.db.likes.filter(l => !(l.s === sessionId && l.u === me));
-    if (liked) this.db.likes.push({ s: sessionId, u: me }); this.save();
+    if (liked) this.db.likes.push({ s: sessionId, u: me, at: new Date().toISOString() } as any); this.save();
   }
   async addComment(sessionId: string, body: string) {
     const c: Comment = { id: uid(), sessionId, userId: this.need(), body: body.slice(0, 500), createdAt: new Date().toISOString() };
@@ -148,6 +150,25 @@ export class LocalStore implements Store {
     const me = this.need(), admin = this.db.profiles.find(p => p.id === me)?.isAdmin;
     this.db.comments = this.db.comments.filter(c => !(c.id === id && (c.userId === me || admin))); this.save();
   }
+  async notifications(limit = 40): Promise<Notif[]> {
+    const me = this.need(), mine = new Map(this.db.sessions.filter(s => s.userId === me).map(s => [s.id, s]));
+    const out: Notif[] = [
+      ...this.db.likes.filter(l => mine.has(l.s) && l.u !== me).map(l => ({ kind: 'like' as const, sessionId: l.s, protocolName: mine.get(l.s)!.protocolName, fromUserId: l.u, createdAt: (l as any).at ?? mine.get(l.s)!.createdAt })),
+      ...this.db.comments.filter(c => mine.has(c.sessionId) && c.userId !== me).map(c => ({ kind: 'comment' as const, sessionId: c.sessionId, protocolName: mine.get(c.sessionId)!.protocolName, fromUserId: c.userId, body: c.body, createdAt: c.createdAt })),
+    ];
+    return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  }
+  private codes(): InviteCode[] { return ((this.db as any).codes ??= [{ code: 'BLUIES', maxUses: null, uses: this.db.users.length, createdAt: new Date().toISOString() }]); }
+  private needAdmin() { const me = this.need(); if (!this.db.profiles.find(p => p.id === me)?.isAdmin) throw new Error('Only admins can do that'); }
+  async listInviteCodes() { this.needAdmin(); return structuredClone(this.codes()); }
+  async saveInviteCode(code: string, maxUses: number | null) {
+    this.needAdmin(); const c = code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,40}$/.test(c)) throw new Error('Codes are 3–40 letters, numbers, - or _.');
+    const list = this.codes(), hit = list.find(x => x.code === c);
+    if (hit) hit.maxUses = maxUses; else list.push({ code: c, maxUses, uses: 0, createdAt: new Date().toISOString() });
+    this.save();
+  }
+  async deleteInviteCode(code: string) { this.needAdmin(); (this.db as any).codes = this.codes().filter(x => x.code !== code); this.save(); }
   async socialCounts() {
     const me = this.need(), mine = new Set(this.db.sessions.filter(s => s.userId === me).map(s => s.id));
     return {

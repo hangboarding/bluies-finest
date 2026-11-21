@@ -1,8 +1,6 @@
 // Real multi-user backend on Supabase. See docs/SUPABASE.md and supabase/schema.sql.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type {
-  Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store,
-} from './types';
+import type { Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store, Notif, InviteCode } from './types';
 
 // ---------------------------------------------------------------------------
 // Row <-> object mapping
@@ -474,5 +472,45 @@ export class SupabaseStore implements Store {
     if (hearts.error) throw friendly(hearts.error);
     if (comments.error) throw friendly(comments.error);
     return { heartsReceived: hearts.count ?? 0, commentsGiven: comments.count ?? 0 };
+  }
+
+  async notifications(limit = 40): Promise<Notif[]> {
+    const uid = this.requireUid();
+    const [likes, comments] = await Promise.all([
+      this.client.from('likes')
+        .select('session_id,user_id,created_at,sessions!inner(user_id,protocol_name)')
+        .eq('sessions.user_id', uid).neq('user_id', uid)
+        .order('created_at', { ascending: false }).limit(limit),
+      this.client.from('comments')
+        .select('session_id,user_id,body,created_at,sessions!inner(user_id,protocol_name)')
+        .eq('sessions.user_id', uid).neq('user_id', uid)
+        .order('created_at', { ascending: false }).limit(limit),
+    ]);
+    if (likes.error) throw friendly(likes.error);
+    if (comments.error) throw friendly(comments.error);
+    const out: Notif[] = [
+      ...(likes.data as any[]).map(r => ({ kind: 'like' as const, sessionId: r.session_id, protocolName: r.sessions?.protocol_name ?? '', fromUserId: r.user_id, createdAt: r.created_at })),
+      ...(comments.data as any[]).map(r => ({ kind: 'comment' as const, sessionId: r.session_id, protocolName: r.sessions?.protocol_name ?? '', fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
+    ];
+    return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  }
+
+  async listInviteCodes(): Promise<InviteCode[]> {
+    this.requireUid();
+    const rows = check(await this.client.from('invite_codes').select('code,max_uses,uses,created_at').order('created_at', { ascending: true })) as any[];
+    return rows.map(r => ({ code: r.code, maxUses: r.max_uses, uses: r.uses, createdAt: r.created_at }));
+  }
+
+  async saveInviteCode(code: string, maxUses: number | null): Promise<void> {
+    this.requireUid();
+    const c = code.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{3,40}$/.test(c)) throw new Error('Codes are 3–40 letters, numbers, - or _.');
+    check(await this.client.from('invite_codes').upsert({ code: c, max_uses: maxUses }, { onConflict: 'code' }).select('code'));
+  }
+
+  async deleteInviteCode(code: string): Promise<void> {
+    this.requireUid();
+    const rows = check(await this.client.from('invite_codes').delete().eq('code', code).select('code')) as any[];
+    if (!rows?.length) throw new Error("Couldn't delete that code — are you an admin?");
   }
 }

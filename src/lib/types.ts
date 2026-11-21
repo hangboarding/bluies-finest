@@ -53,6 +53,11 @@ export type NewSession = Omit<Session, 'id' | 'userId' | 'createdAt'> & { create
 export interface Comment { id: string; sessionId: string; userId: string; body: string; createdAt: string; }
 export interface FeedItem { session: Session; likes: number; likedByMe: boolean; comments: Comment[]; }
 
+/** Someone hearted or commented on one of my sessions. */
+export interface Notif { kind: 'like' | 'comment'; sessionId: string; protocolName: string; fromUserId: string; body?: string; createdAt: string; }
+/** Admin-only view of a sign-up code. */
+export interface InviteCode { code: string; maxUses: number | null; uses: number; createdAt: string; }
+
 /** Everything only the owner can see: bodyweight, preferences, saved settings. */
 export interface PrivateData {
   bodyweightKg: number | null;
@@ -88,4 +93,10 @@ export interface Store {
   deleteComment(id: string): Promise<void>;
   /** Hearts received on my sessions + comments I've written on others' (for achievements). */
   socialCounts(): Promise<{ heartsReceived: number; commentsGiven: number }>;
+  /** Hearts and comments others left on my sessions, newest first. */
+  notifications(limit?: number): Promise<Notif[]>;
+  // admin (the database only allows these for admins)
+  listInviteCodes(): Promise<InviteCode[]>;
+  saveInviteCode(code: string, maxUses: number | null): Promise<void>;
+  deleteInviteCode(code: string): Promise<void>;
 }

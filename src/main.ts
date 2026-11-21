@@ -7,13 +7,14 @@ import { state, initStore, loadUserData } from './lib/state';
 import { setSound } from './lib/timer';
 import { renderAuth } from './views/auth';
 import { renderHang, hangBusy, hangPending } from './views/hang';
-import { renderFeed } from './views/feed';
 import { renderRanks } from './views/ranks';
 import { renderStats } from './views/stats';
 import { renderProfile } from './views/profile';
 import { maybeWelcome, pageTour } from './views/tour';
 import { queuedSessions, flushOutbox } from './lib/outbox';
 import { openClimber } from './views/climber';
+import { bellHtml, wireBell } from './views/notifs';
+import { renderFeed, focusPost } from './views/feed';
 import { registerSW } from 'virtual:pwa-register';
 
 export const ACCENTS = ['#3ddc84', '#2bb5a0', '#5aa9e6', '#b48cff', '#ff9f43', '#ff5a4e', '#f78fb3', '#f2c14e'];
@@ -67,10 +68,11 @@ export async function go(page: Page) {
 
 function shell() {
   $('#app').innerHTML = `
-    <header><img src="${import.meta.env.BASE_URL}logo.svg" alt="" width="30" height="30" class="logo"><h1>Bluies <span>Finest</span></h1></header>
+    <header><img src="${import.meta.env.BASE_URL}logo.svg" alt="" width="30" height="30" class="logo"><h1>Bluies <span>Finest</span></h1>${bellHtml()}</header>
     <main>${PAGES.map(p => `<div id="view-${p.id}" class="hide"></div>`).join('')}</main>
     <nav class="tabs" id="tabs" aria-label="Main">${PAGES.map(p => `<button data-v="${p.id}"><b>${ic(p.icon)}</b>${p.label}</button>`).join('')}</nav>`;
-  hydrateIcons($('#tabs'));
+  hydrateIcons($('#tabs')); hydrateIcons($('header'));
+  wireBell(sid => { focusPost(sid); go('feed'); });
   $$('#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v as Page)));
 }
 

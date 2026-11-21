@@ -154,3 +154,31 @@ h1,h2,h3,.big,.ptitle,.stat b,.ring .n,.pt,.champ,.auth-title{letter-spacing:-.0
 .sugg.hide{display:none}
 .step button{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .step button.held{transform:scale(.92);background:color-mix(in srgb,var(--c) 22%,var(--bg))}
+
+/* notifications bell */
+header{position:relative}
+.bell{margin-left:auto;position:relative;background:none;border:0;color:var(--ink);width:40px;height:40px;border-radius:12px;display:grid;place-items:center;cursor:pointer;font-size:20px}
+.bell .lic{width:22px;height:22px}
+.bell-n{position:absolute;top:4px;right:2px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;border:2px solid var(--bg)}
+.nlist{display:grid;gap:6px;text-align:left;max-height:60vh;overflow:auto;margin-bottom:10px}
+.nrow{display:flex;gap:10px;align-items:flex-start;text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+.nrow.new{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,var(--card2))}
+.nrow .av{width:34px;height:34px;font-size:12px}
+.nrow small{display:block;color:var(--mute);margin-top:2px}
+.nrow .lic{width:14px;height:14px;vertical-align:-2px}
+.post.flash{animation:flash 1.6s ease}
+@keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--acc)}100%{box-shadow:none}}
+/* weekly recap */
+.recap{background:linear-gradient(135deg,color-mix(in srgb,var(--acc) 16%,var(--card)),var(--card));border-color:color-mix(in srgb,var(--acc) 40%,var(--line))}
+.recap-hd{display:flex;align-items:center;gap:8px}.recap-hd small{margin-left:auto;color:var(--mute);font-size:12px}.recap-hd .lic{color:var(--acc)}
+.recap-big{font-size:17px;margin:10px 0 6px}.recap-big b{color:var(--acc)}
+.recap-list{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:13px;color:var(--mute)}.recap-list b{color:var(--ink)}
+.recap-list .lic{width:15px;height:15px;color:var(--acc);vertical-align:-3px;margin-right:2px}
+/* admin */
+.admin-sheet{max-height:88vh;overflow:auto;text-align:left}
+.admin h3{display:flex;align-items:center;gap:6px;font-size:14px;margin:16px 0 8px}
+.admin .lrow{gap:8px}
+.code{font-family:ui-monospace,Consolas,monospace;font-weight:800;letter-spacing:.5px}
+.adm-new{display:grid;grid-template-columns:1fr 92px 52px;gap:8px;margin-top:8px}
+.adm-new .tx{height:44px}.adm-new button{border:0;border-radius:12px;background:var(--acc);color:var(--onacc);font-weight:800;font-size:20px}
+.bell-n.hide{display:none}

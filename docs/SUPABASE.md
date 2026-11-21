@@ -152,3 +152,11 @@ Fix it by changing the email template:
 
 3. Save. Make sure **Site URL** (Authentication → URL Configuration) is exactly
    `https://hangboarding.github.io/bluies-finest/` including the trailing slash.
+
+## Update: admin page (run once)
+
+To manage invite codes from the app's **Profile → Admin tools** page, open
+**SQL Editor → New query**, paste in all of `supabase/admin.sql` and click **Run**.
+It lets admins (and only admins) view, add, edit and delete invite codes, and tidies
+any existing codes to capitals (sign-up compares codes in capitals, so a code saved
+with lowercase letters would never match). New projects get this from `schema.sql`.

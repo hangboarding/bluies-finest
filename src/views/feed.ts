@@ -2,6 +2,7 @@ import { $, esc, avatar, relTime, toast, confirmSheet, vibrate } from '../lib/ui
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, profileOf } from '../lib/state';
 import type { FeedItem } from '../lib/types';
+import { weeklyRecap } from '../lib/recap';
 
 let items: FeedItem[] = [];
 let filter: 'all' | 'me' | 'pb' = 'all';
@@ -11,12 +12,40 @@ const liking = new Set<string>();
 export async function renderFeed(root: HTMLElement) {
   root.innerHTML = `<div class="chips g g3" id="feedF" style="margin-bottom:12px">
       <span class="chip ${filter === 'all' ? 'on' : ''}" data-f="all">${ic('globe')} Everyone</span><span class="chip ${filter === 'me' ? 'on' : ''}" data-f="me">${ic('users')} Me</span><span class="chip ${filter === 'pb' ? 'on' : ''}" data-f="pb">${ic('medal')} PBs</span></div>
+    ${recapCard()}
     <div id="feed"><p class="sub center">Loading…</p></div>`;
   hydrateIcons(root);
   root.onclick = onClick;
   root.onkeydown = e => { if (e.key === 'Enter' && (e.target as HTMLElement).matches('.cmts input')) ((e.target as HTMLElement).nextElementSibling as HTMLElement).click(); };
   try { items = await state.store.feed(60); } catch (e: any) { $('#feed').innerHTML = `<p class="sub center">${esc(e.message)}</p>`; return; }
+  if (focusId) { filter = 'all'; open = focusId; }
   draw();
+  if (focusId) {
+    const el = document.querySelector(`.post[data-id="${focusId}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ block: 'center' }); el?.classList.add('flash');
+    focusId = '';
+  }
+}
+
+/** Open the feed at a particular post (used by notifications). */
+let focusId = '';
+export const focusPost = (id: string) => { focusId = id; };
+
+function recapCard() {
+  const r = weeklyRecap(state.sessions), name = (id: string) => esc(state.profiles.get(id)?.name ?? 'Someone');
+  const range = `${r.from.getDate()} ${r.from.toLocaleString('en-GB', { month: 'short' })} – ${r.to.getDate()} ${r.to.toLocaleString('en-GB', { month: 'short' })}`;
+  if (!r.sessions) return `<div class="card recap"><div class="recap-hd">${ic('party')}<b>Last week</b><small>${range}</small></div>
+    <p class="sub" style="margin:6px 0 0">A quiet week for the crew. ${r.thisWeek ? `${r.thisWeek} session${r.thisWeek > 1 ? 's' : ''} so far this week — keep it going!` : 'Be the first to hang this week 🧗'}</p></div>`;
+  const mins = Math.round(r.tutS / 60);
+  const pbLine = r.pbs.length ? r.pbs.slice(0, 3).map(p => `<b>${name(p.userId)}</b> set ${p.count} PB${p.count > 1 ? 's' : ''}`).join(', ') + (r.pbs.length > 3 ? ` and ${r.pbs.length - 3} more` : '') : '';
+  return `<div class="card recap"><div class="recap-hd">${ic('party')}<b>Last week</b><small>${range}</small></div>
+    <div class="recap-big">Crew logged <b>${r.sessions}</b> session${r.sessions > 1 ? 's' : ''}${mins ? ` · <b>${mins}</b> min on the board` : ''}</div>
+    <ul class="recap-list">
+      ${pbLine ? `<li>${ic('medal')} ${pbLine}</li>` : ''}
+      ${r.mostActive && r.climbers > 1 ? `<li>${ic('streak')} Most sessions: <b>${name(r.mostActive.userId)}</b> (${r.mostActive.count})</li>` : ''}
+      ${r.topPoints ? `<li>${ic('award')} Top scorer: <b>${name(r.topPoints.userId)}</b> (${r.topPoints.points} pts)</li>` : ''}
+      <li>${ic('users')} ${r.climbers} climber${r.climbers > 1 ? 's' : ''} trained${r.thisWeek ? ` · ${r.thisWeek} session${r.thisWeek > 1 ? 's' : ''} so far this week` : ''}</li>
+    </ul></div>`;
 }
 
 function meta(s: FeedItem['session']) {

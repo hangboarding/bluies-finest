@@ -7,10 +7,10 @@ import {
   Volume2, Vibrate, Palette, Settings, LogOut, Plus, Play, Pause, SkipForward, X, Camera, BookOpen, Crown, Sparkles, Lock,
   CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench,
   MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar,
-  Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer,
+  Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper,
 } from 'lucide';
 
-const LUCIDE = { Timer, Wind, Repeat, Repeat1, Sofa, Ruler, Dumbbell, Anchor, Weight, Target, ArrowLeftRight, TrafficCone, Mountain, Trophy, ChartColumn, MessageCircle, User, Heart, Flame, Medal, CalendarDays, Download, Trash2, Pencil, Star, Volume2, Vibrate, Palette, Settings, LogOut, Plus, Play, Pause, SkipForward, X, Camera, BookOpen, Crown, Sparkles, Lock, CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench, MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar, Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer };
+const LUCIDE = { Timer, Wind, Repeat, Repeat1, Sofa, Ruler, Dumbbell, Anchor, Weight, Target, ArrowLeftRight, TrafficCone, Mountain, Trophy, ChartColumn, MessageCircle, User, Heart, Flame, Medal, CalendarDays, Download, Trash2, Pencil, Star, Volume2, Vibrate, Palette, Settings, LogOut, Plus, Play, Pause, SkipForward, X, Camera, BookOpen, Crown, Sparkles, Lock, CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench, MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar, Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper };
 
 // ---- custom 24×24 line icons (same stroke style as Lucide) ----
 // Grips are drawn side-on: a finger on an edge (the block top-right).
@@ -53,7 +53,7 @@ const MAP: Record<string, [string, string]> = {
   bolt: ['⚡', 'zap'], sprout: ['🌱', 'sprout'], gem: ['💎', 'gem'], clock: ['⏱', 'clock'], moon: ['🌙', 'moon'], sunrise: ['🌅', 'sunrise'],
   award: ['🏆', 'award'], muscle: ['💪', 'biceps-flexed'], hourglass: ['⏳', 'hourglass'], baby: ['👶', 'baby'], wrench: ['🛠️', 'wrench'],
   eye: ['👀', 'eye'], replay: ['↺', 'rotate-ccw'], check: ['✓', 'check'], globe: ['🌍', 'globe'], users: ['🙋', 'users'], mountain: ['🏔️', 'mountain'],
-  user: ['👤', 'user'],
+  user: ['👤', 'user'], bell: ['🔔', 'bell'], admin: ['🛡️', 'shield-check'], copy: ['📋', 'copy'], ticket: ['🎟️', 'ticket'], party: ['🎉', 'party-popper'],
   // moods (stored values are the emoji)
   '😭': ['😭', 'fCry'], '🤕': ['🤕', 'fHurt'], '😫': ['😫', 'fTired'], '😴': ['😴', 'fSleepy'], '😐': ['😐', 'fMeh'], '🙂': ['🙂', 'fHappy'], '💪': ['💪', 'biceps-flexed'], '🔥': ['🔥', 'flame'],
   // achievements
