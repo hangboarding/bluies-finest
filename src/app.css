@@ -182,3 +182,23 @@ header{position:relative}
 .adm-new{display:grid;grid-template-columns:1fr 92px 52px;gap:8px;margin-top:8px}
 .adm-new .tx{height:44px}.adm-new button{border:0;border-radius:12px;background:var(--acc);color:var(--onacc);font-weight:800;font-size:20px}
 .bell-n.hide{display:none}
+
+/* seasons */
+.hof .hof-ic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--gold) 18%,var(--card2));color:var(--gold);flex:none;font-size:18px}
+.hof .hof-ic .lic{width:18px;height:18px;color:var(--gold)}
+.titles{display:inline-flex;align-items:center;gap:6px;margin:8px 0 0;padding:4px 12px;border-radius:999px;background:color-mix(in srgb,var(--gold) 18%,var(--card2));color:var(--gold);font-weight:800;font-size:13px}
+.titles .lic{width:16px;height:16px}
+#catDesc b{color:var(--ink)}
+/* challenges */
+.chal{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
+.chal-hd{display:flex;align-items:center;gap:8px}.chal-hd .lic{color:var(--gold)}.chal-hd small{margin-left:auto;color:var(--mute);font-size:12px}
+.chal-title{font-size:17px;font-weight:800;margin:8px 0 10px}
+.chal-bar{height:14px;border-radius:999px;background:var(--card2);overflow:hidden;border:1px solid var(--line)}
+.chal-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--acc),var(--gold));transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.chal-nums{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-top:6px}.chal-nums b{color:var(--ink)}
+.chal-top{font-size:12px;color:var(--mute);margin-top:8px}.chal-top b{color:var(--ink)}
+.chal.done .chal-bar i{background:var(--gold)}
+.chal-done{color:var(--gold);font-weight:800;margin-top:8px;font-size:14px}
+.adm-chal{display:grid;gap:8px;margin-top:8px}.adm-chal .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.adm-chal select,.adm-chal input{height:44px}
+#pushTg.hide{display:none}

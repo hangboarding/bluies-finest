@@ -2,7 +2,7 @@
 // Deliberately shows NO personal details — no bodyweight, % bodyweight, age, height or location.
 import { esc, avatar, sheet, toast } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { state } from '../lib/state';
+import { state, seasonsWon } from '../lib/state';
 import { weekStreak, dayKey, addDays, weekStart, favouriteProtocol, CATEGORIES } from '../lib/scoring';
 import { TIERED, TIER_NAMES, TIER_COLOURS, tierOf, type Ctx } from '../lib/achievements';
 import type { Session } from '../lib/types';
@@ -51,12 +51,13 @@ export async function openClimber(uid: string) {
     return `<i title="${d.getDate()} ${MON[d.getMonth()]}" class="${on ? 'on' : ''}" style="${fut ? 'opacity:.3' : ''}"></i>`; }).join('');
 
   // badges — only ones that can be worked out from public session data
-  const ctx: Ctx = { sessions: xs, flags: {}, hasAvatar: !!p.avatarUrl, customBoards: 0, customProtocols: 0, heartsReceived: 0, commentsGiven: 0, pointsTotal: xs.reduce((a, s) => a + s.points, 0) };
+  const titles = seasonsWon(uid);
+  const ctx: Ctx = { sessions: xs, flags: {}, hasAvatar: !!p.avatarUrl, customBoards: 0, customProtocols: 0, heartsReceived: 0, commentsGiven: 0, pointsTotal: xs.reduce((a, s) => a + s.points, 0), seasonsWon: titles };
   const badges = TIERED.map(a => ({ a, lv: tierOf(a.value(ctx), a.thresholds, a.lower) })).filter(x => x.lv > 0).sort((x, y) => y.lv - x.lv);
 
   const since = new Date(p.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
   el.innerHTML = `
-    <div class="center">${avatar(p, 'cav')}<h2 style="margin:10px 0 2px">${esc(p.name)}</h2><p class="sub" style="margin:0">Climbing with the crew since ${since}</p></div>
+    <div class="center">${avatar(p, 'cav')}<h2 style="margin:10px 0 2px">${esc(p.name)}</h2><p class="sub" style="margin:0">Climbing with the crew since ${since}</p>${titles ? `<p class="titles">${ic('crown')} ${titles > 1 ? `${titles}× season champion` : 'Season champion'}</p>` : ''}</div>
     <div class="stats" style="margin:14px 0"><div class="stat"><b>${xs.length}</b>sessions</div><div class="stat"><b>${weekStreak(xs, now)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank >= 0 ? '#' + (rank + 1) : '–'}</b>overall</div></div>
     ${(() => { const f = favouriteProtocol(xs); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}
     ${pbs ? `<h3>${ic('medal')} Personal bests</h3><div class="cpbs">${pbs}</div>` : ''}

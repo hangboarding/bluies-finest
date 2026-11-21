@@ -56,6 +56,8 @@ export interface FeedItem { session: Session; likes: number; likedByMe: boolean;
 /** Someone hearted or commented on one of my sessions. */
 export interface Notif { kind: 'like' | 'comment'; sessionId: string; protocolName: string; fromUserId: string; body?: string; createdAt: string; }
 /** Admin-only view of a sign-up code. */
+export interface SeasonChampion { seasonStart: string; userId: string; points: number; }
+export interface ChallengeRow { id: string; title: string; metric: 'hangs' | 'sessions' | 'minutes' | 'pbs' | 'climbers'; target: number; startsOn: string; endsOn: string; }
 export interface InviteCode { code: string; maxUses: number | null; uses: number; createdAt: string; }
 
 /** Everything only the owner can see: bodyweight, preferences, saved settings. */
@@ -99,4 +101,11 @@ export interface Store {
   listInviteCodes(): Promise<InviteCode[]>;
   saveInviteCode(code: string, maxUses: number | null): Promise<void>;
   deleteInviteCode(code: string): Promise<void>;
+  // seasons & challenges
+  /** Winners of every finished season (ties share the title). */
+  seasonChampions(): Promise<SeasonChampion[]>;
+  listChallenges(): Promise<ChallengeRow[]>;
+  /** Admin only. Creates when id is empty, otherwise updates. */
+  saveChallenge(c: Omit<ChallengeRow, 'id'> & { id?: string }): Promise<void>;
+  deleteChallenge(id: string): Promise<void>;
 }

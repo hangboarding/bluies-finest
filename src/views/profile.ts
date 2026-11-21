@@ -8,6 +8,7 @@ import { setSound } from '../lib/timer';
 import { resetTours } from './tour';
 import { addBoard } from './hang';
 import { openAdmin } from './admin';
+import { pushSupport, pushEnabled, enablePush, disablePush } from '../lib/push';
 
 export function renderProfile(root: HTMLElement) {
   const S = state.settings, P = S.prefs, me = state.me!;
@@ -43,6 +44,7 @@ export function renderProfile(root: HTMLElement) {
     ${toggle('vib', 'Vibration', 'Buzz on phase changes (phones only)', 'vib')}
     ${toggle('warmup', 'Warm-up reminder', 'Suggest a warm-up before max-effort sessions', 'sprout')}
     ${toggle('nudges', 'Overtraining warnings', 'Warn about back-to-back hard days or too many max sessions in a week', 'help')}
+    <div class="tg hide" id="pushRow"><span>${ic('bell')} Phone notifications<small id="pushSub">When someone hearts or comments on your sessions</small></span><button class="sw2" id="pushTg" role="switch" aria-checked="false" aria-label="Phone notifications"></button></div>
     ${toggle('pgrip', 'Show Grip section', 'Grip type, fingers and hands on the Hang screen', 'grip')}
     ${toggle('psetup', 'Show Setup section', 'Board, edge material and profile on the Hang screen', 'board')}
     <div class="tg"><span>${ic('help')} App tour<small>Show the intro and page tips again</small></span><button class="pill" id="replay">Replay</button></div></div>
@@ -52,7 +54,7 @@ export function renderProfile(root: HTMLElement) {
   <button class="big ghost" id="chgPw" style="margin-bottom:10px">${ic('lock')} Change password</button>
   <button class="big ghost" id="logout">${ic('logout')} Log out</button>
   <button class="big ghost danger-text" id="delAcc" style="margin-top:10px">${ic('trash')} Delete account</button>`;
-  drawBoardList(); hydrateIcons(root);
+  drawBoardList(); hydrateIcons(root); drawPush();
   root.onclick = onClick;
   $('#file').addEventListener('change', onPhoto);
   // custom colour: live preview while dragging, saved when the picker closes
@@ -78,6 +80,27 @@ function setAccent(colour: string) {
   applyTheme(); saveSettings();
   $$('#sw i').forEach(x => x.classList.toggle('on', x.dataset.c === colour));
   markCustom(!ACCENTS.includes(colour), colour);
+}
+
+/** Phone notifications row: hidden until push is configured; explains iPhone's install requirement. */
+async function drawPush() {
+  const row = $('#pushRow'), sub = $('#pushSub'), tg = $('#pushTg') as HTMLButtonElement; if (!row) return;
+  const sup = pushSupport();
+  if (sup === 'demo') return; // not set up on the server yet
+  row.classList.remove('hide');
+  if (sup === 'ios-install') { tg.classList.add('hide'); sub.textContent = 'On iPhone, first add this app to your Home Screen (Share → Add to Home Screen), then open it from there.'; return; }
+  if (sup === 'unsupported') { tg.classList.add('hide'); sub.textContent = 'This browser can’t receive notifications. Try Chrome, or the installed app.'; return; }
+  const on = await pushEnabled();
+  tg.classList.toggle('on', on); tg.setAttribute('aria-checked', String(on));
+}
+async function togglePush() {
+  const tg = $('#pushTg') as HTMLButtonElement, on = tg.classList.contains('on');
+  tg.disabled = true;
+  try {
+    // called straight from the tap so iOS allows the permission prompt
+    if (on) { await disablePush(); toast('Phone notifications off'); } else { await enablePush(); toast('Phone notifications on 🔔'); }
+  } catch (e: any) { toast(e.message ?? 'Couldn’t change notifications', 5000); }
+  finally { tg.disabled = false; await drawPush(); }
 }
 
 /** Password fields only exist inside this popup, so browsers don't keep offering to save
@@ -180,7 +203,8 @@ async function onClick(e: MouseEvent) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
     a.download = `bluies-finest-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Data downloaded'); return;
   }
-  if (t.closest('#logout')) { await state.store.signOut(); return; }
+  if (t.closest('#logout')) { await disablePush().catch(() => {}); await state.store.signOut(); return; }
+  if (t.closest('#pushTg')) { await togglePush(); return; }
   if (t.closest('#delAcc')) {
     if (!await confirmSheet('Delete your account?', 'This permanently deletes your profile, photo, every session, heart and comment. It can’t be undone. Consider downloading your data first.', 'Continue')) return;
     const typed = await promptSheet('Are you sure?', 'Type <b>DELETE</b> to confirm.', 'DELETE', 'Delete forever');

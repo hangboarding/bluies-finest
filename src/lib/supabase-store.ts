@@ -1,6 +1,6 @@
 // Real multi-user backend on Supabase. See docs/SUPABASE.md and supabase/schema.sql.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store, Notif, InviteCode } from './types';
+import type { Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store, Notif, InviteCode, SeasonChampion, ChallengeRow } from './types';
 
 // ---------------------------------------------------------------------------
 // Row <-> object mapping
@@ -512,5 +512,37 @@ export class SupabaseStore implements Store {
     this.requireUid();
     const rows = check(await this.client.from('invite_codes').delete().eq('code', code).select('code')) as any[];
     if (!rows?.length) throw new Error("Couldn't delete that code — are you an admin?");
+  }
+
+  async seasonChampions(): Promise<SeasonChampion[]> {
+    this.requireUid();
+    const { data, error } = await this.client.rpc('season_champions');
+    if (error) {
+      // seasons.sql not run yet — the app falls back to working champions out locally
+      if (/season_champions|function|schema cache/i.test(error.message)) return [];
+      throw friendly(error);
+    }
+    return ((data ?? []) as any[]).map(r => ({ seasonStart: String(r.season_start), userId: r.user_id, points: Math.round(r.points) }));
+  }
+
+  async listChallenges(): Promise<ChallengeRow[]> {
+    this.requireUid();
+    const { data, error } = await this.client.from('challenges').select('id,title,metric,target,starts_on,ends_on').order('starts_on', { ascending: false }).limit(50);
+    if (error) { if (/challenges|schema cache|relation/i.test(error.message)) return []; throw friendly(error); }
+    return ((data ?? []) as any[]).map(r => ({ id: r.id, title: r.title, metric: r.metric, target: r.target, startsOn: r.starts_on, endsOn: r.ends_on }));
+  }
+
+  async saveChallenge(c: Omit<ChallengeRow, 'id'> & { id?: string }): Promise<void> {
+    this.requireUid();
+    const row = { title: c.title.trim().slice(0, 80), metric: c.metric, target: Math.round(c.target), starts_on: c.startsOn, ends_on: c.endsOn };
+    const q = c.id ? this.client.from('challenges').update(row).eq('id', c.id) : this.client.from('challenges').insert(row);
+    const rows = check(await q.select('id')) as any[];
+    if (!rows?.length) throw new Error("Couldn't save that challenge — are you an admin?");
+  }
+
+  async deleteChallenge(id: string): Promise<void> {
+    this.requireUid();
+    const rows = check(await this.client.from('challenges').delete().eq('id', id).select('id')) as any[];
+    if (!rows?.length) throw new Error("Couldn't delete that challenge — are you an admin?");
   }
 }

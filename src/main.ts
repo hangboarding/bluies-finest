@@ -14,6 +14,7 @@ import { maybeWelcome, pageTour } from './views/tour';
 import { queuedSessions, flushOutbox } from './lib/outbox';
 import { openClimber } from './views/climber';
 import { bellHtml, wireBell } from './views/notifs';
+import { syncPush } from './lib/push';
 import { renderFeed, focusPost } from './views/feed';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -115,11 +116,15 @@ async function boot() {
   // sessions saved offline on this phone show up straight away, then upload in the background
   state.sessions.unshift(...queuedSessions());
   flushOutbox();
+  syncPush();
   applyTheme();
   if (location.hash === '#reset') { $('#app').innerHTML = '<main id="auth"></main>'; renderAuth($('#auth'), 'reset'); return; }
   shell();
   await maybeWelcome();
-  await go('hang');
+  // opened from a phone notification: ?post=<id>#feed
+  const post = new URLSearchParams(location.search).get('post');
+  if (post) { history.replaceState(null, '', location.pathname); focusPost(post); await go('feed'); }
+  else await go('hang');
 }
 
 // App updates: download quietly, then switch to the new version only when the user isn't mid-session.

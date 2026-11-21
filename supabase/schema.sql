@@ -484,3 +484,130 @@ create policy "invite codes: admins update" on public.invite_codes
 drop policy if exists "invite codes: admins delete" on public.invite_codes;
 create policy "invite codes: admins delete" on public.invite_codes
   for delete to authenticated using ((select public.is_admin()));
+
+-- =====================================================================
+-- Bluies Finest — seasons and crew challenges (run once in the SQL editor).
+-- Safe to run again. Also included at the end of schema.sql for new projects.
+-- =====================================================================
+
+-- ---------- Seasons ----------
+-- Southern-hemisphere seasons in Blue Mountains time: Summer Dec–Feb, Autumn Mar–May,
+-- Winter Jun–Aug, Spring Sep–Nov. Must match src/lib/seasons.ts.
+create or replace function public.season_start_of(ts timestamptz)
+returns date
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when extract(month from ts at time zone 'Australia/Sydney') in (1, 2)
+      then make_date(extract(year from ts at time zone 'Australia/Sydney')::int - 1, 12, 1)
+    else make_date(extract(year from ts at time zone 'Australia/Sydney')::int,
+                   (extract(month from ts at time zone 'Australia/Sydney')::int
+                    - (extract(month from ts at time zone 'Australia/Sydney')::int % 3)), 1)
+  end;
+$$;
+
+-- Winner(s) of every finished season — the climber(s) with the most points. Ties share the title.
+create or replace function public.season_champions()
+returns table (season_start date, user_id uuid, points double precision)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with totals as (
+    select public.season_start_of(s.created_at) as season_start, s.user_id, sum(s.points) as pts
+    from public.sessions s
+    where public.season_start_of(s.created_at) < public.season_start_of(now())
+    group by 1, 2
+  ), ranked as (
+    select t.*, rank() over (partition by t.season_start order by t.pts desc) as r from totals t
+  )
+  select r.season_start, r.user_id, r.pts from ranked r where r.r = 1 order by r.season_start desc;
+$$;
+
+revoke all on function public.season_champions() from public, anon;
+grant execute on function public.season_champions() to authenticated;
+
+-- ---------- Crew challenges ----------
+create table if not exists public.challenges (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null check (char_length(title) between 1 and 80),
+  metric      text not null check (metric in ('hangs', 'sessions', 'minutes', 'pbs', 'climbers')),
+  target      integer not null check (target between 1 and 100000),
+  starts_on   date not null,
+  ends_on     date not null,
+  created_by  uuid default auth.uid() references public.profiles (id) on delete set null,
+  created_at  timestamptz not null default now(),
+  check (ends_on >= starts_on and ends_on - starts_on <= 92)
+);
+create index if not exists challenges_dates_idx on public.challenges (starts_on, ends_on);
+
+alter table public.challenges enable row level security;
+grant select on public.challenges to authenticated;
+grant insert, update, delete on public.challenges to authenticated;
+
+drop policy if exists "challenges: members read" on public.challenges;
+create policy "challenges: members read" on public.challenges
+  for select to authenticated using (true);
+
+drop policy if exists "challenges: admins insert" on public.challenges;
+create policy "challenges: admins insert" on public.challenges
+  for insert to authenticated with check ((select public.is_admin()));
+
+drop policy if exists "challenges: admins update" on public.challenges;
+create policy "challenges: admins update" on public.challenges
+  for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+
+drop policy if exists "challenges: admins delete" on public.challenges;
+create policy "challenges: admins delete" on public.challenges
+  for delete to authenticated using ((select public.is_admin()));
+
+-- =====================================================================
+-- Bluies Finest: phone push notifications (Web Push subscriptions)
+-- Run once in Supabase → SQL Editor after schema.sql. Safe to run again.
+-- See docs/PUSH.md for the full setup.
+-- =====================================================================
+
+-- One row per device/browser that has turned notifications on.
+-- The endpoint is the push service URL for that device and is unique.
+create table if not exists public.push_subscriptions (
+  endpoint    text primary key,
+  user_id     uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  p256dh      text not null,
+  auth        text not null,
+  user_agent  text,
+  created_at  timestamptz default now()
+);
+
+create index if not exists push_subscriptions_user_id_idx on public.push_subscriptions (user_id);
+
+alter table public.push_subscriptions enable row level security;
+
+-- Only signed-in members, and only their own rows. The notify Edge Function
+-- uses the service role key, which bypasses these rules.
+revoke all on public.push_subscriptions from public, anon;
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+
+drop policy if exists "push: read own" on public.push_subscriptions;
+create policy "push: read own" on public.push_subscriptions
+  for select to authenticated using (user_id = (select auth.uid()));
+
+drop policy if exists "push: insert own" on public.push_subscriptions;
+create policy "push: insert own" on public.push_subscriptions
+  for insert to authenticated with check (user_id = (select auth.uid()));
+
+-- Upserts (insert ... on conflict (endpoint) do update) hit this policy on a
+-- conflict. Because USING only matches your own rows, an upsert onto someone
+-- else's endpoint fails instead of taking it over; the app then makes a fresh
+-- subscription with a new endpoint.
+drop policy if exists "push: update own" on public.push_subscriptions;
+create policy "push: update own" on public.push_subscriptions
+  for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+drop policy if exists "push: delete own" on public.push_subscriptions;
+create policy "push: delete own" on public.push_subscriptions
+  for delete to authenticated using (user_id = (select auth.uid()));

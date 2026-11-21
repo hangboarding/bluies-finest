@@ -11,17 +11,19 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
   - The screen stays awake while you hang.
 - **Smart prompts:** warm-up and overtraining reminders, and next time's load adjusted from how hard the session felt.
 - **Offline-safe saving:** sessions saved with no signal upload automatically later.
-- **Ranks:** leaderboards over the last 90 days (strength, grip types, volume and consistency). Strength is scored as % of bodyweight; bodyweight itself is never shown.
+- **Seasons:** Summer, Autumn, Winter and Spring leaderboards (Blue Mountains time). The winner is crowned season champion and joins the Hall of champions.
+- **Ranks:** other leaderboards over the last 90 days (strength, grip types, volume and consistency). Strength is scored as % of bodyweight; bodyweight itself is never shown.
 - **Stats:** consistency calendar, personal bests, trends and achievements (10 tiers from Iron to GOAT, plus secret ones).
-- **Activity:** feed with hearts and comments, a weekly crew recap, notifications, and climber profiles.
-- **Admin tools:** manage invite codes and remove content, all from inside the app.
+- **Activity:** feed with hearts and comments, a crew challenge with a shared progress bar, a weekly recap, and climber profiles.
+- **Notifications:** an in-app bell, plus optional phone push notifications ([docs/PUSH.md](docs/PUSH.md)).
+- **Admin tools:** invite codes, crew challenges, backups and moderation, all from inside the app.
 
 ## Run it locally
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 110 tests: timer, scoring, streaks, achievements, recap
+npm test         # 119 tests: timer, scoring, streaks, seasons, challenges, achievements
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.
@@ -52,6 +54,6 @@ Every push to `main` runs the tests, then builds and deploys to GitHub Pages via
 |---|---|
 | `src/views/` | Screens: Hang, Activity, Ranks, Stats, Profile, Admin, sign-in, tour |
 | `src/lib/` | Timer, scoring, achievements, offline outbox, and the two backends (demo and Supabase) |
-| `supabase/` | `schema.sql` (everything for a new project), plus `hardening.sql` and `admin.sql` for existing projects |
+| `supabase/` | `schema.sql` (everything for a new project), update scripts for existing projects, and the `notify` push function |
 | `tests/` | Vitest suite |
 | `design/` | The original clickable sketch and logo explorations |

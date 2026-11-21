@@ -1,6 +1,7 @@
 // App-wide state: the backend store, the signed-in user, cached data, and the
 // user's private settings (synced to the backend, mirrored in localStorage).
-import type { PrivateData, Profile, Session, Store } from './types';
+import type { ChallengeRow, PrivateData, Profile, SeasonChampion, Session, Store } from './types';
+import { seasonOf, championsFrom } from './seasons';
 import { LocalStore } from './local-store';
 import { BUILTIN_BOARDS, type Protocol } from './protocols';
 import type { Ctx } from './achievements';
@@ -44,6 +45,8 @@ export const state = {
   priv: { bodyweightKg: null, settings: {} } as PrivateData,
   settings: DEFAULT_SETTINGS(),
   social: { heartsReceived: 0, commentsGiven: 0 },
+  champions: [] as SeasonChampion[],
+  challenges: [] as ChallengeRow[],
   /** True once the signed-in user's data has fully loaded; gates all settings writes. */
   loaded: false,
 };
@@ -67,8 +70,10 @@ export async function loadUserData() {
   const s = state.store, id = s.currentUserId()!;
   // Startup only loads everyone's recent sessions (leaderboards use the last RECENT_DAYS days)
   // plus my own full history (for my stats and achievements). Older sessions of others load on demand.
-  const since = new Date(Date.now() - RECENT_DAYS * 864e5).toISOString();
-  const [profiles, priv, mine, recent, social] = await Promise.all([s.listProfiles(), s.getPrivate(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }), s.socialCounts()]);
+  // …and always back to the start of the current season, so season standings are complete.
+  const since = new Date(Math.min(Date.now() - RECENT_DAYS * 864e5, +seasonOf(new Date()).start)).toISOString();
+  const [profiles, priv, mine, recent, social, champions, challenges] = await Promise.all([s.listProfiles(), s.getPrivate(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }), s.socialCounts(),
+    s.seasonChampions().catch(() => []), s.listChallenges().catch(() => [])]);
   const byId = new Map<string, Session>();
   for (const x of [...mine, ...recent]) byId.set(x.id, x);
   const sessions = [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -95,6 +100,9 @@ export async function loadUserData() {
   state.settings = merged;
   state.sessions = sessions;
   state.social = social;
+  // Server-side champions cover all history; if that isn't set up yet, work out what we can locally.
+  state.champions = champions.length ? champions : championsFrom(sessions);
+  state.challenges = challenges;
   state.loaded = true;
   if (localNewer || migrate) saveSettings();
 }
@@ -127,5 +135,9 @@ export function achievementCtx(sessions = mySessions()): Ctx {
     customBoards: state.settings.boards.custom.length, customProtocols: Object.keys(state.settings.customProtos).length,
     heartsReceived: state.social.heartsReceived, commentsGiven: state.social.commentsGiven,
     pointsTotal: sessions.reduce((a, s) => a + s.points, 0),
+    seasonsWon: seasonsWon(state.me?.id),
   };
 }
+
+/** Number of seasons a climber has won (shared titles count). */
+export const seasonsWon = (userId?: string) => userId ? new Set(state.champions.filter(c => c.userId === userId).map(c => c.seasonStart)).size : 0;

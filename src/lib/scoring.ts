@@ -8,6 +8,7 @@
 // Edge factor  = 20mm ÷ edge size, clamped 0.6–1.6 (smaller edges score more)
 // Overall rank = points over the last 28 days + 15 per week of current weekly streak.
 import type { Session } from './types';
+import { seasonOf, inSeason } from './seasons';
 
 export function loadFactor(s: Pick<Session, 'mode' | 'loadPct' | 'effortPct'>) {
   const raw = s.mode === 'lift' ? (s.effortPct || 60) / 100 : (s.loadPct ?? 100) / 100;
@@ -98,6 +99,8 @@ export const CATEGORIES: Category[] = [
       const b = maxBy(maxHang(m.filter(s => { const t = +new Date(s.createdAt); return t < days(30, now) && t >= days(60, now); })).filter(s => s.loadPct != null), s => s.loadPct!);
       return isFinite(a) && isFinite(b) && b > 0 ? Math.round(((a - b) / b) * 1000) / 10 : null;
     } },
+  { id: 'season', icon: 'crown', name: 'This season', group: 'Season', unit: 'pts', desc: 'Points this season — the winner is crowned season champion',
+    value: (m, _a, now) => { const se = seasonOf(now), xs = m.filter(x => inSeason(x, se)); return xs.length ? Math.round(xs.reduce((a, x) => a + x.points, 0)) : null; } },
 ];
 
 /** Most-used protocol (warm-ups don't count). Ties go to the one used most recently. */

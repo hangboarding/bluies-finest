@@ -1,7 +1,8 @@
 // Demo backend: everything lives in this browser's localStorage, seeded with a few
 // pretend climbers so the leaderboard and feed have something in them.
 // Used when no Supabase keys are configured. Not secure — demo only.
-import type { Comment, FeedItem, InviteCode, NewSession, Notif, PrivateData, Profile, Session, Store } from './types';
+import type { ChallengeRow, Comment, FeedItem, InviteCode, NewSession, Notif, PrivateData, Profile, SeasonChampion, Session, Store } from './types';
+import { championsFrom } from './seasons';
 import { sessionPoints } from './scoring';
 import { PROTOCOLS } from './protocols';
 
@@ -169,6 +170,15 @@ export class LocalStore implements Store {
     this.save();
   }
   async deleteInviteCode(code: string) { this.needAdmin(); (this.db as any).codes = this.codes().filter(x => x.code !== code); this.save(); }
+  async seasonChampions(): Promise<SeasonChampion[]> { this.need(); return championsFrom(this.db.sessions); }
+  private challenges(): ChallengeRow[] { return ((this.db as any).challenges ??= []); }
+  async listChallenges() { this.need(); return structuredClone(this.challenges()); }
+  async saveChallenge(c: Omit<ChallengeRow, 'id'> & { id?: string }) {
+    this.needAdmin(); const list = this.challenges();
+    if (c.id) Object.assign(list.find(x => x.id === c.id) ?? {}, c); else list.unshift({ ...c, id: uid() } as ChallengeRow);
+    this.save();
+  }
+  async deleteChallenge(id: string) { this.needAdmin(); (this.db as any).challenges = this.challenges().filter(x => x.id !== id); this.save(); }
   async socialCounts() {
     const me = this.need(), mine = new Set(this.db.sessions.filter(s => s.userId === me).map(s => s.id));
     return {

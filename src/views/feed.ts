@@ -3,6 +3,7 @@ import { ic, hydrateIcons } from '../lib/icons';
 import { state, profileOf } from '../lib/state';
 import type { FeedItem } from '../lib/types';
 import { weeklyRecap } from '../lib/recap';
+import { challengeCard, championBanner, maybeCelebrate } from './challenge-card';
 
 let items: FeedItem[] = [];
 let filter: 'all' | 'me' | 'pb' = 'all';
@@ -12,9 +13,12 @@ const liking = new Set<string>();
 export async function renderFeed(root: HTMLElement) {
   root.innerHTML = `<div class="chips g g3" id="feedF" style="margin-bottom:12px">
       <span class="chip ${filter === 'all' ? 'on' : ''}" data-f="all">${ic('globe')} Everyone</span><span class="chip ${filter === 'me' ? 'on' : ''}" data-f="me">${ic('users')} Me</span><span class="chip ${filter === 'pb' ? 'on' : ''}" data-f="pb">${ic('medal')} PBs</span></div>
+    ${championBanner()}
+    ${challengeCard()}
     ${recapCard()}
     <div id="feed"><p class="sub center">Loading…</p></div>`;
   hydrateIcons(root);
+  maybeCelebrate(root);
   root.onclick = onClick;
   root.onkeydown = e => { if (e.key === 'Enter' && (e.target as HTMLElement).matches('.cmts input')) ((e.target as HTMLElement).nextElementSibling as HTMLElement).click(); };
   try { items = await state.store.feed(60); } catch (e: any) { $('#feed').innerHTML = `<p class="sub center">${esc(e.message)}</p>`; return; }

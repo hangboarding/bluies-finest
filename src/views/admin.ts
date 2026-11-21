@@ -3,7 +3,8 @@
 import { esc, avatar, sheet, toast, confirmSheet, promptSheet, relTime } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state } from '../lib/state';
-import type { Comment, InviteCode } from '../lib/types';
+import type { ChallengeRow, Comment, InviteCode } from '../lib/types';
+import { METRICS, todayISO, type Metric } from '../lib/challenges';
 
 let root: HTMLElement | null = null;
 
@@ -24,6 +25,10 @@ async function draw() {
   if (!root?.isConnected) return;
 
   const who = (id: string) => state.profiles.get(id);
+  let chals: ChallengeRow[] = [];
+  try { chals = await state.store.listChallenges(); state.challenges = chals; } catch { /* seasons.sql not run yet */ }
+  const today = todayISO(), [ty, tm] = today.split('-').map(Number);
+  const monthStart = `${ty}-${String(tm).padStart(2, '0')}-01`, monthEnd = `${ty}-${String(tm).padStart(2, '0')}-${String(new Date(Date.UTC(ty!, tm!, 0)).getUTCDate()).padStart(2, '0')}`;
   const counts = new Map<string, number>(); for (const s of state.sessions) counts.set(s.userId, (counts.get(s.userId) ?? 0) + 1);
   const recent = [...state.sessions].filter(s => !s.pendingUpload).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 25);
 
@@ -42,6 +47,18 @@ async function draw() {
         <input class="tx" id="newMax" type="number" min="1" inputmode="numeric" placeholder="∞ uses" aria-label="Maximum uses (blank for unlimited)">
         <button data-act="addcode" aria-label="Add code">+</button></div>
       <p class="sub" style="font-size:12px;margin:6px 0 0">Codes are saved in capitals and aren't case-sensitive when people sign up. Leave uses blank for unlimited. Deleting a code doesn't affect people who already joined.</p>`}
+
+    <h3>${ic('ticket')} Crew challenges</h3>
+    ${chals.map(ch => `<div class="lrow" data-chal="${ch.id}"><span class="nm">${esc(ch.title)}<small>${METRICS[ch.metric].label}: ${ch.target.toLocaleString()} · ${ch.startsOn} → ${ch.endsOn}${ch.startsOn <= today && ch.endsOn >= today ? ' · running now' : ch.endsOn < today ? ' · finished' : ' · upcoming'}</small></span>
+      <button class="ed" data-act="delchal" aria-label="Delete challenge">${ic('trash')}</button></div>`).join('') || '<p class="sub" style="margin:0 0 6px">No custom challenges — the app runs an automatic monthly hangs challenge.</p>'}
+    <div class="adm-chal">
+      <input class="tx" id="chTitle" maxlength="80" placeholder="Title, e.g. 500 hangs in December" aria-label="Challenge title">
+      <div class="row2"><select id="chMetric" aria-label="What counts">${(Object.keys(METRICS) as Metric[]).map(k => `<option value="${k}">${METRICS[k].label}</option>`).join('')}</select>
+        <input class="tx" id="chTarget" type="number" min="1" inputmode="numeric" placeholder="Target" aria-label="Target"></div>
+      <div class="row2"><input class="tx" id="chStart" type="date" value="${monthStart}" aria-label="Start date"><input class="tx" id="chEnd" type="date" value="${monthEnd}" aria-label="End date"></div>
+      <button class="big ghost" data-act="addchal">${ic('plus')} Set challenge</button>
+    </div>
+    <p class="sub" style="font-size:12px;margin:6px 0 0">Up to 3 months long. Everyone sees the running one at the top of Activity with a shared progress bar.</p>
 
     <h3>${ic('users')} Members (${state.profiles.size})</h3>
     ${[...state.profiles.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(p => `<div class="lrow">${avatar(p)}<span class="nm">${esc(p.name)}${p.isAdmin ? ' · admin' : ''}<small>Joined ${new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · ${counts.get(p.id) ?? 0} recent sessions</small></span></div>`).join('')}
@@ -118,6 +135,19 @@ async function onClick(e: MouseEvent) {
   try {
     switch (b.dataset.act) {
       case 'backup': await backupAll(b as HTMLButtonElement); return;
+      case 'addchal': {
+        const v = (id: string) => (root!.querySelector(id) as HTMLInputElement).value.trim();
+        const title = v('#chTitle'), target = Math.floor(+v('#chTarget')), startsOn = v('#chStart'), endsOn = v('#chEnd');
+        if (!title) return toast('Give the challenge a title');
+        if (!(target > 0)) return toast('Set a target above 0');
+        if (!startsOn || !endsOn || endsOn < startsOn) return toast('Check the dates — the end must be after the start');
+        if ((+new Date(endsOn) - +new Date(startsOn)) / 864e5 > 92) return toast('Challenges can be up to 3 months long');
+        await state.store.saveChallenge({ title, metric: v('#chMetric') as Metric, target, startsOn, endsOn });
+        toast('Challenge set 🎯'); break;
+      }
+      case 'delchal':
+        if (!await confirmSheet('Delete challenge?', 'It disappears for everyone. If nothing else is running, the automatic monthly challenge takes over.', 'Delete')) return;
+        await state.store.deleteChallenge(row!.dataset.chal!); toast('Challenge deleted'); break;
       case 'copy':
         try { await navigator.clipboard.writeText(code); toast(`Copied ${code}`); } catch { toast(code); }
         return;
