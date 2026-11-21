@@ -203,3 +203,6 @@ header{position:relative}
 .adm-chal select,.adm-chal input{height:44px}
 #pushTg.hide{display:none}
 .toast{width:max-content;max-width:calc(100vw - 32px);text-align:center;line-height:1.35}
+.cav{display:inline-grid;place-items:center;border-radius:50%;background:var(--card2) center/cover no-repeat;font-weight:800;color:#111;flex:none}
+.cgrid{max-width:260px;gap:5px}.cgrid i{border-radius:5px}
+.climber .fav{margin:10px 0 14px}
