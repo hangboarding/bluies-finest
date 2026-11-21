@@ -3,6 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+  <script>
+    // iPhone/iPad: stop Safari auto-zooming when a text box is tapped. iOS still allows
+    // pinch-to-zoom with maximum-scale set, so accessibility isn't affected. Not applied
+    // on Android, where it would block pinch-zoom.
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+      var vp = document.querySelector('meta[name=viewport]');
+      vp.setAttribute('content', vp.getAttribute('content') + ',maximum-scale=1');
+    }
+  </script>
   <meta name="theme-color" content="#0d1511">
   <meta name="description" content="Hangboard training, timers and leaderboards for the crew.">
   <meta name="apple-mobile-web-app-capable" content="yes">
