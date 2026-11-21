@@ -151,3 +151,6 @@ h1,h2,h3,.big,.ptitle,.stat b,.ring .n,.pt,.champ,.auth-title{letter-spacing:-.0
 .sw{flex-wrap:nowrap!important;gap:6px!important}
 .sw i,.sw-custom{flex:1 1 0;min-width:0;width:auto!important;height:auto!important;aspect-ratio:1;max-width:40px;border-width:2px!important}
 .sw-custom::after{inset:24%!important}
+.sugg.hide{display:none}
+.step button{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.step button.held{transform:scale(.92);background:color-mix(in srgb,var(--c) 22%,var(--bg))}

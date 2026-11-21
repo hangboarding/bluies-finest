@@ -266,13 +266,46 @@ function wireSetup(root: HTMLElement) {
   });
 
   const params = $('#params');
-  params.addEventListener('click', e => {
-    const b = (e.target as HTMLElement).closest('button[data-k]') as HTMLElement | null; if (!b) return;
+  // +/− buttons: tap to step once; press and hold to repeat, getting faster the longer
+  // you hold (and taking bigger steps after a couple of seconds).
+  const bump = (b: HTMLElement, mult = 1) => {
     const f = FIELDS.find(x => x.k === b.dataset.k)!, i = $(`#i-${f.k}`) as HTMLInputElement;
-    i.value = String(Math.max(0, +(+i.value + f.step * +b.dataset.d!).toFixed(1))); vibrate(8); readInputs();
-    if (f.k === 'add' && val.add > 0) val.rem = 0;
-    if (f.k === 'rem' && val.rem > 0) val.add = 0;
+    const [lo, hi] = LIMITS[f.k] ?? [0, 9999];
+    const next = Math.min(hi, Math.max(lo, +(+i.value + f.step * mult * +b.dataset.d!).toFixed(1)));
+    if (+i.value === next) return false; // hit a limit
+    i.value = String(next); return true;
+  };
+  const commit = (k: string) => {
+    readInputs();
+    if (k === 'add' && val.add > 0) val.rem = 0;
+    if (k === 'rem' && val.rem > 0) val.add = 0;
     drawParams(); persist();
+  };
+  let hold: { b: HTMLElement; timer: number; ticks: number } | null = null;
+  const stopHold = () => { if (!hold) return; clearTimeout(hold.timer); const k = hold.b.dataset.k!; hold.b.classList.remove('held'); hold = null; commit(k); };
+  const tick = () => {
+    if (!hold) return;
+    hold.ticks++;
+    const mult = hold.ticks > 30 ? 5 : 1;                         // after ~2.5s, jump 5 steps at a time
+    if (!bump(hold.b, mult)) { stopHold(); return; }
+    if (hold.ticks % 3 === 0) vibrate(5);
+    hold.timer = window.setTimeout(tick, Math.max(40, 260 * 0.88 ** hold.ticks)); // 260ms → 40ms
+  };
+  params.addEventListener('pointerdown', e => {
+    const b = (e.target as HTMLElement).closest('button[data-k]') as HTMLElement | null; if (!b || e.button > 0) return;
+    e.preventDefault(); // keep focus/selection out of the way while holding
+    stopHold();
+    b.setPointerCapture?.(e.pointerId);
+    bump(b); vibrate(8); b.classList.add('held');
+    hold = { b, ticks: 0, timer: window.setTimeout(tick, 420) };  // short pause before repeating, so a tap = one step
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) params.addEventListener(ev, stopHold);
+  params.addEventListener('contextmenu', e => { if ((e.target as HTMLElement).closest('button[data-k]')) e.preventDefault(); }); // no long-press menu
+  // keyboard users (Enter/Space) still get one step per press
+  params.addEventListener('click', e => {
+    const b = (e.target as HTMLElement).closest('button[data-k]') as HTMLElement | null;
+    if (!b || e.detail !== 0) return; // pointer presses are handled above
+    if (bump(b)) commit(b.dataset.k!);
   });
   params.addEventListener('change', e => {
     readInputs(); const id = (e.target as HTMLElement).id;
