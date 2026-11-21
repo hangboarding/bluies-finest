@@ -17,6 +17,8 @@ export interface Settings {
   toursSeen: Record<string, boolean>;
   chart?: string;
   flags: Record<string, any>;                       // achievement event flags/counters
+  savedAt?: number;                                 // ms timestamp of last change, newest copy wins
+  owner?: string;                                   // user id the local copy belongs to
 }
 
 export const DEFAULT_SETTINGS = (): Settings => ({
@@ -58,11 +60,18 @@ export async function loadUserData() {
   state.priv = priv;
   let local: Partial<Settings> = {};
   try { local = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { /* storage blocked */ }
-  const d = DEFAULT_SETTINGS(), remote = (priv.settings ?? {}) as Partial<Settings>;
-  const merged = { ...d, ...local, ...remote } as Settings;
-  merged.prefs = { ...d.prefs, ...(local.prefs ?? {}), ...(remote.prefs ?? {}) };
-  merged.boards = { ...d.boards, ...(remote.boards ?? local.boards ?? {}) };
-  merged.panels = { ...d.panels, ...(local.panels ?? {}), ...(remote.panels ?? {}) };
+  const d = DEFAULT_SETTINGS(), remoteRaw = (priv.settings ?? {}) as Partial<Settings>;
+  // Whichever copy was saved most recently wins (the local copy can be newer if the
+  // page closed before the debounced upload finished). Ignore a local copy left by another user.
+  const localOk = !local.owner || local.owner === id;
+  const localNewer = localOk && (local.savedAt ?? 0) > (remoteRaw.savedAt ?? 0);
+  const older = localNewer ? remoteRaw : localOk ? local : {}, newer = localNewer ? local : remoteRaw;
+  const merged = { ...d, ...older, ...newer } as Settings;
+  merged.prefs = { ...d.prefs, ...(older.prefs ?? {}), ...(newer.prefs ?? {}) };
+  merged.boards = { ...d.boards, ...(newer.boards ?? older.boards ?? {}) };
+  merged.panels = { ...d.panels, ...(older.panels ?? {}), ...(newer.panels ?? {}) };
+  merged.owner = id;
+  if (localNewer) { state.settings = merged; flushSettings(); }
   state.settings = merged;
   state.sessions = sessions;
   state.social = social;
@@ -71,12 +80,18 @@ export async function loadUserData() {
 let saveTimer: number | undefined;
 /** Persist settings locally right away and to the backend shortly after. */
 export function saveSettings() {
+  state.settings.savedAt = Date.now();
   try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch { /* storage blocked */ }
   clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => {
-    if (state.store.currentUserId()) state.store.savePrivate({ settings: state.settings as any }).catch(() => { /* retried on next change */ });
-  }, 800);
+  saveTimer = window.setTimeout(flushSettings, 800);
 }
+/** Upload settings now (also used when the page is being hidden or closed). */
+export function flushSettings() {
+  clearTimeout(saveTimer);
+  if (state.store?.currentUserId()) return state.store.savePrivate({ settings: state.settings as any }).catch(() => { /* retried on next change */ });
+}
+addEventListener('pagehide', () => { if (saveTimer) flushSettings(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flushSettings(); });
 
 export const mySessions = () => state.sessions.filter(s => s.userId === state.me?.id);
 export const profileOf = (id: string) => state.profiles.get(id);

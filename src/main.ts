@@ -32,6 +32,14 @@ export function applyTheme() {
 }
 export function refreshHeader() { /* header shows only the logo + name now; kept for views that call it */ }
 
+/** Redraw the tabs and the current page in place, e.g. after switching icon style. */
+export async function rerender() {
+  const page = current;
+  shell();
+  current = page;
+  await go(page);
+}
+
 export async function go(page: Page) {
   if (current === 'hang' && page !== 'hang' && hangBusy()) { toast('Finish or cancel your session first'); return; }
   current = page;

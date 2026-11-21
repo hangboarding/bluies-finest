@@ -1,8 +1,8 @@
 import { $, $$, esc, toast, confirmSheet, promptSheet, bubble, avatar } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { state, saveSettings, mySessions } from '../lib/state';
+import { state, saveSettings, flushSettings, mySessions } from '../lib/state';
 import { TIPS } from '../lib/protocols';
-import { applyTheme, ACCENTS, refreshHeader } from '../main';
+import { applyTheme, ACCENTS, refreshHeader, rerender } from '../main';
 import { bumpDaily } from '../lib/achievements';
 import { setSound } from '../lib/timer';
 import { resetTours } from './tour';
@@ -90,7 +90,7 @@ async function onClick(e: MouseEvent) {
   const m = t.closest('#mode [data-m]') as HTMLElement | null;
   if (m) { S.prefs.mode = m.dataset.m as any; applyTheme(); $$('#mode button').forEach(b => b.classList.toggle('on', b === m)); saveSettings(); return; }
   const ii = t.closest('#icons [data-i]') as HTMLElement | null;
-  if (ii) { S.prefs.icons = ii.dataset.i as any; saveSettings(); applyTheme(); location.reload(); return; }
+  if (ii) { S.prefs.icons = ii.dataset.i as any; saveSettings(); applyTheme(); await rerender(); toast(S.prefs.icons === 'flat' ? 'Flat icons on' : 'Emoji icons on'); return; }
   const sw = t.closest('#sw [data-c]') as HTMLElement | null;
   if (sw) { S.prefs.acc = sw.dataset.c!; if (bumpDaily(S.flags, 'accent') >= 10) S.flags.spinCycle = true; applyTheme(); $$('#sw i').forEach(x => x.classList.toggle('on', x === sw)); saveSettings(); return; }
   const star = t.closest('[data-b]') as HTMLElement | null;
@@ -104,7 +104,7 @@ async function onClick(e: MouseEvent) {
     if (a.length < 6) return toast('Password must be at least 6 characters'); if (a !== b) return toast('Passwords don’t match');
     try { await state.store.updatePassword(a); ($('#pw1') as HTMLInputElement).value = ($('#pw2') as HTMLInputElement).value = ''; toast('Password changed'); } catch (err: any) { toast(err.message); } return;
   }
-  if (t.closest('#replay')) { resetTours(); toast('Tour reset — it will show on each page again'); location.hash = ''; location.reload(); return; }
+  if (t.closest('#replay')) { resetTours(); await flushSettings(); location.hash = ''; location.reload(); return; }
   if (t.closest('#dl')) {
     const data = { exported: new Date().toISOString(), app: 'Bluies Finest', profile: { name: state.me?.name }, bodyweightKg: state.priv.bodyweightKg, settings: S, sessions: mySessions() };
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));

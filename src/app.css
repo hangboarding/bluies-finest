@@ -64,3 +64,9 @@ svg.lic{stroke:currentColor}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 details.panel>summary{gap:6px}
+/* Mobile: no double-tap zoom, and no iOS auto-zoom when focusing small inputs. */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button,.chip,.a,.tip,a,select,input,label,summary,.heat i{touch-action:manipulation}
+input,select,textarea{font-size:max(16px,1em)!important}
+.step input{font-size:20px!important}
+button,.chip,summary{-webkit-user-select:none;user-select:none}
