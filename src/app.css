@@ -223,3 +223,4 @@ header{padding-top:calc(12px + env(safe-area-inset-top, 0px))}
 .pweye{position:absolute;right:4px;top:4px;width:40px;height:40px;display:grid;place-items:center;background:none;border:0;border-radius:10px;color:var(--mute);cursor:pointer}
 .pweye:hover{color:var(--ink)}
 input.tx::-ms-reveal{display:none}
+.fakein{display:block;text-align:left;color:var(--mute);margin-bottom:10px;cursor:text;font:inherit;font-size:16px}

@@ -10,12 +10,22 @@ const EYE_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" str
 
 export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
   const demo = state.store.kind === 'local';
-  // Autofill hints are held back (autocomplete="off", password fields start as text) until the person
-  // touches the form, so the browser doesn't pop up its saved-password sheet as soon as the page opens.
+  // Safari, DuckDuckGo and others offer saved passwords as soon as a login field exists on the page,
+  // whatever its autocomplete says. So the email/password boxes start as look-alike buttons and only
+  // become real inputs when tapped; the browser's saved-password offer then appears at that point.
+  const real = new Map<string, string>();
   const field = (id: string, ph: string, type = 'text', ac = '') => {
     const pw = type === 'password';
-    const input = `<input class="tx" id="${id}" type="${pw ? 'text' : type}" placeholder="${ph}" aria-label="${ph}" autocomplete="off" data-ac="${ac}"${pw ? ' data-pw autocapitalize="off" autocorrect="off" spellcheck="false"' : ''} style="margin-bottom:10px">`;
-    return pw ? `<div class="pwwrap">${input}<button type="button" class="pweye" aria-label="Show password" aria-pressed="false">${EYE}</button></div>` : input;
+    const input = `<input class="tx" id="${id}" type="${type}" placeholder="${ph}" aria-label="${ph}" autocomplete="${ac}"${pw ? ' autocapitalize="off" autocorrect="off" spellcheck="false"' : ''} style="margin-bottom:10px">`;
+    const html = pw ? `<div class="pwwrap">${input}<button type="button" class="pweye" aria-label="Show password" aria-pressed="false">${EYE}</button></div>` : input;
+    if (!pw && type !== 'email') return html;
+    real.set(id, html);
+    return `<button type="button" class="tx fakein" data-for="${id}" aria-label="${ph}">${ph}</button>`;
+  };
+  // Swap every look-alike for its real input (all at once, so the browser sees the whole login form).
+  const reveal = (focusId?: string) => {
+    root.querySelectorAll<HTMLElement>('.fakein').forEach(f => { f.outerHTML = real.get(f.dataset.for!)!; });
+    if (focusId) ($(`#${focusId}`) as HTMLInputElement | null)?.focus();
   };
   root.innerHTML = `<div class="auth">
     ${animatedLogo(156)}
@@ -42,23 +52,17 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
     if (m) { e.preventDefault(); renderAuth(root, (m.dataset.m ?? m.dataset.go) as Mode); }
   };
   const form = $('#authForm') as HTMLFormElement;
-  let armed = false;
-  const arm = () => {
-    if (armed) return; armed = true;
-    form.querySelectorAll<HTMLInputElement>('input[data-ac]').forEach(i => { i.autocomplete = i.dataset.ac as AutoFill; });
-    form.querySelectorAll<HTMLInputElement>('input[data-pw]').forEach(i => { if (!i.dataset.shown) i.type = 'password'; });
-  };
-  form.addEventListener('pointerdown', arm, { capture: true });
-  form.addEventListener('focusin', arm);
   form.addEventListener('click', e => {
+    const fake = (e.target as HTMLElement).closest('.fakein') as HTMLElement | null;
+    if (fake) { reveal(fake.dataset.for); return; }
     const b = (e.target as HTMLElement).closest('.pweye') as HTMLButtonElement | null; if (!b) return;
     const i = b.previousElementSibling as HTMLInputElement, show = i.type === 'password';
-    i.type = show ? 'text' : 'password'; if (show) i.dataset.shown = '1'; else delete i.dataset.shown;
+    i.type = show ? 'text' : 'password';
     b.innerHTML = show ? EYE_OFF : EYE; b.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); b.setAttribute('aria-pressed', String(show));
   });
   form.addEventListener('submit', async e => {
-    arm();
     e.preventDefault();
+    if (form.querySelector('.fakein')) { reveal(); toast('Fill in the form first', 3000); return; }
     const v = (id: string) => (($(`#${id}`) as HTMLInputElement | null)?.value ?? '').trim();
     const btn = $('#aGo') as HTMLButtonElement; btn.disabled = true;
     try {
