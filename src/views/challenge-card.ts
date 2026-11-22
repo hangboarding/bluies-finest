@@ -1,4 +1,4 @@
-// Activity-page cards: the crew challenge progress bar, and a banner announcing the
+// Activity-page cards: the group challenge progress bar, and a banner announcing the
 // latest season champion for the first two weeks of a new season.
 import { esc } from '../lib/ui';
 import { ic } from '../lib/icons';
@@ -13,11 +13,11 @@ export function challengeCard(): string {
   const name = (id: string) => esc(state.profiles.get(id)?.name ?? 'Someone');
   const top = p.top.slice(0, 3).map(t => `<b>${name(t.userId)}</b> ${t.v}`).join(' · ');
   return `<div class="card chal ${p.done ? 'done' : ''}" id="chalCard" data-cid="${esc(c.id)}" data-done="${p.done ? 1 : 0}">
-    <div class="chal-hd">${ic('ticket')}<b>Crew challenge</b><small>${left ? `${left + 1} days left` : 'Last day!'}</small></div>
+    <div class="chal-hd">${ic('ticket')}<b>Group challenge</b><small>${left ? `${left + 1} days left` : 'Last day!'}</small></div>
     <div class="chal-title">${esc(c.title)}</div>
     <div class="chal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${c.target}" aria-valuenow="${p.total}"><i style="width:${p.pct}%"></i></div>
     <div class="chal-nums"><span><b>${p.total.toLocaleString()}</b> / ${c.target.toLocaleString()} ${m.unit}</span><span>${p.pct}%</span></div>
-    ${p.done ? `<div class="chal-done">${ic('party')} Mission accomplished — nice work, crew!</div>` : ''}
+    ${p.done ? `<div class="chal-done">${ic('party')} Mission accomplished — nice work, everyone!</div>` : ''}
     ${top && c.metric !== 'climbers' ? `<div class="chal-top">Top contributors: ${top}</div>` : ''}
     ${c.auto ? '<div class="chal-top">Automatic monthly challenge — admins can set custom ones in Admin tools.</div>' : ''}
   </div>`;

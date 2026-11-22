@@ -2,7 +2,7 @@
 
 Without these steps the app runs in **demo mode**, where data stays in one browser. Follow them once to turn on real accounts, the shared feed, hearts and comments. It takes about 15 minutes, and everything here is on Supabase's free plan.
 
-> **Already set up before late November 2026?** Run any of these update scripts you haven't yet, in the SQL Editor (all safe to run again): [`hardening.sql`](../supabase/hardening.sql), [`admin.sql`](../supabase/admin.sql), [`seasons.sql`](../supabase/seasons.sql) (seasons and crew challenges). Then do steps 7 and 8 below if you haven't already.
+> **Already set up before late November 2026?** Run any of these update scripts you haven't yet, in the SQL Editor (all safe to run again): [`hardening.sql`](../supabase/hardening.sql), [`admin.sql`](../supabase/admin.sql), [`seasons.sql`](../supabase/seasons.sql) (seasons and group challenges). Then do steps 7 and 8 below if you haven't already.
 >
 > **Phone notifications** need a few extra one-time steps: see [PUSH.md](PUSH.md).
 

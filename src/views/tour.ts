@@ -12,7 +12,7 @@ const PAGE_TIPS: Record<string, Tip[]> = {
     { sel: '[data-p="grip"] summary', title: 'Hide what you don’t need', body: 'Sections can be hidden or shown with one tap — they stay that way.' },
     { sel: '#start', title: 'Start hanging', body: 'You get a get-ready countdown, beeps for the last few seconds, and a “Let go” button if you drop early.' },
   ],
-  feed: [{ sel: '#feedF', title: 'The crew’s activity', body: 'Every saved session shows up here. Heart it ❤️ or leave a comment to hype each other up.' }],
+  feed: [{ sel: '#feedF', title: 'Everyone’s activity', body: 'Every saved session shows up here. Heart it ❤️ or leave a comment to hype each other up.' }],
   ranks: [
     { sel: '#cats', title: 'Lots of ways to win', body: 'Switch categories: strength, grip types, volume and consistency. Overall is the big one.' },
     { sel: '#podium', title: 'Top of the crag', body: 'Number one gets the crown. Strength is measured as % of bodyweight so it’s fair.' },
@@ -32,7 +32,7 @@ const PAGE_TIPS: Record<string, Tip[]> = {
 };
 
 const WELCOME = [
-  ['🏔️', 'Welcome to Bluies Finest', 'Log hangboard sessions, follow proven protocols and compete with the crew.'],
+  ['🏔️', 'Welcome to Bluies Finest', 'Log hangboard sessions, follow proven protocols and compete with your mates.'],
   ['⏱', 'Smart timer', 'Get-ready countdown, beeps, rest timers and one-arm left/right switching. The screen stays awake while you hang.'],
   ['🏆', 'Compete & celebrate', 'Climb the leaderboard, unlock achievements and heart each other’s sessions.'],
   ['🔒', 'Your data, your call', 'Your data is private. Download or delete it any time from Profile.'],

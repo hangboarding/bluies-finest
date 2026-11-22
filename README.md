@@ -1,6 +1,6 @@
 # Bluies Finest
 
-Hangboard accountability and bragging rights. A mobile-first web app for a small crew. You can log sessions with a protocol-based timer, compete on leaderboards, and cheer each other on in the activity feed.
+Hangboard accountability and bragging rights. A mobile-first web app for a small group of climbers. You can log sessions with a protocol-based timer, compete on leaderboards, and cheer each other on in the activity feed.
 
 **Live:** https://hangboarding.github.io/bluies-finest/ (invite-only; install it to your phone's home screen)
 
@@ -14,9 +14,9 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 - **Seasons:** Summer, Autumn, Winter and Spring leaderboards (Blue Mountains time). The winner is crowned season champion and joins the Hall of champions.
 - **Ranks:** other leaderboards over the last 90 days (strength, grip types, volume and consistency). Strength is scored as % of bodyweight; bodyweight itself is never shown.
 - **Stats:** consistency calendar, personal bests, trends and achievements (10 tiers from Iron to GOAT, plus secret ones).
-- **Activity:** feed with hearts and comments, a crew challenge with a shared progress bar, a weekly recap, and climber profiles.
+- **Activity:** feed with hearts and comments, a group challenge with a shared progress bar, a weekly recap, and climber profiles.
 - **Notifications:** an in-app bell, plus optional phone push notifications ([docs/PUSH.md](docs/PUSH.md)).
-- **Admin tools:** invite codes, crew challenges, backups and moderation, all from inside the app.
+- **Admin tools:** invite codes, group challenges, backups and moderation, all from inside the app.
 
 ## Run it locally
 

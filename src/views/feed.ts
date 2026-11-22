@@ -39,11 +39,11 @@ function recapCard() {
   const r = weeklyRecap(state.sessions), name = (id: string) => esc(state.profiles.get(id)?.name ?? 'Someone');
   const range = `${r.from.getDate()} ${r.from.toLocaleString('en-GB', { month: 'short' })} – ${r.to.getDate()} ${r.to.toLocaleString('en-GB', { month: 'short' })}`;
   if (!r.sessions) return `<div class="card recap"><div class="recap-hd">${ic('party')}<b>Last week</b><small>${range}</small></div>
-    <p class="sub" style="margin:6px 0 0">A quiet week for the crew. ${r.thisWeek ? `${r.thisWeek} session${r.thisWeek > 1 ? 's' : ''} so far this week — keep it going!` : 'Be the first to hang this week 🧗'}</p></div>`;
+    <p class="sub" style="margin:6px 0 0">A quiet week. ${r.thisWeek ? `${r.thisWeek} session${r.thisWeek > 1 ? 's' : ''} so far this week — keep it going!` : 'Be the first to hang this week 🧗'}</p></div>`;
   const mins = Math.round(r.tutS / 60);
   const pbLine = r.pbs.length ? r.pbs.slice(0, 3).map(p => `<b>${name(p.userId)}</b> set ${p.count} PB${p.count > 1 ? 's' : ''}`).join(', ') + (r.pbs.length > 3 ? ` and ${r.pbs.length - 3} more` : '') : '';
   return `<div class="card recap"><div class="recap-hd">${ic('party')}<b>Last week</b><small>${range}</small></div>
-    <div class="recap-big">Crew logged <b>${r.sessions}</b> session${r.sessions > 1 ? 's' : ''}${mins ? ` · <b>${mins}</b> min on the board` : ''}</div>
+    <div class="recap-big">Everyone logged <b>${r.sessions}</b> session${r.sessions > 1 ? 's' : ''}${mins ? ` · <b>${mins}</b> min on the board` : ''}</div>
     <ul class="recap-list">
       ${pbLine ? `<li>${ic('medal')} ${pbLine}</li>` : ''}
       ${r.mostActive && r.climbers > 1 ? `<li>${ic('streak')} Most sessions: <b>${name(r.mostActive.userId)}</b> (${r.mostActive.count})</li>` : ''}

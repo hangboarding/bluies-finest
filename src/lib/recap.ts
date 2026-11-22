@@ -1,4 +1,4 @@
-// Weekly crew recap for the Activity feed: last full week (Monday–Sunday) plus this week so far.
+// Weekly group recap for the Activity feed: last full week (Monday–Sunday) plus this week so far.
 import type { Session } from './types';
 import { weekStart, addDays } from './scoring';
 

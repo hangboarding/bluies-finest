@@ -48,7 +48,7 @@ async function draw() {
         <button data-act="addcode" aria-label="Add code">+</button></div>
       <p class="sub" style="font-size:12px;margin:6px 0 0">Codes are saved in capitals and aren't case-sensitive when people sign up. Leave uses blank for unlimited. Deleting a code doesn't affect people who already joined.</p>`}
 
-    <h3>${ic('ticket')} Crew challenges</h3>
+    <h3>${ic('ticket')} Group challenges</h3>
     ${chals.map(ch => `<div class="lrow" data-chal="${ch.id}"><span class="nm">${esc(ch.title)}<small>${METRICS[ch.metric].label}: ${ch.target.toLocaleString()} · ${ch.startsOn} → ${ch.endsOn}${ch.startsOn <= today && ch.endsOn >= today ? ' · running now' : ch.endsOn < today ? ' · finished' : ' · upcoming'}</small></span>
       <button class="ed" data-act="delchal" aria-label="Delete challenge">${ic('trash')}</button></div>`).join('') || '<p class="sub" style="margin:0 0 6px">No custom challenges — the app runs an automatic monthly hangs challenge.</p>'}
     <div class="adm-chal">

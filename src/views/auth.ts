@@ -20,7 +20,7 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
         ${mode !== 'reset' ? field('aEmail', 'Email', 'email', 'email') : ''}
         ${mode === 'in' || mode === 'up' ? field('aPw', mode === 'up' ? 'Password (min 8 characters)' : 'Password', 'password', mode === 'up' ? 'new-password' : 'current-password') : ''}
         ${mode === 'reset' ? field('aPw', 'New password (min 8 characters)', 'password', 'new-password') + field('aPw2', 'Repeat new password', 'password', 'new-password') : ''}
-        ${mode === 'up' ? field('aCode', 'Invite code', 'text', 'off') + '<p class="sub" style="margin:-4px 0 10px;font-size:12px">Ask the crew for the code.</p>' : ''}
+        ${mode === 'up' ? field('aCode', 'Invite code', 'text', 'off') + '<p class="sub" style="margin:-4px 0 10px;font-size:12px">Ask whoever invited you for the code.</p>' : ''}
         <button class="big" type="submit" id="aGo">${{ in: 'Sign in', up: 'Create account', forgot: 'Send reset link', reset: 'Set new password' }[mode]}</button>
       </form>
       <div class="links">${mode === 'in' ? '<a data-go="forgot">Forgot password?</a>' : mode !== 'up' ? '<a data-go="in">Back to sign in</a>' : ''}</div>
