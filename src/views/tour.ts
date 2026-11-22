@@ -9,7 +9,7 @@ const PAGE_TIPS: Record<string, Tip[]> = {
     { sel: '#proto', title: 'Pick a protocol', body: 'Each one is a proven training plan with sensible defaults. ⚡ JUST LET ME HANG skips the theory. Pick “Custom protocol…” to save your own.' },
     { sel: '[data-p="about"]', title: 'Read the protocol', body: 'Every protocol comes with who designed it, what it’s for, its hang and rest times, recommended sets, intensity and how often to do it. Tap Hide to tuck it away once you know it.' },
     { sel: '#params', title: 'Tweak the numbers', body: 'Tap − and + to adjust. Tap any ⓘ to learn what a setting does. Everything is remembered for next time.' },
-    { sel: '[data-p="grip"] summary', title: 'Hide what you don’t need', body: 'Sections can be hidden or shown with one tap — they stay that way.' },
+    { sel: '[data-p="grip"] summary', title: 'Hide what you don’t need', body: 'Sections can be hidden or shown with one tap, and they stay that way.' },
     { sel: '#start', title: 'Start hanging', body: 'You get a get-ready countdown, beeps for the last few seconds, and a “Let go” button if you drop early.' },
   ],
   feed: [{ sel: '#feedF', title: 'Everyone’s activity', body: 'Every saved session shows up here. Heart it ❤️ or leave a comment to hype each other up.' }],
@@ -23,7 +23,7 @@ const PAGE_TIPS: Record<string, Tip[]> = {
   ],
   profile: [
     { sel: '.upl', title: 'Your photo', body: 'Tap to add a photo. It shows next to your name on the leaderboard and in the activity feed.' },
-    { sel: '.about', title: 'Your details', body: 'Set your bodyweight — it’s needed for accurate stats, because strength is scored as % of bodyweight. Age, height and location are optional. All of this is private. Tap Save when you’re done.' },
+    { sel: '.about', title: 'Your details', body: 'Set your bodyweight. It’s needed for accurate stats, because strength is scored as % of bodyweight. Age, height and location are optional. All of this is private. Tap Save when you’re done.' },
     { sel: '.boards', title: 'Your hangboards', body: 'Add the boards you train on. The ⭐ one is picked by default for new sessions, and you can remove any you don’t use.' },
     { sel: '.card:has(#mode)', title: 'Look & feel', body: 'Switch between dark and light mode, emoji or flat icons, and pick an accent colour.' },
     { sel: '.card:has([data-set="sound"])', title: 'Settings', body: 'Turn countdown sounds, vibration, the warm-up reminder and overtraining warnings on or off, choose which sections show on the Hang screen, and replay this tour.' },

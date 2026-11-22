@@ -94,7 +94,7 @@ async function handleRecoveryLink() {
   const client = (state.store as any).client;
   if (!client) return;
   const { error } = await client.auth.verifyOtp({ token_hash: th, type: 'recovery' });
-  if (error) toast('That reset link has expired or was already used — request a new one', 6000);
+  if (error) toast('That reset link has expired or was already used. Request a new one.', 6000);
 }
 
 async function boot() {
@@ -106,7 +106,7 @@ async function boot() {
     $('#app').innerHTML = '<main id="auth"></main>';
     if (location.hash === '#reset') {
       history.replaceState(null, '', location.pathname);
-      toast('That reset link has expired or was opened in another browser — request a new one', 6000);
+      toast('That reset link has expired or was opened in another browser. Request a new one.', 6000);
       renderAuth($('#auth'), 'forgot');
     } else renderAuth($('#auth'), 'in');
     return;

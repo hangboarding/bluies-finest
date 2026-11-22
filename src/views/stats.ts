@@ -102,7 +102,7 @@ export function sessRow(s: Session, actions = true) {
     ${actions && !s.pendingUpload ? `<button class="ed" data-ed aria-label="Edit session">${ic('edit')}</button><button class="ed" data-del aria-label="Delete session">${ic('trash')}</button>` : ''}</div>`;
 }
 function drawRecent(mine: Session[]) {
-  $('#recent').innerHTML = mine.slice(0, 8).map(s => sessRow(s)).join('') || '<p class="sub">No sessions yet — head to Hang to log your first.</p>';
+  $('#recent').innerHTML = mine.slice(0, 8).map(s => sessRow(s)).join('') || '<p class="sub">No sessions yet. Head to Hang to log your first.</p>';
   hydrateIcons($('#recent'));
 }
 
@@ -121,7 +121,7 @@ async function editSession(s: Session) {
     if (inp.type !== 'number') { patch[k] = inp.value.trim().slice(0, 2000); continue; }
     if (inp.value.trim() === '') { if (k === 'rpe') patch.rpe = null; continue; } // leave other blanks unchanged
     const n = +inp.value, [lo, hi] = LIM[k] ?? [0, 9999];
-    if (!isFinite(n) || n < lo || n > hi) return toast(`Check that value — must be ${lo}–${hi}`);
+    if (!isFinite(n) || n < lo || n > hi) return toast(`Check that value. It must be ${lo}–${hi}`);
     patch[k] = n;
   }
   // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have).
@@ -197,7 +197,7 @@ async function onClick(e: MouseEvent) {
   if (day) {
     const k = day.dataset.day!, ss = byDay().get(k) ?? [], d = new Date(k + 'T12:00');
     const title = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    info(`<h2 style="font-size:18px">${title}</h2>${ss.length ? `<p class="sub">${ss.length} session${ss.length > 1 ? 's' : ''} · ${ss.reduce((a, s) => a + s.tutS, 0)}s under tension</p><div class="daysess">${ss.map(s => sessRow(s, false)).join('')}</div>` : '<div class="big-ic">😴</div><p class="sub">Rest day — recovery counts too.</p>'}`);
+    info(`<h2 style="font-size:18px">${title}</h2>${ss.length ? `<p class="sub">${ss.length} session${ss.length > 1 ? 's' : ''} · ${ss.reduce((a, s) => a + s.tutS, 0)}s under tension</p><div class="daysess">${ss.map(s => sessRow(s, false)).join('')}</div>` : '<div class="big-ic">😴</div><p class="sub">Rest day. Recovery counts too.</p>'}`);
     return;
   }
   const a = t.closest('.a') as HTMLElement | null;

@@ -99,7 +99,7 @@ export const CATEGORIES: Category[] = [
       const b = maxBy(maxHang(m.filter(s => { const t = +new Date(s.createdAt); return t < days(30, now) && t >= days(60, now); })).filter(s => s.loadPct != null), s => s.loadPct!);
       return isFinite(a) && isFinite(b) && b > 0 ? Math.round(((a - b) / b) * 1000) / 10 : null;
     } },
-  { id: 'season', icon: 'crown', name: 'This season', group: 'Season', unit: 'pts', desc: 'Points this season — the winner is crowned season champion',
+  { id: 'season', icon: 'crown', name: 'This season', group: 'Season', unit: 'pts', desc: 'Points this season. The winner is crowned season champion',
     value: (m, _a, now) => { const se = seasonOf(now), xs = m.filter(x => inSeason(x, se)); return xs.length ? Math.round(xs.reduce((a, x) => a + x.points, 0)) : null; } },
 ];
 

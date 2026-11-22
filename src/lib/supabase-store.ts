@@ -522,7 +522,7 @@ export class SupabaseStore implements Store {
   async deleteInviteCode(code: string): Promise<void> {
     this.requireUid();
     const rows = check(await this.client.from('invite_codes').delete().eq('code', code).select('code')) as any[];
-    if (!rows?.length) throw new Error("Couldn't delete that code — are you an admin?");
+    if (!rows?.length) throw new Error("Couldn't delete that code. Are you an admin?");
   }
 
   async seasonChampions(): Promise<SeasonChampion[] | null> {
@@ -548,12 +548,12 @@ export class SupabaseStore implements Store {
     const row = { title: c.title.trim().slice(0, 80), metric: c.metric, target: Math.round(c.target), starts_on: c.startsOn, ends_on: c.endsOn };
     const q = c.id ? this.client.from('challenges').update(row).eq('id', c.id) : this.client.from('challenges').insert(row);
     const rows = check(await q.select('id')) as any[];
-    if (!rows?.length) throw new Error("Couldn't save that challenge — are you an admin?");
+    if (!rows?.length) throw new Error("Couldn't save that challenge. Are you an admin?");
   }
 
   async deleteChallenge(id: string): Promise<void> {
     this.requireUid();
     const rows = check(await this.client.from('challenges').delete().eq('id', id).select('id')) as any[];
-    if (!rows?.length) throw new Error("Couldn't delete that challenge — are you an admin?");
+    if (!rows?.length) throw new Error("Couldn't delete that challenge. Are you an admin?");
   }
 }

@@ -62,7 +62,7 @@ export async function openClimber(uid: string) {
     ${(() => { const f = favouriteProtocol(xs); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}
     ${pbs ? `<h3>${ic('medal')} Personal bests</h3><div class="cpbs">${pbs}</div>` : ''}
     <h3 style="margin-top:14px">${ic('calendar')} Last 5 weeks</h3><div class="cgrid">${grid}</div>
-    ${badges.length ? `<h3 style="margin-top:14px">${ic('award')} Badges</h3><div class="cbadges">${badges.map(({ a, lv }) => `<span class="cbadge" style="--tc:${TIER_COLOURS[lv - 1]}" title="${a.name} — ${TIER_NAMES[lv - 1]}">${ic(a.icon)}<small>${TIER_NAMES[lv - 1]}</small></span>`).join('')}</div>` : ''}
+    ${badges.length ? `<h3 style="margin-top:14px">${ic('award')} Badges</h3><div class="cbadges">${badges.map(({ a, lv }) => `<span class="cbadge" style="--tc:${TIER_COLOURS[lv - 1]}" title="${a.name}: ${TIER_NAMES[lv - 1]}">${ic(a.icon)}<small>${TIER_NAMES[lv - 1]}</small></span>`).join('')}</div>` : ''}
     <h3 style="margin-top:14px">${ic('calendar')} Recent sessions</h3><div class="daysess">${xs.slice(0, 5).map(s => sessRow(s, false)).join('') || '<p class="sub">No sessions yet.</p>'}</div>`;
   hydrateIcons(el);
 }

@@ -60,7 +60,7 @@ export function renderHang(root: HTMLElement) {
     <div class="ring" id="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="var(--line)" stroke-width="6"/><circle id="arc" cx="50" cy="50" r="45" fill="none" stroke-width="6" stroke-linecap="round" stroke-dasharray="282.7"/></svg>
       <div class="t"><div><div class="p" id="ph"></div><div class="n" id="num"></div><div class="sub" id="setlbl"></div></div></div></div>
     <div class="dots" id="dots"></div>
-    <button class="big letgo hide" id="letgo">${ic('open')} Let go — log time held</button>
+    <button class="big letgo hide" id="letgo">${ic('open')} Let go and log time held</button>
     <div class="row"><button class="big ghost" id="pause">${ic('pause')} Pause</button><button class="big ghost" id="skip">Skip ${ic('skip')}</button></div>
     <div class="row" style="margin-top:10px"><button class="big ghost" id="edit">${ic('edit')} Edit</button><button class="big ghost danger-text" id="quit">${ic('x')} Cancel</button></div>
   </div></section>
@@ -175,7 +175,7 @@ function applyLoadSuggestion(s: NewSession) {
   else { const fromAdd = Math.min(v.add, -d); v.add -= fromAdd; v.rem += -d - fromAdd; }
   S.vals[k] = { ...(S.vals[k] ?? {}), add: v.add, rem: v.rem, lift: v.lift };
   const what = s.mode === 'lift' ? `${v.lift}kg lift` : v.add ? `+${v.add}kg` : v.rem ? `−${v.rem}kg assist` : 'bodyweight';
-  S.suggest[k] = { text: `${d > 0 ? 'Felt easy' : 'Felt very hard'} last time (RPE ${s.rpe}) — load set to ${what}`, prev };
+  S.suggest[k] = { text: `${d > 0 ? 'Felt easy' : 'Felt very hard'} last time (RPE ${s.rpe}), so the load is now ${what}`, prev };
   saveSettings();
   if (k === cur) loadProto(k);
 }
@@ -196,7 +196,7 @@ async function preStartCheck(): Promise<boolean> {
   const recentlyActive = mine.some(s => now - +new Date(s.createdAt) < 60 * 60e3); // any session in the last hour counts as warm
   const needWarm = warmCheck && !recentlyActive;
   const notes: string[] = [];
-  if (overCheck && lastHard && now - lastHard < 24 * 3600e3) notes.push('You did a max-effort session in the last 24 hours. Fingers recover slower than muscles — 48 hours between hard sessions is the usual advice.');
+  if (overCheck && lastHard && now - lastHard < 24 * 3600e3) notes.push('You did a max-effort session in the last 24 hours. Fingers recover slower than muscles, so 48 hours between hard sessions is the usual advice.');
   if (overCheck && week >= 3) notes.push(`That would be ${week + 1} max-effort sessions this week. Most protocols recommend 2, at most 3.`);
   if (needWarm) notes.unshift('Hard hangs on cold fingers are the classic way to tweak a pulley. A few minutes of easy hangs first makes a real difference.');
   if (!notes.length) return true;
@@ -204,7 +204,7 @@ async function preStartCheck(): Promise<boolean> {
     : [{ label: 'Skip, I’m warm', kind: 'ghost' as const }, { label: 'Warm up first', kind: 'primary' as const }];
   const i = await sheet({ title: needWarm ? 'Warm up first?' : 'Quick check', body: notes.map(n => `<p class="sub" style="text-align:left">${n}</p>`).join('') + '<p class="sub" style="font-size:12px">You can turn these off in Profile → Settings.</p>', buttons });
   if (!needWarm) return i === 1;
-  if (i === 1) { state.settings.returnTo = cur; saveSettings(); loadProto('warm'); persist(); toast('Warm-up loaded — you’ll be brought back after'); return false; }
+  if (i === 1) { state.settings.returnTo = cur; saveSettings(); loadProto('warm'); persist(); toast('Warm-up loaded. You’ll be brought back after.'); return false; }
   return i === 0;
 }
 
@@ -228,7 +228,7 @@ export function drawBoards() {
   sel.innerHTML = S.boards.list.map(b => `<option${b === chosen ? ' selected' : ''}>${esc(b)}</option>`).join('') + `<option value="__add">➕ Add board…</option>`;
 }
 export async function addBoard(name?: string | null) {
-  const n = (name ?? await promptSheet('Add a board', 'Name it — it becomes your default for new sessions.', 'e.g. Garage board'))?.trim();
+  const n = (name ?? await promptSheet('Add a board', 'Name it and it becomes your default for new sessions.', 'e.g. Garage board'))?.trim();
   if (!n) { drawBoards(); return; }
   const B = state.settings.boards;
   if (!B.list.includes(n)) B.list.unshift(n);
@@ -254,7 +254,7 @@ function wireSetup(root: HTMLElement) {
     const n = await promptSheet('New protocol', 'Saves your current hang, rest, sets, edge and load settings under a name.', 'Protocol name');
     if (!n) return;
     const k = 'c_' + Date.now();
-    state.settings.customProtos[k] = { n, by: `Custom — by ${state.me?.name ?? 'you'}`, use: 'Your own plan', d: 'Your saved protocol.', int: 'Your call', freq: 'Your call', custom: true,
+    state.settings.customProtos[k] = { n, by: `Custom, by ${state.me?.name ?? 'you'}`, use: 'Your own plan', d: 'Your saved protocol.', int: 'Your call', freq: 'Your call', custom: true,
       hang: val.hang, rest: val.rest, sets: val.sets, reps: val.reps, setRest: val.setRest, edge: val.edge, mode: val.mode, hands: val.hands, sw: val.sw, effort: val.effort };
     state.settings.vals[k] = { add: val.add, rem: val.rem, lift: val.lift, ready: val.ready };
     cur = k; protoOptions(); loadProto(k); persist(); toast(`★ ${n} saved`);
@@ -330,9 +330,9 @@ function wireSetup(root: HTMLElement) {
   $('#sugg').addEventListener('click', e => { if ((e.target as HTMLElement).closest('#suggUndo')) undoSuggestion(); });
   $('#pause').addEventListener('click', togglePause);
   $('#skip').addEventListener('click', () => { unlockAudio(); timer?.skip(); });
-  $('#letgo').addEventListener('click', () => { if (!timer) return; unlockAudio(); beep(440, 0.3); const h = timer.letGo(); toast(`Held ${h}s — logged`); });
+  $('#letgo').addEventListener('click', () => { if (!timer) return; unlockAudio(); beep(440, 0.3); const h = timer.letGo(); toast(`Held ${h}s, logged`); });
   $('#quit').addEventListener('click', quit);
-  $('#edit').addEventListener('click', () => { if (!timer) return; timer.pause(); timer.stop(); editing = true; keepAwake(false); show('setup'); $('#start').innerHTML = `${ic('replay')} Resume with changes`; hydrateIcons($('#start')); toast('Tweak and resume — completed hangs are kept'); });
+  $('#edit').addEventListener('click', () => { if (!timer) return; timer.pause(); timer.stop(); editing = true; keepAwake(false); show('setup'); $('#start').innerHTML = `${ic('replay')} Resume with changes`; hydrateIcons($('#start')); toast('Tweak and resume. Completed hangs are kept.'); });
   $('#setlbl').addEventListener('click', () => { if (timer?.step.p === 'ready' && bumpDaily(state.settings.flags, 'chalk') >= 10) { state.settings.flags.chalkBucket = true; saveSettings(); } });
   $('#rpe').addEventListener('input', rpeUpd);
   $('#saveSess').addEventListener('click', saveSession);
@@ -417,7 +417,7 @@ const RW = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Hard', 'Ha
 function rpeUpd() {
   const n = +($('#rpe') as HTMLInputElement).value;
   $('#rpeV').innerHTML = `<small>${RW[n]}</small><b>${n}</b>`;
-  $('#rpeTip').textContent = n <= 5 ? "Felt easy — we'll suggest +2.5kg next time." : n <= 8 ? 'Right in the zone. Same load next time.' : "Very hard — we'll suggest backing off 2.5kg.";
+  $('#rpeTip').textContent = n <= 5 ? "Felt easy, so we'll suggest +2.5kg next time." : n <= 8 ? 'Right in the zone. Same load next time.' : "Very hard, so we'll suggest backing off 2.5kg.";
 }
 
 let pending: NewSession | null = null;
@@ -466,10 +466,10 @@ async function saveSession() {
     state.sessions.unshift(s); pending = null;
     applyLoadSuggestion(saved);
     const back = state.settings.returnTo;
-    if (saved.protocolKey === 'warm' && back && allProtos()[back]) { delete state.settings.returnTo; saveSettings(); loadProto(back); persist(); toast(`Warmed up — ${allProtos()[back]!.n} is ready`, 3500); show('setup'); scrollTo(0, 0); return; }
-    toast(queued ? 'No signal — saved on this phone. It’ll upload automatically.' : 'Session saved', queued ? 4500 : 2200);
+    if (saved.protocolKey === 'warm' && back && allProtos()[back]) { delete state.settings.returnTo; saveSettings(); loadProto(back); persist(); toast(`Warmed up. ${allProtos()[back]!.n} is ready`, 3500); show('setup'); scrollTo(0, 0); return; }
+    toast(queued ? 'No signal, so it’s saved on this phone. It’ll upload automatically.' : 'Session saved', queued ? 4500 : 2200);
     show('setup'); go('stats');
-  } catch (e: any) { toast(e.message ?? 'Could not save — try again'); }
+  } catch (e: any) { toast(e.message ?? 'Could not save. Try again.'); }
   finally { btn.disabled = false; }
 }
 export const lastHangLog = () => lastLog;

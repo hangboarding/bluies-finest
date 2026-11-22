@@ -21,16 +21,16 @@ export function renderProfile(root: HTMLElement) {
     <div class="fld"><input class="tx" id="pName" maxlength="40" placeholder="Name" value="${esc(me.name)}" aria-label="Name"></div>
     <div class="about">
       <div><label class="f lab">Bodyweight<span class="tip" data-tip="bodyweight">i</span></label>
-        <div class="prm" style="--c:#b48cff"><div class="step"><button data-bw="-0.5" aria-label="Decrease bodyweight">−</button><input id="bw" inputmode="decimal" value="${state.priv.bodyweightKg ?? ''}" placeholder="—" aria-label="Bodyweight in kg"><small>kg</small><button data-bw="0.5" aria-label="Increase bodyweight">+</button></div></div></div>
+        <div class="prm" style="--c:#b48cff"><div class="step"><button data-bw="-0.5" aria-label="Decrease bodyweight">−</button><input id="bw" inputmode="decimal" value="${state.priv.bodyweightKg ?? ''}" placeholder="Not set" aria-label="Bodyweight in kg"><small>kg</small><button data-bw="0.5" aria-label="Increase bodyweight">+</button></div></div></div>
       <div class="split">
-        <div><label class="f">Age <small>(optional)</small></label><input class="tx" id="pAge" type="number" inputmode="numeric" min="10" max="100" value="${S.about?.age ?? ''}" placeholder="—" aria-label="Age"></div>
-        <div><label class="f">Height <small>(cm, optional)</small></label><input class="tx" id="pHeight" type="number" inputmode="numeric" min="100" max="230" value="${S.about?.heightCm ?? ''}" placeholder="—" aria-label="Height in centimetres"></div>
+        <div><label class="f">Age <small>(optional)</small></label><input class="tx" id="pAge" type="number" inputmode="numeric" min="10" max="100" value="${S.about?.age ?? ''}" placeholder="Not set" aria-label="Age"></div>
+        <div><label class="f">Height <small>(cm, optional)</small></label><input class="tx" id="pHeight" type="number" inputmode="numeric" min="100" max="230" value="${S.about?.heightCm ?? ''}" placeholder="Not set" aria-label="Height in centimetres"></div>
       </div>
       <div><label class="f">Location <small>(optional)</small></label><input class="tx" id="pLoc" maxlength="60" value="${esc(S.about?.location ?? '')}" placeholder="e.g. Katoomba" aria-label="Location"></div>
-      <p class="sub" style="margin:0">${ic('lock')} Age, height and location are private. Your bodyweight is never shown — others only see a rounded % on your sessions.</p>
+      <p class="sub" style="margin:0">${ic('lock')} Age, height and location are private. Your bodyweight is never shown. Others only see a rounded % on your sessions.</p>
     </div>
     <button class="big" id="saveName">Save</button>
-    ${state.store.kind === 'local' ? '<p class="sub" style="margin-top:10px">Demo mode — data is stored in this browser only.</p>' : ''}
+    ${state.store.kind === 'local' ? '<p class="sub" style="margin-top:10px">Demo mode: data is stored in this browser only.</p>' : ''}
   </div>
   <div class="card boards"><h3>${ic('board')} My hangboards</h3><p class="sub">${ic('star')} = default for new sessions</p>
     <div id="boardList"></div>
@@ -66,7 +66,7 @@ export function renderProfile(root: HTMLElement) {
 
 function drawBoardList() {
   const B = state.settings.boards;
-  $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star')}</button><span class="nm">${esc(b)}</span><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet — add one below.</p>';
+  $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star')}</button><span class="nm">${esc(b)}</span><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet. Add one below.</p>';
   hydrateIcons($('#boardList'));
 }
 

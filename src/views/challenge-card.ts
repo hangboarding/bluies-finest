@@ -17,9 +17,9 @@ export function challengeCard(): string {
     <div class="chal-title">${esc(c.title)}</div>
     <div class="chal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${c.target}" aria-valuenow="${p.total}"><i style="width:${p.pct}%"></i></div>
     <div class="chal-nums"><span><b>${p.total.toLocaleString()}</b> / ${c.target.toLocaleString()} ${m.unit}</span><span>${p.pct}%</span></div>
-    ${p.done ? `<div class="chal-done">${ic('party')} Mission accomplished — nice work, everyone!</div>` : ''}
+    ${p.done ? `<div class="chal-done">${ic('party')} Well done 👏</div>` : ''}
     ${top && c.metric !== 'climbers' ? `<div class="chal-top">Top contributors: ${top}</div>` : ''}
-    ${c.auto ? '<div class="chal-top">Automatic monthly challenge — admins can set custom ones in Admin tools.</div>' : ''}
+    ${c.auto ? '<div class="chal-top">Automatic monthly challenge. Admins can set custom ones in Admin tools.</div>' : ''}
   </div>`;
 }
 
@@ -43,5 +43,5 @@ export function championBanner(): string {
   const meWon = winners.some(w => w.userId === state.me?.id);
   return `<div class="card recap champ-banner"><div class="recap-hd">${ic('crown')}<b>${seasonNameFromStart(prevStart)} champion${winners.length > 1 ? 's' : ''}</b></div>
     <div class="recap-big">${meWon ? 'That’s you! 👑 ' : ''}${names} won the season with <b>${winners[0]!.points.toLocaleString()}</b> points.</div>
-    <p class="sub" style="margin:0">${cur.name} has started — everyone’s back to zero.</p></div>`;
+    <p class="sub" style="margin:0">${cur.name} has started and everyone’s back to zero.</p></div>`;
 }

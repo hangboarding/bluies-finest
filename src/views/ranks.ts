@@ -42,14 +42,14 @@ function draw() {
     .sort((a, b) => (c.lower ? a.v! - b.v! : b.v! - a.v!));
   const se = seasonOf(now), left = daysLeft(se, now);
   $('#catDesc').innerHTML = c.id === 'season'
-    ? `${ic('crown')} <b>${se.name}</b> · ${left ? `${left + 1} days left` : 'last day!'} — most points wins the season`
+    ? `${ic('crown')} <b>${se.name}</b> · ${left ? `${left + 1} days left` : 'last day!'}. Most points wins the season`
     : `${ic(c.icon)} ${esc(c.desc)}`;
   const me = state.me?.id;
   const nm = (r: (typeof rows)[0]) => esc(r.p.name) + (r.p.id === me ? ' (you)' : '');
   const pod = (r: (typeof rows)[0] | undefined, k: 1 | 2 | 3) => r ? `<div class="pod p${k}" data-uid="${r.p.id}">${k === 1 ? `<span class="crown">${ic('crown')}</span>` : ''}${avatar(r.p, 'ph')}<b>${nm(r)}</b>
       <div class="sub pv">${fmt(r.v!, c.unit)}</div><div class="blk">${k}</div></div>` : `<div class="pod p${k}"></div>`;
   $('#podium').innerHTML = rows.length ? pod(rows[1], 2) + pod(rows[0], 1) + pod(rows[2], 3) : '';
-  $('#champ').innerHTML = rows[0] ? `${ic('crown')} ${rows[0].p.id === me ? 'You rule' : esc(rows[0].p.name) + ' rules'} ${c.name.toLowerCase()} — ${fmt(rows[0].v!, c.unit)}` : 'No one has a result here yet. Be the first!';
+  $('#champ').innerHTML = rows[0] ? `${ic('crown')} ${rows[0].p.id === me ? 'You rule' : esc(rows[0].p.name) + ' rules'} ${c.name.toLowerCase()} with ${fmt(rows[0].v!, c.unit)}` : 'No one has a result here yet. Be the first!';
   hydrateIcons($('#podium')); hydrateIcons($('#champ'));
   $('#lbList').innerHTML = rows.slice(3).map((r, i) => `<div class="lrow ${r.p.id === me ? 'me' : ''}" data-uid="${r.p.id}"><span class="r">${i + 4}</span>${avatar(r.p)}<span class="nm">${nm(r)}</span><span class="pt">${fmt(r.v!, c.unit)}</span></div>`).join('');
   const mi = rows.findIndex(r => r.p.id === me);
@@ -65,5 +65,5 @@ function hallOfChampions() {
     const names = cs.map(c => `<b data-uid="${c.userId}">${esc(state.profiles.get(c.userId)?.name ?? 'Former climber')}</b>`).join(' & ');
     return `<div class="lrow hof"><span class="hof-ic">${ic('crown')}</span><span class="nm">${names}<small>${seasonNameFromStart(start)} champion · ${cs[0]!.points.toLocaleString()} pts</small></span></div>`;
   }).join('');
-  return `<div class="card"><h3>${ic('award')} Hall of champions</h3>${rows || '<p class="sub" style="margin:0">No champions yet — the first title is decided when this season ends.</p>'}</div>`;
+  return `<div class="card"><h3>${ic('award')} Hall of champions</h3>${rows || '<p class="sub" style="margin:0">No champions yet. The first title is decided when this season ends.</p>'}</div>`;
 }

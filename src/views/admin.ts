@@ -42,7 +42,7 @@ async function draw() {
         <small>Used ${k.uses}${k.maxUses == null ? ' · unlimited' : ` of ${k.maxUses}`}${k.maxUses != null && k.uses >= k.maxUses ? ' · used up' : ''}</small></span>
         <button class="ed" data-act="copy" aria-label="Copy ${esc(k.code)}">${ic('copy')}</button>
         <button class="ed" data-act="limit" aria-label="Change limit for ${esc(k.code)}">${ic('edit')}</button>
-        <button class="ed" data-act="delcode" aria-label="Delete ${esc(k.code)}">${ic('trash')}</button></div>`).join('') || '<p class="sub">No codes — nobody can join until you add one.</p>'}
+        <button class="ed" data-act="delcode" aria-label="Delete ${esc(k.code)}">${ic('trash')}</button></div>`).join('') || '<p class="sub">No codes yet. Nobody can join until you add one.</p>'}
       <div class="adm-new"><input class="tx" id="newCode" placeholder="NEW-CODE" maxlength="40" autocapitalize="characters" aria-label="New invite code">
         <input class="tx" id="newMax" type="number" min="1" inputmode="numeric" placeholder="∞ uses" aria-label="Maximum uses (blank for unlimited)">
         <button data-act="addcode" aria-label="Add code">+</button></div>
@@ -50,7 +50,7 @@ async function draw() {
 
     <h3>${ic('ticket')} Group challenges</h3>
     ${chals.map(ch => `<div class="lrow" data-chal="${ch.id}"><span class="nm">${esc(ch.title)}<small>${METRICS[ch.metric].label}: ${ch.target.toLocaleString()} · ${ch.startsOn} → ${ch.endsOn}${ch.startsOn <= today && ch.endsOn >= today ? ' · running now' : ch.endsOn < today ? ' · finished' : ' · upcoming'}</small></span>
-      <button class="ed" data-act="delchal" aria-label="Delete challenge">${ic('trash')}</button></div>`).join('') || '<p class="sub" style="margin:0 0 6px">No custom challenges — the app runs an automatic monthly hangs challenge.</p>'}
+      <button class="ed" data-act="delchal" aria-label="Delete challenge">${ic('trash')}</button></div>`).join('') || '<p class="sub" style="margin:0 0 6px">No custom challenges. The app runs an automatic monthly hangs challenge.</p>'}
     <div class="adm-chal">
       <input class="tx" id="chTitle" maxlength="80" placeholder="Title, e.g. 500 hangs in December" aria-label="Challenge title">
       <div class="row2"><select id="chMetric" aria-label="What counts">${(Object.keys(METRICS) as Metric[]).map(k => `<option value="${k}">${METRICS[k].label}</option>`).join('')}</select>
@@ -68,7 +68,7 @@ async function draw() {
       <button class="ed" data-act="delsess" aria-label="Remove session">${ic('trash')}</button></div>`).join('') || '<p class="sub">No sessions yet.</p>'}
 
     <h3>${ic('download')} Backup</h3>
-    <p class="sub" style="margin:0 0 8px">Download every member's sessions, hearts, comments and profile (name and photo link only) as one file. Private details like bodyweight, age, height and location aren't included — admins can't see those either. Worth doing every month or so; the free Supabase plan has no downloadable backups.</p>
+    <p class="sub" style="margin:0 0 8px">Download every member's sessions, hearts, comments and profile (name and photo link only) as one file. Private details like bodyweight, age, height and location aren't included. Admins can't see those either. Worth doing every month or so; the free Supabase plan has no downloadable backups.</p>
     <button class="big ghost" data-act="backup">${ic('download')} Back up everything</button>
 
     <h3>${ic('comment')} Recent comments</h3>
@@ -125,7 +125,7 @@ async function backupAll(btn: HTMLButtonElement) {
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
     a.download = `bluies-finest-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    toast(`Backup downloaded — ${data.counts.sessions} sessions, ${data.counts.members} members`, 4000);
+    toast(`Backup downloaded: ${data.counts.sessions} sessions, ${data.counts.members} members`, 4000);
   } finally { btn.disabled = false; btn.innerHTML = label; }
 }
 
@@ -140,7 +140,7 @@ async function onClick(e: MouseEvent) {
         const title = v('#chTitle'), target = Math.floor(+v('#chTarget')), startsOn = v('#chStart'), endsOn = v('#chEnd');
         if (!title) return toast('Give the challenge a title');
         if (!(target > 0)) return toast('Set a target above 0');
-        if (!startsOn || !endsOn || endsOn < startsOn) return toast('Check the dates — the end must be after the start');
+        if (!startsOn || !endsOn || endsOn < startsOn) return toast('Check the dates. The end must be after the start.');
         if ((+new Date(endsOn) - +new Date(startsOn)) / 864e5 > 92) return toast('Challenges can be up to 3 months long');
         await state.store.saveChallenge({ title, metric: v('#chMetric') as Metric, target, startsOn, endsOn });
         toast('Challenge set 🎯'); break;

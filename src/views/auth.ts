@@ -49,7 +49,7 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
         const a = ($('#aPw') as HTMLInputElement).value;
         if (a.length < 8) throw new Error('Password must be at least 8 characters');
         if (a !== ($('#aPw2') as HTMLInputElement).value) throw new Error('Passwords don’t match');
-        await state.store.updatePassword(a); history.replaceState(null, '', location.pathname); toast('Password updated — you’re signed in'); location.reload();
+        await state.store.updatePassword(a); history.replaceState(null, '', location.pathname); toast('Password updated. You’re signed in.'); location.reload();
       }
     } catch (err: any) { toast(err.message ?? 'Something went wrong', 4000); }
     finally { btn.disabled = false; }
