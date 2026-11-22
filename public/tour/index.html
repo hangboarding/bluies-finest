@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="A quick tour of Bluies Finest, the hangboard training app.">
-<meta name="theme-color" content="#0b120e">
+<meta name="theme-color" content="#0c1116">
 <link rel="icon" href="../logo.svg" type="image/svg+xml">
 <link rel="icon" href="../favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="../apple-touch-icon-180x180.png">
@@ -26,78 +26,92 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-/* Layout: a phone on the left plays the app; the step list on the right is the script. Stacks on phones. */
+/* Scroll-driven tour: the phone stays put (sticky) while the steps scroll past it.
+   Scroll position drives the screen crossfade, the step highlight and the progress bar. */
 :root {
-  /* single dark look on purpose: it matches the app's own dark theme */
   color-scheme: dark;
-  --ground: #0b120e;
-  --panel: #131d17;
-  --line: #24352b;
-  --ink: #eef5f0;
-  --mute: #8fa597;
-  --acc: #3ddc84;
-  --gold: #f2c14e;
+  --ground: #0c1116;
+  --panel: #151c23;
+  --line: #26323d;
+  --ink: #eef2f6;
+  --mute: #8e9dad;
+  --acc: #8fb3d1;
   --display: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --body: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --phone-h: min(640px, 80vh);
 }
 * { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 body {
   margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.55 var(--body);
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow-x: hidden;
 }
-.wrap { max-width: 980px; margin: 0 auto; padding-block: 40px 56px; display: grid; gap: 28px; }
-header { display: grid; gap: 8px; }
+.wrap { max-width: 980px; margin: 0 auto; }
+header { display: grid; gap: 10px; min-height: 62vh; align-content: center; padding-block: 40px 24px; }
 .brand { display: flex; align-items: center; gap: 12px; }
-.brand svg { width: 40px; height: 40px; flex: none; }
-h1 { font: 800 clamp(26px, 5vw, 38px)/1.1 var(--display); margin: 0; letter-spacing: -.02em; text-wrap: balance; }
-h1 span { color: var(--acc); }
-.lede { color: var(--mute); margin: 0; max-width: 60ch; }
+.brand svg { width: 44px; height: 44px; flex: none; }
+h1 { font: 800 clamp(28px, 6vw, 44px)/1.1 var(--display); margin: 0; letter-spacing: -.02em; text-wrap: balance; }
+h1 span, .end h2 span { color: var(--acc); }
+.lede { color: var(--mute); margin: 0; max-width: 60ch; font-size: 16px; }
+.hint { color: var(--mute); font-size: 13px; display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.hint i { width: 18px; height: 28px; border: 2px solid var(--line); border-radius: 10px; position: relative; }
+.hint i::after { content: ''; position: absolute; left: 50%; top: 5px; width: 4px; height: 6px; margin-left: -2px; border-radius: 2px; background: var(--acc); animation: wheel 1.6s ease-in-out infinite; }
+@keyframes wheel { 0% { transform: translateY(0); opacity: 1; } 80% { transform: translateY(9px); opacity: 0; } 100% { opacity: 0; } }
 
-.stage { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 40px; align-items: start; }
-@media (max-width: 760px) { .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 20px; } }
+.stage { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 56px; }
+.pin { position: sticky; top: calc((100vh - var(--phone-h)) / 2); height: var(--phone-h); align-self: start; }
 
 /* the phone */
 .phone {
-  position: relative; width: 300px; max-width: 100%; aspect-ratio: 287 / 621; border-radius: 40px; padding: 10px;
-  background: linear-gradient(160deg, #26332b, #0f1612); box-shadow: 0 30px 80px #0009, inset 0 0 0 1px #3a4d41;
+  position: relative; height: 100%; aspect-ratio: 287 / 621; border-radius: 40px; padding: 10px; cursor: pointer;
+  background: linear-gradient(160deg, #26303a, #10161c); box-shadow: 0 30px 80px #0009, inset 0 0 0 1px #3a4756;
 }
-.screen { position: relative; width: 100%; height: 100%; border-radius: 30px; overflow: hidden; background: #0d1511; }
-.screen img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .45s ease; }
-.screen img.on { opacity: 1; }
+.screen { position: relative; width: 100%; height: 100%; border-radius: 30px; overflow: hidden; background: #0f1419; }
+.screen img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; will-change: opacity, transform; }
 .notch { position: absolute; top: 18px; left: 50%; width: 76px; height: 6px; margin-left: -38px; border-radius: 6px; background: #000a; z-index: 2; }
 .bar { position: absolute; left: 22px; right: 22px; bottom: -18px; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
-.bar i { display: block; height: 100%; width: 0; background: var(--acc); }
+.bar i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); background: var(--acc); }
 
-/* the script */
-ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: s; }
-.steps button {
-  width: 100%; text-align: left; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 2px 12px; padding: 12px 14px;
-  background: transparent; color: var(--mute); border: 1px solid transparent; border-radius: 14px; font: inherit; cursor: pointer;
-}
-.steps button::before { counter-increment: s; content: counter(s); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-  font: 700 12px var(--display); background: var(--panel); color: var(--mute); border: 1px solid var(--line); }
-.steps b { color: var(--ink); font: 600 15px/1.35 var(--display); }
-.steps small { font-size: 13.5px; line-height: 1.5; display: none; }
-.steps button:hover { background: var(--panel); }
-.steps button[aria-current="step"] { background: var(--panel); border-color: var(--line); }
-.steps button[aria-current="step"]::before { background: var(--acc); color: #06110b; border-color: var(--acc); }
-.steps button[aria-current="step"] small { display: block; color: var(--mute); }
-.steps button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+/* the steps */
+ol.steps { list-style: none; margin: 0; padding: 0 0 20vh; counter-reset: s; }
+.steps li { min-height: 78vh; display: flex; align-items: center; }
+.step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 14px; max-width: 440px; will-change: opacity, transform; }
+.step::before { counter-increment: s; content: counter(s); grid-row: span 2; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 13px var(--display); background: var(--panel); color: var(--mute); border: 1px solid var(--line); transition: background .3s, color .3s, border-color .3s; }
+.step.on::before { background: var(--acc); color: #0b1117; border-color: var(--acc); }
+.step h2 { margin: 2px 0 0; font: 800 clamp(20px, 3vw, 26px)/1.2 var(--display); letter-spacing: -.01em; }
+.step p { margin: 0; color: var(--mute); font-size: 15.5px; line-height: 1.6; }
 
-.controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
-.controls button { font: 600 13px var(--display); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
-.controls button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
-.controls .count { margin-left: auto; color: var(--mute); font-size: 12px; font-variant-numeric: tabular-nums; }
-
-footer { border-top: 1px solid var(--line); padding-top: 18px; color: var(--mute); font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
-footer b { color: var(--ink); font-weight: 600; }
-footer a { color: var(--acc); }
+.end { min-height: 60vh; display: grid; align-content: center; justify-items: start; gap: 12px; padding-block: 40px; }
+.end h2 { font: 800 clamp(24px, 5vw, 36px)/1.15 var(--display); margin: 0; letter-spacing: -.02em; }
 .cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 6px; }
-.cta { display: inline-block; background: var(--acc); color: #06110b; font: 800 16px var(--display); text-decoration: none; padding: 12px 22px; border-radius: 14px; }
+.cta { display: inline-block; background: var(--acc); color: #0b1117; font: 800 16px var(--display); text-decoration: none; padding: 12px 22px; border-radius: 14px; }
 .cta:hover { filter: brightness(1.05); }
 .cta:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .cta-row span { color: var(--mute); font-size: 13px; }
-@media (prefers-reduced-motion: reduce) { .screen img { transition: none; } }
+
+footer { border-top: 1px solid var(--line); padding-block: 18px 40px; color: var(--mute); font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+footer b { color: var(--ink); font-weight: 600; }
+footer a { color: var(--acc); }
+
+/* phones: the phone pins to the top and the steps scroll up underneath it */
+@media (max-width: 760px) {
+  :root { --phone-h: min(54svh, 520px); }
+  header { min-height: 0; padding-block: 28px 20px; }
+  .stage { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .pin { top: 0; height: auto; padding: max(12px, env(safe-area-inset-top, 0px)) 16px 30px; z-index: 2; display: grid; justify-items: center;
+    margin-inline: -16px; background: linear-gradient(var(--ground) 84%, #0c111600); }
+  .phone { height: var(--phone-h); border-radius: 30px; padding: 7px; }
+  .screen { border-radius: 24px; }
+  .bar { bottom: -14px; }
+  ol.steps { padding-bottom: 12svh; }
+  .steps li { min-height: 44svh; }
+  .step { grid-template-columns: 30px minmax(0, 1fr); }
+  .step::before { width: 30px; height: 30px; }
+  .end { min-height: 40svh; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .hint i::after { animation: none; } }
 </style>
 </head>
 <body>
@@ -105,30 +119,27 @@ footer a { color: var(--acc); }
 <div class="wrap">
   <header>
     <div class="brand">
-      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/><path d="M4 50 L9 33 L13 35 L40 31 L22 50 Z" fill="#4f6474"/><path d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/></svg>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f1419"/><path d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/><path d="M4 50 L9 33 L13 35 L40 31 L22 50 Z" fill="#4f6474"/><path d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/></svg>
       <h1>Bluies <span>Finest</span></h1>
     </div>
     <p class="lede">Hangboard accountability and bragging rights.</p>
-    <div class="cta-row"><a class="cta" href="https://hangboarding.github.io/bluies-finest/#join">Sign up</a><span>You’ll need an invite code from whoever invited you.</span></div>
+    <div class="cta-row"><a class="cta" href="https://hangboarding.github.io/bluies-finest/#join">Sign up</a></div>
   </header>
 
   <section class="stage" aria-label="App walkthrough">
-    <div>
-      <div class="phone" id="phone">
+    <div class="pin">
+      <div class="phone">
         <div class="notch"></div>
         <div class="screen" id="screen"></div>
         <div class="bar" aria-hidden="true"><i id="prog"></i></div>
       </div>
     </div>
-    <div>
-      <ol class="steps" id="steps"></ol>
-      <div class="controls">
-        <button id="prev" aria-label="Previous step">← Back</button>
-        <button id="play" aria-label="Pause the tour">Pause</button>
-        <button id="next" aria-label="Next step">Next →</button>
-        <span class="count" id="count"></span>
-      </div>
-    </div>
+    <ol class="steps" id="steps"></ol>
+  </section>
+
+  <section class="end">
+    <h2>Ready to <span>hang</span>?</h2>
+    <div class="cta-row"><a class="cta" href="https://hangboarding.github.io/bluies-finest/#join">Sign up</a></div>
   </section>
 
   <footer>
@@ -149,50 +160,72 @@ const STEPS = [
   ['09-notifications.jpg', 'Notifications', 'You’ll see when someone likes or comments on a session, in the app or as a phone notification.'],
   ['10-climber.jpg', 'Check out other climbers', 'Tap anyone to see their sessions, streak, PBs and badges. Personal details stay hidden.'],
 ];
-const SLIDE_MS = 4500;
 const screen = document.getElementById('screen'), list = document.getElementById('steps'), prog = document.getElementById('prog');
-const playBtn = document.getElementById('play'), count = document.getElementById('count');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let i = 0, playing = !reduce, t0 = performance.now(), raf = 0;
+const N = STEPS.length;
 
 STEPS.forEach(([src, title, text], k) => {
-  const img = new Image(); img.src = src; img.alt = `${title}: app screen`; img.loading = k < 2 ? 'eager' : 'lazy'; screen.append(img);
+  const img = new Image(); img.src = src; img.alt = `${title}: app screen`; img.loading = k < 2 ? 'eager' : 'lazy'; img.decoding = 'async'; screen.append(img);
   const li = document.createElement('li');
-  li.innerHTML = `<button type="button" data-k="${k}"><b>${title}</b><small>${text}</small></button>`;
+  li.innerHTML = `<div class="step"><h2>${title}</h2><p>${text}</p></div>`;
   list.append(li);
 });
-const imgs = [...screen.children], btns = [...list.querySelectorAll('button')];
+const imgs = [...screen.children], items = [...list.children], steps = items.map(li => li.firstElementChild);
 
-function show(k) {
-  i = (k + STEPS.length) % STEPS.length;
-  imgs.forEach((im, n) => im.classList.toggle('on', n === i));
-  btns.forEach((b, n) => b.setAttribute('aria-current', n === i ? 'step' : 'false'));
-  count.textContent = `${i + 1} / ${STEPS.length}`;
-  t0 = performance.now(); prog.style.width = '0%';
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+// Each step's centre, measured per resize. A step is current when the scroll "anchor" line crosses its centre.
+let centres = [], anchorFrac = .5;
+function measure() {
+  anchorFrac = innerWidth <= 760 ? .76 : .5;
+  centres = items.map(li => { const r = li.getBoundingClientRect(); return r.top + scrollY + r.height / 2; });
 }
-function tick(now) {
-  if (playing) {
-    const p = Math.min(1, (now - t0) / SLIDE_MS);
-    prog.style.width = `${p * 100}%`;
-    if (p >= 1) show(i + 1);
-  }
-  raf = requestAnimationFrame(tick);
-}
-function setPlaying(on) {
-  playing = on; playBtn.textContent = on ? 'Pause' : 'Play';
-  playBtn.setAttribute('aria-label', on ? 'Pause the tour' : 'Play the tour');
-  if (on) t0 = performance.now() - (parseFloat(prog.style.width) || 0) / 100 * SLIDE_MS;
+// Continuous position through the tour: 0 = first step, N-1 = last, fractions in between.
+function target() {
+  const a = scrollY + innerHeight * anchorFrac;
+  if (a <= centres[0]) return 0;
+  for (let k = 0; k < N - 1; k++) if (a < centres[k + 1]) return k + (a - centres[k]) / (centres[k + 1] - centres[k]);
+  return N - 1;
 }
 
-list.addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) { show(+b.dataset.k); } });
-document.getElementById('prev').onclick = () => show(i - 1);
-document.getElementById('next').onclick = () => show(i + 1);
-playBtn.onclick = () => setPlaying(!playing);
-document.getElementById('phone').addEventListener('click', () => show(i + 1));
-addEventListener('keydown', e => { if (e.key === 'ArrowRight') show(i + 1); if (e.key === 'ArrowLeft') show(i - 1); if (e.key === ' ' && e.target === document.body) { e.preventDefault(); setPlaying(!playing); } });
-document.addEventListener('visibilitychange', () => { if (document.hidden) t0 = performance.now() - (parseFloat(prog.style.width) || 0) / 100 * SLIDE_MS; });
+let pos = 0, cur = -1, raf = 0;
+function render() {
+  raf = 0;
+  const goal = target();
+  pos = reduce ? Math.round(goal) : pos + (goal - pos) * .16; // ease toward the scroll position
+  if (Math.abs(goal - pos) < .001) pos = goal;
+  const base = clamp(Math.floor(pos), 0, N - 1), f = pos - base;
+  const e = reduce ? 0 : smooth(.2, .8, f); // the crossfade happens in the middle of each gap
+  imgs.forEach((im, k) => {
+    let o = 0, y = 0, s = 1;
+    if (k === base) { o = 1; y = -e * 4; s = 1 - e * .03; }
+    else if (k === base + 1) { o = e; y = (1 - e) * 8; s = 1.03 - e * .03; }
+    im.style.opacity = o; im.style.zIndex = k === base + 1 ? 1 : 0;
+    im.style.transform = o ? `translateY(${y}%) scale(${s})` : '';
+  });
+  steps.forEach((st, k) => {
+    const d = k - pos, ad = Math.abs(d);
+    st.style.opacity = reduce ? (ad < .5 ? 1 : .35) : 1 - Math.min(ad, 1) * .72;
+    st.style.transform = reduce ? '' : `translateY(${clamp(d, -1, 1) * 28}px)`;
+  });
+  const on = Math.round(pos);
+  if (on !== cur) { cur = on; steps.forEach((st, k) => st.classList.toggle('on', k === on)); }
+  prog.style.transform = `scaleX(${pos / (N - 1)})`;
+  if (pos !== goal) raf = requestAnimationFrame(render);
+}
+const kick = () => { if (!raf) raf = requestAnimationFrame(render); };
+addEventListener('scroll', kick, { passive: true });
+addEventListener('resize', () => { measure(); kick(); });
+addEventListener('load', () => { measure(); kick(); });
+document.fonts?.ready.then(() => { measure(); kick(); }); // the web font changes text heights
 
-show(0); setPlaying(playing); raf = requestAnimationFrame(tick);
+// Tapping the phone or the arrow keys glide to the next/previous step.
+const go = k => scrollTo({ top: centres[clamp(k, 0, N - 1)] - innerHeight * anchorFrac, behavior: reduce ? 'auto' : 'smooth' });
+document.querySelector('.phone').addEventListener('click', () => go(cur + 1));
+addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === 'ArrowDown' && e.altKey) go(cur + 1); if (e.key === 'ArrowLeft') go(cur - 1); });
+
+measure(); pos = target(); render();
 </script>
 
 </body>

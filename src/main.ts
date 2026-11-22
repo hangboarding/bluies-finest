@@ -18,7 +18,7 @@ import { syncPush } from './lib/push';
 import { renderFeed, focusPost } from './views/feed';
 import { registerSW } from 'virtual:pwa-register';
 
-export const ACCENTS = ['#3ddc84', '#2bb5a0', '#5aa9e6', '#b48cff', '#ff9f43', '#ff5a4e', '#f78fb3', '#f2c14e'];
+export const ACCENTS = ['#8fb3d1', '#3ddc84', '#2bb5a0', '#5aa9e6', '#b48cff', '#ff9f43', '#ff5a4e', '#f78fb3', '#f2c14e'];
 type Page = 'hang' | 'feed' | 'ranks' | 'stats' | 'profile';
 const PAGES: { id: Page; label: string; icon: string; render: (el: HTMLElement) => void | Promise<void> }[] = [
   { id: 'hang', label: 'Hang', icon: 'tabHang', render: renderHang },
@@ -35,7 +35,7 @@ export function applyTheme() {
   // text/icons drawn on top of the accent (buttons, selected chips) must stay readable for any custom colour
   root.style.setProperty('--onacc', readableOn(p.acc));
   setIconMode(p.icons); setSound(p.sound); (window as any).__prefs = p;
-  $('meta[name="theme-color"]')?.setAttribute('content', p.mode === 'dark' ? '#0d1511' : '#e9efeb');
+  $('meta[name="theme-color"]')?.setAttribute('content', p.mode === 'dark' ? '#0f1419' : '#e8edf1');
 }
 /** Dark or white text, whichever contrasts better with the given hex colour. */
 export function readableOn(hex: string) {

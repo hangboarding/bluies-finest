@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Bluies Finest',
         short_name: 'Bluies',
         description: 'Hangboard accountability and bragging rights.',
-        theme_color: '#0d1511',
-        background_color: '#0d1511',
+        theme_color: '#0f1419',
+        background_color: '#0f1419',
         display: 'standalone',
         orientation: 'portrait',
         icons: [

@@ -33,7 +33,7 @@ export const DEFAULT_SETTINGS = (): Settings => ({
   proto: 'max', vals: {}, chips: {},
   boards: { list: [...BUILTIN_BOARDS], def: BUILTIN_BOARDS[0]!, custom: [] },
   customProtos: {},
-  prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#3ddc84', nudges: true, warmup: true },
+  prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#8fb3d1', nudges: true, warmup: true },
   panels: { extras: false }, toursSeen: {}, flags: {},
 });
 

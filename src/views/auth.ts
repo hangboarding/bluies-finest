@@ -20,12 +20,13 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
         ${mode !== 'reset' ? field('aEmail', 'Email', 'email', 'email') : ''}
         ${mode === 'in' || mode === 'up' ? field('aPw', mode === 'up' ? 'Password (min 8 characters)' : 'Password', 'password', mode === 'up' ? 'new-password' : 'current-password') : ''}
         ${mode === 'reset' ? field('aPw', 'New password (min 8 characters)', 'password', 'new-password') + field('aPw2', 'Repeat new password', 'password', 'new-password') : ''}
-        ${mode === 'up' ? field('aCode', 'Invite code', 'text', 'off') + '<p class="sub" style="margin:-4px 0 10px;font-size:12px">Ask whoever invited you for the code.</p>' : ''}
+        ${mode === 'up' ? field('aCode', 'Invite code', 'text', 'off') : ''}
         <button class="big" type="submit" id="aGo">${{ in: 'Sign in', up: 'Create account', forgot: 'Send reset link', reset: 'Set new password' }[mode]}</button>
       </form>
       <div class="links">${mode === 'in' ? '<a data-go="forgot">Forgot password?</a>' : mode !== 'up' ? '<a data-go="in">Back to sign in</a>' : ''}</div>
       ${demo ? `<p class="sub center" style="font-size:12px;margin:0">Demo mode: accounts live in this browser only. Invite code is <b>BLUIES</b>.</p>` : ''}
-    </div></div>`;
+    </div>
+    <p class="center" style="font-size:12px;margin:14px 0 0"><a class="sub" href="tour/" style="color:var(--mute)">Take the tour</a></p></div>`;
   // play the logo animation once; switching between Sign in / Join shows it finished
   if (logoPlayed) root.querySelector('.logo-anim')?.classList.add('la-static', 'la-top'); else { logoPlayed = true; playLogo(root); }
   root.onclick = e => {
@@ -37,6 +38,7 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
     const v = (id: string) => (($(`#${id}`) as HTMLInputElement | null)?.value ?? '').trim();
     const btn = $('#aGo') as HTMLButtonElement; btn.disabled = true;
     try {
+      if (mode !== 'reset' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('aEmail'))) throw new Error('Enter a valid email address');
       if (mode === 'in') await state.store.signIn(v('aEmail'), ($('#aPw') as HTMLInputElement).value);
       if (mode === 'up') {
         if (!v('aName')) throw new Error('Enter your name');
