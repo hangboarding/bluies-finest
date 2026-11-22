@@ -10,7 +10,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg'],
       manifest: {
         name: 'Bluies Finest',
-        short_name: 'Bluies',
+        short_name: 'Bluies Finest',
         description: 'Hangboard accountability and bragging rights.',
         theme_color: '#0f1419',
         background_color: '#0f1419',
