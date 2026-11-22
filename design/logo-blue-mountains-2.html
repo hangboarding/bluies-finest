@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blue Mountains logos 2</title>
+<style>
+:root{--bg:#0d1511;--card:#16211b;--line:#2a3b31;--ink:#eef5f0;--mute:#8fa597;--acc:#3ddc84}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif;padding:16px}
+h1{font-size:20px;margin:4px 0 2px}h3{font-size:16px;margin:22px 0 8px}.sub{color:var(--mute);font-size:13px;margin:0 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;max-width:1200px}
+.opt{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 14px;text-align:center;position:relative}
+.tag{position:absolute;top:10px;left:12px;font-weight:800;color:var(--acc);font-size:13px}
+.opt h2{font-size:15px;margin:8px 0 2px}.opt p{color:var(--mute);font-size:12.5px;margin:0}
+.big{width:120px;height:120px}.row{display:flex;gap:10px;justify-content:center;align-items:end;margin-top:8px}
+.row svg:nth-child(1){width:48px;height:48px}.row svg:nth-child(2){width:32px;height:32px}.row svg:nth-child(3){width:16px;height:16px}
+/* animations */
+.anim svg{width:150px;height:150px}
+button{margin-top:10px;background:#1f2d25;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:6px 14px;font:inherit;cursor:pointer}
+.draw path,.draw line{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw var(--dur,1.6s) var(--delay,0s) cubic-bezier(.6,.05,.3,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.fadein{opacity:0;animation:fade .8s var(--delay,0s) ease forwards}
+@keyframes fade{to{opacity:1}}
+.rise{transform:translateY(8px);opacity:0;animation:rise .7s var(--delay,0s) cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes rise{to{transform:none;opacity:1}}
+.word{font-weight:800;letter-spacing:.02em;margin-top:6px;opacity:0;animation:fade .6s var(--delay,2s) forwards}
+</style>
+</head>
+<body>
+<h1>Round 2: Solitary, plateaus, strata</h1>
+<p class="sub">Variations on options 1, 6 and 9, then sign-in animations. Animations replay on click.</p>
+
+<h3>1 · Solitary profile</h3><div class="grid" data-src="a"></div>
+<h3>6 · Layered plateaus</h3><div class="grid" data-src="b"></div>
+<h3>9 · Stacked strata</h3><div class="grid" data-src="c"></div>
+
+<h3>Sign-in line animations</h3>
+<div class="grid" id="anims"></div>
+
+<template id="a">
+<svg data-n="1a Refined" data-d="Cleaner silhouette, cliff band follows the plateau then wraps the dome." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/><path d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/></svg>
+<svg data-n="1b Two-tone forest" data-d="Shadow falls diagonally across the slope like photo 2." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/><path d="M4 50 L9 33 L13 35 L40 31 L22 50 Z" fill="#4f6474"/><path d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/></svg>
+<svg data-n="1c Banded cliff" data-d="One thin stratum line through the cliff band for texture." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/><path d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/><path d="M11 32.6 L39 29.3 L43 25.5" fill="none" stroke="#97abbb" stroke-width="1.3"/></svg>
+<svg data-n="1d Full bleed" data-d="Mountain fills the tile edge to edge, for a bolder app icon." viewBox="0 0 64 64"><defs><clipPath id="r1d"><rect width="64" height="64" rx="14"/></clipPath></defs><g clip-path="url(#r1d)"><rect width="64" height="64" fill="#1c2a33"/><path d="M-2 64 L0 38 L6 31 L30 30 L38 26 L44 17 Q49 12 54 16 L58 26 L66 34 V64 Z" fill="#6f8597"/><path d="M0 38 L6 31 L30 30 L38 26 L44 17 Q49 12 54 16 L58 26 L55 29 L45 27 L39 33 L6 38 Z" fill="#c9d6df"/></g></svg>
+</template>
+
+<template id="b">
+<svg data-n="6a Haze" data-d="Back ridges fade to sky blue; front ridge is Solitary's profile." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M4 28 L10 23 L30 23 L34 21 L46 21 L50 25 L60 25 V50 H4Z" fill="#2c3b46"/><path d="M4 36 L12 31 L38 31 L42 28 L52 28 L58 33 L60 33 V50 H4Z" fill="#5d7384"/><path d="M4 46 L7 41 L28 40 L33 38 L38 34 Q41 32 44 34 L48 39 L60 39 V50 H4Z" fill="#c9d6df"/></svg>
+<svg data-n="6b With sky" data-d="Pale dawn band behind the ridges, like photo 1." viewBox="0 0 64 64"><defs><clipPath id="r6b"><rect width="64" height="64" rx="14"/></clipPath><linearGradient id="g6b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c2a33"/><stop offset=".45" stop-color="#e8c28a"/></linearGradient></defs><g clip-path="url(#r6b)"><rect width="64" height="64" fill="url(#g6b)"/><path d="M0 30 L10 25 L30 25 L34 23 L48 23 L52 27 L64 27 V64 H0Z" fill="#6f8597"/><path d="M0 40 L14 34 L40 34 L44 31 L52 31 L58 36 L64 36 V64 H0Z" fill="#4f6474"/><path d="M0 52 L8 46 L32 45 L38 43 L64 43 V64 H0Z" fill="#2c3b46"/></g></svg>
+<svg data-n="6c Outlined layers" data-d="Ridges drawn as filled bands with a light top edge on each lip." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M4 30 L10 24 L28 24 L32 22 L44 22 L48 26 L60 26 V50 H4Z" fill="#2c3b46"/><path d="M10 24 L28 24 L32 22 L44 22 L48 26" fill="none" stroke="#97abbb" stroke-width="1.4"/><path d="M4 38 L14 32 L40 32 L44 29 L52 29 L58 34 L60 34 V50 H4Z" fill="#3c4d5a"/><path d="M14 32 L40 32 L44 29 L52 29 L58 34" fill="none" stroke="#c9d6df" stroke-width="1.6"/><path d="M4 46 L8 41 L30 40 L36 38 L60 38 V50 H4Z" fill="#4f6474"/><path d="M8 41 L30 40 L36 38 L60 38" fill="none" stroke="#eef5f0" stroke-width="1.8"/></svg>
+<svg data-n="6d Two ridges" data-d="Simplified to two layers so it holds up at 16px." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M4 32 L12 25 L34 25 L40 22 L50 22 L56 28 L60 28 V50 H4Z" fill="#5d7384"/><path d="M4 50 L8 40 L28 39 L34 36 L40 31 Q44 29 47 31 L52 38 L60 41 V50Z" fill="#c9d6df"/></svg>
+</template>
+
+<template id="c">
+<svg data-n="9a Mesa steps" data-d="Layers stepped only at the sides, like eroded cliff bands." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><rect x="16" y="16" width="30" height="7" rx="2" fill="#c9d6df"/><rect x="12" y="25" width="38" height="7" rx="2" fill="#97abbb"/><rect x="8" y="34" width="46" height="7" rx="2" fill="#6f8597"/><rect x="5" y="43" width="54" height="7" rx="2" fill="#4f6474"/></svg>
+<svg data-n="9b Solitary in strata" data-d="Layer lengths trace Solitary: long plateau with the dome at right." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><rect x="36" y="15" width="16" height="6" rx="2" fill="#eef5f0"/><rect x="12" y="23" width="44" height="6" rx="2" fill="#c9d6df"/><rect x="9" y="31" width="49" height="6" rx="2" fill="#97abbb"/><rect x="6" y="39" width="53" height="6" rx="2" fill="#6f8597"/><rect x="4" y="47" width="56" height="4" rx="2" fill="#4f6474"/></svg>
+<svg data-n="9c Castle in strata" data-d="Ruined Castle as stacked blocks with the overhanging capstone." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><rect x="20" y="10" width="20" height="6" rx="2" fill="#eef5f0"/><rect x="24" y="18" width="14" height="7" rx="2" fill="#c9d6df"/><rect x="21" y="27" width="20" height="7" rx="2" fill="#97abbb"/><rect x="18" y="36" width="26" height="7" rx="2" fill="#6f8597"/><rect x="14" y="45" width="34" height="6" rx="2" fill="#4f6474"/></svg>
+<svg data-n="9d Organic strata" data-d="Layers with slightly irregular, weathered edges." viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/><path d="M19 17 Q31 14 44 16 L45 22 Q31 24 18 23Z" fill="#c9d6df"/><path d="M13 26 Q31 24 50 25 L51 32 Q30 33 12 32Z" fill="#97abbb"/><path d="M9 35 Q32 33 54 35 L55 41 Q31 42 8 41Z" fill="#6f8597"/><path d="M5 44 Q32 42 59 44 L59 50 Q32 51 5 50Z" fill="#4f6474"/></svg>
+</template>
+
+<template id="anim-tpl">
+<!-- A: Solitary outline draws, then fill fades in -->
+<div data-n="A · Draw then fill (1a)" data-d="Outline traces left to right, cliff band then fades in.">
+<svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/>
+<path class="fadein" style="--delay:1.4s" d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/>
+<path class="fadein" style="--delay:1.7s" d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/>
+<g class="draw" fill="none" stroke="#c9d6df" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path pathLength="1" style="--len:1" d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50"/></g>
+</svg></div>
+<!-- B: ridges draw back-to-front -->
+<div data-n="B · Ridges stagger (6c)" data-d="Each ridge line draws in, back to front, then the bands fill.">
+<svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/>
+<path class="fadein" style="--delay:.9s" d="M4 30 L10 24 L28 24 L32 22 L44 22 L48 26 L60 26 V50 H4Z" fill="#2c3b46"/>
+<path class="fadein" style="--delay:1.2s" d="M4 38 L14 32 L40 32 L44 29 L52 29 L58 34 L60 34 V50 H4Z" fill="#3c4d5a"/>
+<path class="fadein" style="--delay:1.5s" d="M4 46 L8 41 L30 40 L36 38 L60 38 V50 H4Z" fill="#4f6474"/>
+<g class="draw" fill="none" stroke-linejoin="round" stroke-linecap="round">
+<path pathLength="1" style="--len:1;--dur:1s" stroke="#97abbb" stroke-width="1.4" d="M4 30 L10 24 L28 24 L32 22 L44 22 L48 26 L60 26"/>
+<path pathLength="1" style="--len:1;--dur:1s;--delay:.3s" stroke="#c9d6df" stroke-width="1.6" d="M4 38 L14 32 L40 32 L44 29 L52 29 L58 34 L60 34"/>
+<path pathLength="1" style="--len:1;--dur:1s;--delay:.6s" stroke="#eef5f0" stroke-width="1.8" d="M4 46 L8 41 L30 40 L36 38 L60 38"/></g>
+</svg></div>
+<!-- C: strata lay down -->
+<div data-n="C · Strata build (9b)" data-d="Layers deposit bottom-up as lines, then thicken into blocks.">
+<svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/>
+<g class="draw" stroke-linecap="round">
+<line pathLength="1" style="--len:1;--dur:.6s" x1="6" y1="49" x2="58" y2="49" stroke="#4f6474" stroke-width="4"/>
+<line pathLength="1" style="--len:1;--dur:.6s;--delay:.25s" x1="9" y1="42" x2="56" y2="42" stroke="#6f8597" stroke-width="6"/>
+<line pathLength="1" style="--len:1;--dur:.6s;--delay:.5s" x1="12" y1="34" x2="55" y2="34" stroke="#97abbb" stroke-width="6"/>
+<line pathLength="1" style="--len:1;--dur:.6s;--delay:.75s" x1="15" y1="26" x2="53" y2="26" stroke="#c9d6df" stroke-width="6"/>
+<line pathLength="1" style="--len:1;--dur:.5s;--delay:1s" x1="39" y1="18" x2="49" y2="18" stroke="#eef5f0" stroke-width="6"/></g>
+</svg></div>
+<!-- D: line-only loop -->
+<div data-n="D · Line art, no fill" data-d="Pure stroke: skyline, then two strata lines; stays as line art.">
+<svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0d1511"/>
+<g class="draw" fill="none" stroke-linejoin="round" stroke-linecap="round">
+<path pathLength="1" style="--len:1;--dur:1.8s" stroke="#c9d6df" stroke-width="2.4" d="M6 48 L11 32 L15 28 L34 27.5 L41 20 Q46 15.5 51 19 L54 28 L58 48"/>
+<path pathLength="1" style="--len:1;--dur:.9s;--delay:1.2s" stroke="#97abbb" stroke-width="1.6" d="M12 33 L52 31"/>
+<path pathLength="1" style="--len:1;--dur:.9s;--delay:1.5s" stroke="#6f8597" stroke-width="1.6" d="M17 39 L50 37.5"/></g>
+</svg></div>
+</template>
+
+<script>
+document.querySelectorAll('.grid[data-src]').forEach(g=>{
+  [...document.getElementById(g.dataset.src).content.querySelectorAll('svg')].forEach(s=>{
+    const d=document.createElement('div');d.className='opt';
+    const big=s.cloneNode(true);big.classList.add('big');
+    const row=document.createElement('div');row.className='row';
+    for(let k=0;k<3;k++)row.appendChild(s.cloneNode(true));
+    d.innerHTML=`<span class="tag">${s.dataset.n.split(' ')[0]}</span>`;
+    d.append(big,row);
+    d.insertAdjacentHTML('beforeend',`<h2>${s.dataset.n.slice(3)}</h2><p>${s.dataset.d}</p>`);
+    g.appendChild(d);
+  });
+});
+const A=document.getElementById('anims');
+[...document.getElementById('anim-tpl').content.children].forEach(n=>{
+  const d=document.createElement('div');d.className='opt anim';
+  const holder=document.createElement('div');
+  const render=()=>{holder.innerHTML=n.innerHTML+'<div class="word">Hang Leaderboard</div>';};
+  render();
+  const b=document.createElement('button');b.textContent='Replay';b.onclick=render;
+  d.append(holder);d.insertAdjacentHTML('beforeend',`<h2>${n.dataset.n}</h2><p>${n.dataset.d}</p>`);d.append(b);
+  A.appendChild(d);
+});
+</script>
+</body>
+</html>

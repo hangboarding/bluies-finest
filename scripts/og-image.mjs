@@ -9,10 +9,8 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" v
   <rect width="1200" height="630" fill="#0b120e"/>
   <rect width="1200" height="630" fill="url(#glow)"/>
   <!-- big mountain, bottom right -->
-  <g transform="translate(700 150) scale(7.2)">
-    <path d="M8 52 L32 13 L56 52 Z" fill="#97abbb"/>
-    <path d="M8 52 L32 13 L36 41 L26 52 Z" fill="#6f8597"/>
-    <path d="M32 13 L40.3 26.5 L36.4 24.6 L32.6 28.4 L28.6 24.4 L23.7 26.5 Z" fill="#eef5f0"/>
+  <g transform="translate(660 160) scale(7.2)">
+    <path d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/><path d="M4 50 L9 33 L13 35 L40 31 L22 50 Z" fill="#4f6474"/><path d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/>
   </g>
   <rect x="0" y="524" width="1200" height="106" fill="#0b120e"/>
   <rect x="0" y="524" width="1200" height="2" fill="#24352b"/>
