@@ -67,7 +67,7 @@ function heat() {
     $('#ymon').innerHTML = m; box.scrollLeft = ho < 0 ? 0 : box.scrollWidth;
   }
   const elapsed = Math.max(1, Math.min(n, Math.round((+today - +st) / DAY) + 1));
-  $('#hsum').innerHTML = `<span><b>${count}</b> sessions</span><span><b>${(count / Math.max(1, elapsed / 7)).toFixed(1)}</b>/week</span><span>Best run <b>${bestDayRun(inRange)}</b> days</span>`;
+  $('#hsum').innerHTML = `<span><b>${count}</b> sessions</span><span><b>${(count / Math.max(1, elapsed / 7)).toFixed(1)}</b>/week</span><span>Best run <b>${bestDayRun(inRange)}</b> day${bestDayRun(inRange) === 1 ? "" : "s"}</span>`;
 }
 document.addEventListener('keydown', e => {
   if (!$('#heat') || ($('#view-stats')?.classList.contains('hide') ?? true) || (e.target as HTMLElement).matches?.('input,select,textarea')) return;
