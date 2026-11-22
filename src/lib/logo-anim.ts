@@ -1,6 +1,6 @@
 // Animated sign-in logo: the peak draws itself, fills in, then a little climber
 // scrambles up the ridge and celebrates on the summit.
-const G = '#3ddc84', G2 = '#2bb56b', SNOW = '#eef5f0', GOLD = '#f2c14e';
+const G = '#97abbb', G2 = '#6f8597', SNOW = '#eef5f0', GOLD = '#f2c14e';
 
 export function animatedLogo(size = 128) {
   return `<svg class="logo-anim" width="${size}" height="${size}" viewBox="0 0 120 120" role="img" aria-label="Bluies Finest">

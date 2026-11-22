@@ -4,14 +4,14 @@ import sharp from 'sharp';
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <defs>
-    <radialGradient id="glow" cx="78%" cy="62%" r="55%"><stop offset="0" stop-color="#3ddc84" stop-opacity=".22"/><stop offset="1" stop-color="#3ddc84" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glow" cx="78%" cy="62%" r="55%"><stop offset="0" stop-color="#97abbb" stop-opacity=".18"/><stop offset="1" stop-color="#97abbb" stop-opacity="0"/></radialGradient>
   </defs>
   <rect width="1200" height="630" fill="#0b120e"/>
   <rect width="1200" height="630" fill="url(#glow)"/>
   <!-- big mountain, bottom right -->
   <g transform="translate(700 150) scale(7.2)">
-    <path d="M8 52 L32 13 L56 52 Z" fill="#3ddc84"/>
-    <path d="M8 52 L32 13 L36 41 L26 52 Z" fill="#2bb56b"/>
+    <path d="M8 52 L32 13 L56 52 Z" fill="#97abbb"/>
+    <path d="M8 52 L32 13 L36 41 L26 52 Z" fill="#6f8597"/>
     <path d="M32 13 L40.3 26.5 L36.4 24.6 L32.6 28.4 L28.6 24.4 L23.7 26.5 Z" fill="#eef5f0"/>
   </g>
   <rect x="0" y="524" width="1200" height="106" fill="#0b120e"/>
