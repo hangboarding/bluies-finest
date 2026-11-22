@@ -212,3 +212,8 @@ header{position:relative}
 .ring .hand.left{background:#5aa9e6}
 .ring .hand.right{background:#f2c14e}
 .ring .hand.hide{display:none}
+/* Installed iPhone app runs under the status bar: keep the header and sign-in clear of it. */
+header{padding-top:calc(12px + env(safe-area-inset-top, 0px))}
+.auth{padding-top:calc(36px + env(safe-area-inset-top, 0px))}
+.modal .sheet{max-height:calc(100vh - env(safe-area-inset-top, 0px) - 12px)}
+.tour-card{max-height:calc(100vh - env(safe-area-inset-top, 0px) - 100px);overflow:auto}
