@@ -5,10 +5,18 @@ import { animatedLogo, playLogo } from '../lib/logo-anim';
 type Mode = 'in' | 'up' | 'forgot' | 'reset';
 
 let logoPlayed = false;
+const EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c4.67 0 8.68 2.84 10.36 6.89a1 1 0 0 1 0 .22 13.2 13.2 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 1.64 11.9a1 1 0 0 0 0 .2A10.75 10.75 0 0 0 12 19c1.67 0 3.24-.36 4.66-1.01"/><path d="M14.08 14.16a3 3 0 0 1-4.24-4.24"/><path d="m2 2 20 20"/></svg>';
 
 export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
   const demo = state.store.kind === 'local';
-  const field = (id: string, ph: string, type = 'text', ac = '') => `<input class="tx" id="${id}" type="${type}" placeholder="${ph}" aria-label="${ph}" autocomplete="${ac}" style="margin-bottom:10px">`;
+  // Autofill hints are held back (autocomplete="off", password fields start as text) until the person
+  // touches the form, so the browser doesn't pop up its saved-password sheet as soon as the page opens.
+  const field = (id: string, ph: string, type = 'text', ac = '') => {
+    const pw = type === 'password';
+    const input = `<input class="tx" id="${id}" type="${pw ? 'text' : type}" placeholder="${ph}" aria-label="${ph}" autocomplete="off" data-ac="${ac}"${pw ? ' data-pw autocapitalize="off" autocorrect="off" spellcheck="false"' : ''} style="margin-bottom:10px">`;
+    return pw ? `<div class="pwwrap">${input}<button type="button" class="pweye" aria-label="Show password" aria-pressed="false">${EYE}</button></div>` : input;
+  };
   root.innerHTML = `<div class="auth">
     ${animatedLogo(156)}
     <h1 class="auth-title">Bluies <span>Finest</span></h1>
@@ -33,7 +41,23 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
     const m = (e.target as HTMLElement).closest('[data-m],[data-go]') as HTMLElement | null;
     if (m) { e.preventDefault(); renderAuth(root, (m.dataset.m ?? m.dataset.go) as Mode); }
   };
-  $('#authForm').addEventListener('submit', async e => {
+  const form = $('#authForm') as HTMLFormElement;
+  let armed = false;
+  const arm = () => {
+    if (armed) return; armed = true;
+    form.querySelectorAll<HTMLInputElement>('input[data-ac]').forEach(i => { i.autocomplete = i.dataset.ac as AutoFill; });
+    form.querySelectorAll<HTMLInputElement>('input[data-pw]').forEach(i => { if (!i.dataset.shown) i.type = 'password'; });
+  };
+  form.addEventListener('pointerdown', arm, { capture: true });
+  form.addEventListener('focusin', arm);
+  form.addEventListener('click', e => {
+    const b = (e.target as HTMLElement).closest('.pweye') as HTMLButtonElement | null; if (!b) return;
+    const i = b.previousElementSibling as HTMLInputElement, show = i.type === 'password';
+    i.type = show ? 'text' : 'password'; if (show) i.dataset.shown = '1'; else delete i.dataset.shown;
+    b.innerHTML = show ? EYE_OFF : EYE; b.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); b.setAttribute('aria-pressed', String(show));
+  });
+  form.addEventListener('submit', async e => {
+    arm();
     e.preventDefault();
     const v = (id: string) => (($(`#${id}`) as HTMLInputElement | null)?.value ?? '').trim();
     const btn = $('#aGo') as HTMLButtonElement; btn.disabled = true;

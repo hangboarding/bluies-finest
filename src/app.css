@@ -217,3 +217,9 @@ header{padding-top:calc(12px + env(safe-area-inset-top, 0px))}
 .auth{padding-top:calc(36px + env(safe-area-inset-top, 0px))}
 .modal .sheet{max-height:calc(100vh - env(safe-area-inset-top, 0px) - 12px)}
 .tour-card{max-height:calc(100vh - env(safe-area-inset-top, 0px) - 100px);overflow:auto}
+
+/* password field with show/hide eye */
+.pwwrap{position:relative}.pwwrap .tx{padding-right:48px}
+.pweye{position:absolute;right:4px;top:4px;width:40px;height:40px;display:grid;place-items:center;background:none;border:0;border-radius:10px;color:var(--mute);cursor:pointer}
+.pweye:hover{color:var(--ink)}
+input.tx::-ms-reveal{display:none}
