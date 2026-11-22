@@ -108,7 +108,7 @@ async function boot() {
       history.replaceState(null, '', location.pathname);
       toast('That reset link has expired or was opened in another browser. Request a new one.', 6000);
       renderAuth($('#auth'), 'forgot');
-    } else renderAuth($('#auth'), 'in');
+    } else renderAuth($('#auth'), location.hash === '#join' ? 'up' : 'in');
     return;
   }
   // Never continue with half-loaded data: saving default settings over the real ones would wipe them.

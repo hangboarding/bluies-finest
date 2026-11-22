@@ -206,3 +206,9 @@ header{position:relative}
 .cav{display:inline-grid;place-items:center;border-radius:50%;background:var(--card2) center/cover no-repeat;font-weight:800;color:#111;flex:none}
 .cgrid{max-width:260px;gap:5px}.cgrid i{border-radius:5px}
 .climber .fav{margin:10px 0 14px}
+
+/* one-arm hand label on the timer */
+.ring .hand{display:inline-block;margin:6px 0 -4px;padding:5px 14px;border-radius:999px;font-weight:800;font-size:16px;letter-spacing:.06em;color:#0b120e}
+.ring .hand.left{background:#5aa9e6}
+.ring .hand.right{background:#f2c14e}
+.ring .hand.hide{display:none}

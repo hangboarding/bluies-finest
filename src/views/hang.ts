@@ -58,7 +58,7 @@ export function renderHang(root: HTMLElement) {
   <section id="v-timer" class="hide"><div class="card center">
     <div class="sub" id="tmeta"></div>
     <div class="ring" id="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="var(--line)" stroke-width="6"/><circle id="arc" cx="50" cy="50" r="45" fill="none" stroke-width="6" stroke-linecap="round" stroke-dasharray="282.7"/></svg>
-      <div class="t"><div><div class="p" id="ph"></div><div class="n" id="num"></div><div class="sub" id="setlbl"></div></div></div></div>
+      <div class="t"><div><div class="p" id="ph"></div><div class="hand hide" id="hand"></div><div class="n" id="num"></div><div class="sub" id="setlbl"></div></div></div></div>
     <div class="dots" id="dots"></div>
     <button class="big letgo hide" id="letgo">${ic('open')} Let go and log time held</button>
     <div class="row"><button class="big ghost" id="pause">${ic('pause')} Pause</button><button class="big ghost" id="skip">Skip ${ic('skip')}</button></div>
@@ -106,7 +106,7 @@ function hint(p: Protocol) {
 function drawParams() {
   $('#params').innerHTML = FIELDS.filter(f => !f.show || f.show(val)).map(f => {
     const off = (f.k === 'add' && val.rem > 0) || (f.k === 'rem' && val.add > 0);
-    const label = f.k === 'rest' && val.reps > 1 ? 'Rest between reps' : f.label;
+    const label = f.k === 'rest' && val.reps > 1 ? 'Rest between reps' : f.k === 'sets' && val.hands === 'LR' ? 'Sets (each hand)' : f.label;
     return `<div class="prm ${off ? 'off' : ''}" style="--c:${f.colour}"><div class="hd"><span class="ic">${ic(f.icon)}</span>${label}${TIPS[f.k] ? `<span class="tip" data-tip="${f.k}">i</span>` : ''}</div>
       <div class="step"><button data-k="${f.k}" data-d="-1" aria-label="Decrease ${label}">−</button><input id="i-${f.k}" value="${val[f.k]}" inputmode="decimal" aria-label="${label}"><small>${f.unit}</small><button data-k="${f.k}" data-d="1" aria-label="Increase ${label}">+</button></div></div>`;
   }).join('');
@@ -388,7 +388,15 @@ function render(s: Step, left: number) {
   $('#ring').className = 'ring' + (warn ? ' warn' : '');
   const ph = $('#ph'); ph.textContent = { ready: 'Get ready', hang: val.mode === 'lift' ? 'Pull!' : 'Hang!', rest: s.bigRest ? 'Set rest' : 'Rest', sw: 'Switch hands' }[s.p]; ph.style.color = COL[s.p];
   $('#num').textContent = String(left);
-  $('#setlbl').textContent = s.set ? `Set ${s.set}/${val.sets}` + (val.reps > 1 ? ` · rep ${s.rep}/${val.reps}` : '') + (s.hand && s.hand !== 'both' ? ` · ${s.hand === 'L' ? 'Left' : 'Right'} hand` : '') : 'Chalk up 🧂';
+  $('#setlbl').textContent = s.set ? `Set ${s.set}/${val.sets}` + (val.reps > 1 ? ` · rep ${s.rep}/${val.reps}` : '') : 'Chalk up 🧂';
+  // One-arm sessions: show which hand, big and colour-coded. During rests it shows the next hand.
+  const hEl = $('#hand'), upcoming = s.p === 'hang' ? s : timer?.steps.slice(timer.idx).find(x => x.p === 'hang');
+  const hand = upcoming?.hand && upcoming.hand !== 'both' ? upcoming.hand : null;
+  hEl.classList.toggle('hide', !hand);
+  if (hand) {
+    hEl.className = `hand ${hand === 'L' ? 'left' : 'right'}`;
+    hEl.textContent = s.p === 'hang' ? (hand === 'L' ? '← LEFT HAND' : 'RIGHT HAND →') : (hand === 'L' ? 'Next: ← left hand' : 'Next: right hand →');
+  }
   const arc = $('#arc') as unknown as SVGCircleElement; arc.style.strokeDashoffset = String(282.7 * (1 - left / Math.max(1, s.t))); arc.style.stroke = COL[s.p];
   const lastHand = val.hands === 'LR' ? 'R' : val.hands === 'both' ? 'both' : val.hands;
   // a set is done once its last rep (and last hand) has been passed
