@@ -1,6 +1,6 @@
 // In-app notifications: hearts and comments other climbers leave on my sessions.
 // A bell in the header shows the unread count; the list opens in a sheet.
-import { $, esc, avatar, relTime, sheet } from '../lib/ui';
+import { $, esc, avatar, relTime, sheet, closeSheet } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, saveSettings } from '../lib/state';
 import type { Notif } from '../lib/types';
@@ -37,7 +37,13 @@ export function bellHtml() {
 }
 
 export function wireBell(goToFeed: (sessionId: string) => void) {
+  let opening = false;
   $('#bell')?.addEventListener('click', async () => {
+    if (opening || document.querySelector('.nlist')) return; // ignore double taps
+    opening = true;
+    try { await openList(); } finally { opening = false; }
+  });
+  const openList = async () => {
     await refreshNotifs();
     const since = seenAt();
     const rows = items.map(n => {
@@ -56,11 +62,11 @@ export function wireBell(goToFeed: (sessionId: string) => void) {
     hydrateIcons(el);
     el.addEventListener('click', e => {
       const r = (e.target as HTMLElement).closest('.nrow') as HTMLElement | null; if (!r) return;
-      el.closest('.modal')?.remove();
+      closeSheet(el);
       if (r.dataset.issue) openAdmin(); else goToFeed(r.dataset.sid!);
     });
     await done;
-  });
+  };
   refreshNotifs();
 }
 

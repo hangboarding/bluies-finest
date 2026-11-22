@@ -11,10 +11,10 @@ import { renderRanks } from './views/ranks';
 import { renderStats } from './views/stats';
 import { renderProfile } from './views/profile';
 import { maybeWelcome, pageTour } from './views/tour';
-import { queuedSessions, flushOutbox } from './lib/outbox';
+import { queuedSessions, flushOutbox, dropUploaded } from './lib/outbox';
 import { openClimber } from './views/climber';
 import { bellHtml, wireBell } from './views/notifs';
-import { syncPush } from './lib/push';
+import { syncPush, disablePush } from './lib/push';
 import { renderFeed, focusPost } from './views/feed';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -54,8 +54,10 @@ export async function rerender() {
   await go(page);
 }
 
-export async function go(page: Page) {
-  if (current === 'hang' && page !== 'hang' && hangBusy()) { toast('Finish or cancel your session first'); return; }
+export const currentPage = () => current;
+/** Switch tab. Returns false (and stays put) while a hang session is running. */
+export async function go(page: Page): Promise<boolean> {
+  if (current === 'hang' && page !== 'hang' && hangBusy()) { toast('Finish or cancel your session first'); return false; }
   current = page;
   for (const p of PAGES) {
     $(`#view-${p.id}`).classList.toggle('hide', p.id !== page);
@@ -65,6 +67,7 @@ export async function go(page: Page) {
   scrollTo(0, 0);
   if (page !== 'hang' || !$('#view-hang').childElementCount) await PAGES.find(p => p.id === page)!.render($(`#view-${page}`));
   if (current === page) pageTour(page); // user may have switched tabs while this page loaded
+  return true;
 }
 
 function shell() {
@@ -73,7 +76,7 @@ function shell() {
     <main>${PAGES.map(p => `<div id="view-${p.id}" class="hide"></div>`).join('')}</main>
     <nav class="tabs" id="tabs" aria-label="Main">${PAGES.map(p => `<button data-v="${p.id}"><b>${ic(p.icon)}</b>${p.label}</button>`).join('')}</nav>`;
   hydrateIcons($('#tabs')); hydrateIcons($('header'));
-  wireBell(sid => { focusPost(sid); go('feed'); });
+  wireBell(sid => { if (!(current === 'hang' && hangBusy())) { focusPost(sid); go('feed'); } else toast('Finish or cancel your session first'); });
   $$('#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v as Page)));
 }
 
@@ -82,7 +85,7 @@ function errorScreen(msg: string) {
     <h2 style="margin-top:16px">Couldn't load your data</h2><p class="sub">${esc(msg)}</p>
     <button class="big" id="retry">Try again</button><div class="links"><a id="out">Log out</a></div></div></main>`;
   $('#retry').onclick = () => location.reload();
-  $('#out').onclick = async () => { await state.store.signOut().catch(() => {}); location.reload(); };
+  $('#out').onclick = async () => { await disablePush().catch(() => {}); await state.store.signOut().catch(() => {}); location.reload(); };
 }
 
 /** Password-reset emails link here with ?token_hash=…&type=recovery. Exchanging the hash works
@@ -114,6 +117,7 @@ async function boot() {
   // Never continue with half-loaded data: saving default settings over the real ones would wipe them.
   try { await loadUserData(); } catch (e: any) { errorScreen(e.message ?? 'Check your connection and try again.'); return; }
   // sessions saved offline on this phone show up straight away, then upload in the background
+  dropUploaded(new Set(state.sessions.map(s => s.id)));
   state.sessions.unshift(...queuedSessions());
   flushOutbox();
   syncPush();
@@ -145,7 +149,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 navigator.serviceWorker?.addEventListener('message', e => {
   if (e.data?.type !== 'open-post' || !state.me) return;
   const id = new URL(e.data.url, location.href).searchParams.get('post') ?? '';
-  if (UUID.test(id)) { focusPost(id); go('feed'); }
+  if (UUID.test(id)) { if (!(current === 'hang' && hangBusy())) { focusPost(id); go('feed'); } else toast('Finish or cancel your session first'); }
 });
 // Re-draw Stats when offline sessions finish uploading.
 document.addEventListener('bf:sessions-changed', () => { if (current === 'stats') renderStats($('#view-stats')); });

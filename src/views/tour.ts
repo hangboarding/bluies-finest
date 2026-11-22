@@ -62,7 +62,7 @@ export async function maybeWelcome() {
 let running = false;
 export function pageTour(page: string) {
   if (running || state.settings.toursSeen[page] || !state.settings.toursSeen.welcome) return;
-  const tips = (PAGE_TIPS[page] ?? []).filter(t => $(t.sel)); if (!tips.length) return;
+  const tips = (PAGE_TIPS[page] ?? []).filter(t => $(t.sel)?.getClientRects().length); // skip sections the user has hidden if (!tips.length) return;
   running = true;
   let i = 0; const ov = document.createElement('div'); ov.className = 'tour';
   const HEADER = 64, TABS = 80; // fixed bars at the top and bottom of the screen

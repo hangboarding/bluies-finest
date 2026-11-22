@@ -12,7 +12,7 @@ const liking = new Set<string>();
 
 export async function renderFeed(root: HTMLElement) {
   root.innerHTML = `<div class="chips g g3" id="feedF" style="margin-bottom:12px">
-      <span class="chip ${filter === 'all' ? 'on' : ''}" data-f="all">${ic('globe')} Everyone</span><span class="chip ${filter === 'me' ? 'on' : ''}" data-f="me">${ic('users')} Me</span><span class="chip ${filter === 'pb' ? 'on' : ''}" data-f="pb">${ic('medal')} PBs</span></div>
+      <span class="chip ${filter === 'all' ? 'on' : ''}" data-f="all" role="button" tabindex="0" aria-pressed="${filter === 'all'}">${ic('globe')} Everyone</span><span class="chip ${filter === 'me' ? 'on' : ''}" data-f="me" role="button" tabindex="0" aria-pressed="${filter === 'me'}">${ic('users')} Me</span><span class="chip ${filter === 'pb' ? 'on' : ''}" data-f="pb" role="button" tabindex="0" aria-pressed="${filter === 'pb'}">${ic('medal')} PBs</span></div>
     ${championBanner()}
     ${challengeCard()}
     ${recapCard()}
@@ -59,6 +59,14 @@ function meta(s: FeedItem['session']) {
 }
 
 function draw() {
+  // keep anything typed into comment boxes (a heart elsewhere redraws the whole feed)
+  const drafts = new Map<string, string>(), focused = (document.activeElement as HTMLElement | null)?.closest?.('.post')?.getAttribute('data-id');
+  document.querySelectorAll<HTMLInputElement>('#feed .post .cmts input').forEach(i => { const id = i.closest('.post')?.getAttribute('data-id'); if (id && i.value) drafts.set(id, i.value); });
+  drawFeed();
+  for (const [id, v] of drafts) { const i = document.querySelector<HTMLInputElement>(`#feed .post[data-id="${CSS.escape(id)}"] .cmts input`); if (i) i.value = v; }
+  if (focused && document.activeElement === document.body) document.querySelector<HTMLInputElement>(`#feed .post[data-id="${CSS.escape(focused)}"] .cmts input`)?.focus({ preventScroll: true });
+}
+function drawFeed() {
   const me = state.me?.id;
   const xs = items.filter(x => filter === 'all' || (filter === 'me' && x.session.userId === me) || (filter === 'pb' && x.session.isPb));
   $('#feed').innerHTML = xs.map(({ session: s, likes, likedByMe, comments }) => {
@@ -67,7 +75,7 @@ function draw() {
       <div class="who" data-uid="${s.userId}">${avatar(p)}<span><b>${esc(p?.name ?? 'Climber')}${mine ? ' (you)' : ''}</b><small>${relTime(s.createdAt)}</small></span>${s.isPb ? `<span class="badge" style="margin-left:auto">${ic('medal')} PB</span>` : ''}</div>
       <div class="what">${esc(s.protocolName)}</div><div class="meta">${meta(s).map(m => `<span>${esc(m)}</span>`).join('')}</div>
       ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
-      <div class="acts"><button class="${likedByMe ? 'on' : ''}" data-like aria-label="Heart">${ic(likedByMe ? 'hearted' : 'heart')} ${likes}</button><button data-cm aria-label="Comments">${ic('comment')} ${comments.length}</button></div>
+      <div class="acts"><button class="${likedByMe ? 'on' : ''}" data-like aria-label="Heart, ${likes}" aria-pressed="${likedByMe}">${ic(likedByMe ? 'hearted' : 'heart')} ${likes}</button><button data-cm aria-label="Comments, ${comments.length}" aria-expanded="${open === s.id}">${ic('comment')} ${comments.length}</button></div>
       <div class="cmts ${open === s.id ? '' : 'hide'}">${comments.map(c => {
         const cp = profileOf(c.userId), canDel = c.userId === me || state.me?.isAdmin;
         return `<div class="cmt"><b>${esc(cp?.name ?? 'Climber')}</b>${esc(c.body)}${canDel ? `<button class="cdel" data-cdel="${c.id}" aria-label="Delete comment">✕</button>` : ''}</div>`; }).join('')}

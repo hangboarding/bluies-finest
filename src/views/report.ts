@@ -4,14 +4,15 @@ import { esc, sheet, toast } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state } from '../lib/state';
 import type { IssueCategory } from '../lib/types';
+import { currentPage } from '../main';
 
-export const ISSUE_CATS: Record<IssueCategory, string> = { bug: 'Something’s broken', idea: 'Idea', account: 'Account or sign-in', other: 'Other' };
+export const ISSUE_CATS: Record<IssueCategory, string> = { bug: 'Something’s broken', idea: 'Idea', account: 'Account or log-in', other: 'Other' };
 
 /** Device, browser and screen details that help an admin reproduce a problem. */
 function context() {
   const nav = navigator as any, standalone = matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
   return [
-    `Page: ${location.hash.replace('#', '') || 'hang'}`,
+    `Page: ${currentPage()}`,
     `${standalone ? 'Installed app' : 'Browser'} · ${innerWidth}×${innerHeight}`,
     navigator.userAgent,
   ].join(' | ');

@@ -242,3 +242,14 @@ button.cbadge{font:inherit;font-size:20px;color:inherit;cursor:pointer}button.cb
 .climber .cbadges{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}.climber .cbadge{min-width:0}
 /* fill the whole screen even when a page is short, so browsers never show their own background below it */
 html{min-height:100%}body{min-height:100vh;box-sizing:border-box}
+/* sheets: the page behind can't scroll, and scrolling inside a sheet never spills onto it */
+html:has(.modal),body:has(.modal){overflow:hidden}
+.modal{overscroll-behavior:contain;touch-action:none}.modal .sheet{overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;outline:none}
+/* Admin tools take over the whole screen */
+.modal:has(.admin-sheet){place-items:stretch;background:var(--bg)}
+.modal .admin-sheet{max-width:none;max-height:none;height:100%;border-radius:0;border:0;padding-top:calc(14px + env(safe-area-inset-top, 0px))}
+.admin-sheet > .row{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom));background:var(--card);padding:10px 0 4px;margin:0 -16px;padding-inline:16px;border-top:1px solid var(--line)}
+.adm-top{display:flex;align-items:center;gap:10px;margin:0 0 2px}.adm-top h2{margin:0;display:flex;align-items:center;gap:8px;flex:1}
+.adm-back{background:none;border:1px solid var(--line);color:var(--ink);border-radius:12px;height:40px;padding:0 12px;font:inherit;font-weight:700;cursor:pointer}
+.vh{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.upl:focus-within{outline:2px solid var(--acc);outline-offset:3px}

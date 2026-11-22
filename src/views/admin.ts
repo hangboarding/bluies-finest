@@ -1,10 +1,11 @@
 // Admin tools (only shown to admins; the database enforces it too):
 // invite codes, members overview, and removing sessions or comments.
-import { esc, avatar, sheet, toast, confirmSheet, promptSheet, relTime } from '../lib/ui';
+import { esc, avatar, sheet, toast, confirmSheet, promptSheet, relTime, closeSheet } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state } from '../lib/state';
 import type { ChallengeRow, Comment, InviteCode, Issue } from '../lib/types';
 import { ISSUE_CATS } from './report';
+import { forgetClimber } from './climber';
 import { METRICS, todayISO, type Metric } from '../lib/challenges';
 
 let root: HTMLElement | null = null;
@@ -36,7 +37,7 @@ async function draw() {
   const recent = [...state.sessions].filter(s => !s.pendingUpload).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 25);
 
   root.innerHTML = `
-    <h2 style="display:flex;align-items:center;gap:8px;margin:0">${ic('admin')} Admin tools</h2>
+    <div class="adm-top"><button type="button" class="adm-back" data-act="close" aria-label="Close admin tools">← Back</button><h2>${ic('admin')} Admin tools</h2></div>
     <p class="sub" style="margin:4px 0 0">Only admins can see this page.</p>
 
     <h3>${ic('bug')} Reported issues${issues.some(i => i.status === 'open') ? ` (${issues.filter(i => i.status === 'open').length} open)` : ''}</h3>
@@ -59,7 +60,7 @@ async function draw() {
       <p class="sub" style="font-size:12px;margin:6px 0 0">Codes are saved in capitals and aren't case-sensitive when people sign up. Leave uses blank for unlimited. Deleting a code doesn't affect people who already joined.</p>`}
 
     <h3>${ic('ticket')} Group challenges</h3>
-    ${chals.map(ch => `<div class="lrow" data-chal="${ch.id}"><span class="nm">${esc(ch.title)}<small>${METRICS[ch.metric].label}: ${ch.target.toLocaleString()} · ${ch.startsOn} → ${ch.endsOn}${ch.startsOn <= today && ch.endsOn >= today ? ' · running now' : ch.endsOn < today ? ' · finished' : ' · upcoming'}</small></span>
+    ${chals.map(ch => `<div class="lrow" data-chal="${ch.id}"><span class="nm">${esc(ch.title)}<small>${METRICS[ch.metric]?.label ?? esc(ch.metric)}: ${ch.target.toLocaleString()} · ${ch.startsOn} → ${ch.endsOn}${ch.startsOn <= today && ch.endsOn >= today ? ' · running now' : ch.endsOn < today ? ' · finished' : ' · upcoming'}</small></span>
       <button class="ed" data-act="delchal" aria-label="Delete challenge">${ic('trash')}</button></div>`).join('') || '<p class="sub" style="margin:0 0 6px">No custom challenges. The app runs an automatic monthly hangs challenge.</p>'}
     <div class="adm-chal">
       <input class="tx" id="chTitle" maxlength="80" placeholder="Title, e.g. 500 hangs in December" aria-label="Challenge title">
@@ -144,6 +145,7 @@ async function onClick(e: MouseEvent) {
   const row = b.closest('.lrow') as HTMLElement | null, code = row?.dataset.code ?? '';
   try {
     switch (b.dataset.act) {
+      case 'close': closeSheet(root!); return;
       case 'backup': await backupAll(b as HTMLButtonElement); return;
       case 'resolve': case 'reopen':
         await state.store.setIssueStatus((b.closest('.iss') as HTMLElement).dataset.iss!, b.dataset.act === 'resolve' ? 'resolved' : 'open'); break;
@@ -184,7 +186,7 @@ async function onClick(e: MouseEvent) {
       case 'delsess': {
         const s = state.sessions.find(x => x.id === row!.dataset.sid);
         if (!await confirmSheet('Remove session?', `This permanently removes ${esc(state.profiles.get(s?.userId ?? '')?.name ?? 'this climber')}’s ${esc(s?.protocolName ?? '')} session, with its hearts and comments.`, 'Remove')) return;
-        await state.store.deleteSession(row!.dataset.sid!); state.sessions = state.sessions.filter(x => x.id !== row!.dataset.sid); toast('Session removed'); break;
+        await state.store.deleteSession(row!.dataset.sid!); state.sessions = state.sessions.filter(x => x.id !== row!.dataset.sid); forgetClimber(s?.userId); toast('Session removed'); break;
       }
       case 'delcm':
         if (!await confirmSheet('Remove comment?', 'This permanently removes the comment.', 'Remove')) return;

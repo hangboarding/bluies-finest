@@ -19,20 +19,20 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
     <h1 class="auth-title">Bluies <span>Finest</span></h1>
     <p class="auth-tag center">Hangboard accountability and bragging rights.</p>
     <div class="card">
-      ${mode === 'in' || mode === 'up' ? `<div class="seg" id="authSeg" style="margin-bottom:14px"><button data-m="in" class="${mode === 'in' ? 'on' : ''}">Sign in</button><button data-m="up" class="${mode === 'up' ? 'on' : ''}">Join</button></div>` : ''}
+      ${mode === 'in' || mode === 'up' ? `<div class="seg" id="authSeg" style="margin-bottom:14px"><button data-m="in" class="${mode === 'in' ? 'on' : ''}">Log in</button><button data-m="up" class="${mode === 'up' ? 'on' : ''}">Sign up</button></div>` : ''}
       <form id="authForm" novalidate>
         ${mode === 'up' ? field('aName', 'Name', 'text', 'nickname') : ''}
         ${mode !== 'reset' ? field('aEmail', 'Email', 'email', 'email') : ''}
         ${mode === 'in' || mode === 'up' ? field('aPw', mode === 'up' ? 'Password (min 8 characters)' : 'Password', 'password', mode === 'up' ? 'new-password' : 'current-password') : ''}
         ${mode === 'reset' ? field('aPw', 'New password (min 8 characters)', 'password', 'new-password') + field('aPw2', 'Repeat new password', 'password', 'new-password') : ''}
         ${mode === 'up' ? field('aCode', 'Invite code', 'text', 'off') : ''}
-        <button class="big" type="submit" id="aGo">${{ in: 'Sign in', up: 'Create account', forgot: 'Send reset link', reset: 'Set new password' }[mode]}</button>
+        <button class="big" type="submit" id="aGo">${{ in: 'Send it', up: 'Create account', forgot: 'Send reset link', reset: 'Set new password' }[mode]}</button>
       </form>
-      <div class="links">${mode === 'in' ? '<a data-go="forgot">Forgot password?</a>' : mode !== 'up' ? '<a data-go="in">Back to sign in</a>' : ''}</div>
+      <div class="links">${mode === 'in' ? '<a data-go="forgot">Forgot password?</a>' : mode !== 'up' ? '<a data-go="in">Back to log in</a>' : ''}</div>
       ${demo ? `<p class="sub center" style="font-size:12px;margin:0">Demo mode: accounts live in this browser only. Invite code is <b>BLUIES</b>.</p>` : ''}
     </div>
     <p class="center" style="font-size:12px;margin:14px 0 0"><a class="sub" href="tour/" style="color:var(--mute)">Take the tour</a></p></div>`;
-  // play the logo animation once; switching between Sign in / Join shows it finished
+  // play the logo animation once; switching between Log in / Sign up shows it finished
   if (logoPlayed) root.querySelector('.logo-anim')?.classList.add('la-static', 'la-top'); else { logoPlayed = true; playLogo(root); }
   root.onclick = e => {
     const m = (e.target as HTMLElement).closest('[data-m],[data-go]') as HTMLElement | null;
@@ -56,14 +56,14 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
         if (!v('aName')) throw new Error('Enter your name');
         if (($('#aPw') as HTMLInputElement).value.length < 8) throw new Error('Password must be at least 8 characters');
         await state.store.signUp({ name: v('aName').slice(0, 40), email: v('aEmail'), password: ($('#aPw') as HTMLInputElement).value, inviteCode: v('aCode') });
-        if (!state.store.currentUserId()) { root.querySelector('.card')!.innerHTML = `<h2>Check your email ✉️</h2><p class="sub">We sent a confirmation link to <b>${esc(v('aEmail'))}</b>. Tap it, then come back and sign in.</p><button class="big" id="back">Back to sign in</button>`; $('#back').onclick = () => renderAuth(root, 'in'); }
+        if (!state.store.currentUserId()) { root.querySelector('.card')!.innerHTML = `<h2>Check your email ✉️</h2><p class="sub">We sent a confirmation link to <b>${esc(v('aEmail'))}</b>. Tap it, then come back and log in.</p><button class="big" id="back">Back to log in</button>`; $('#back').onclick = () => renderAuth(root, 'in'); }
       }
       if (mode === 'forgot') { await state.store.requestPasswordReset(v('aEmail')); toast('If that email has an account, a reset link is on its way', 4000); renderAuth(root, 'in'); }
       if (mode === 'reset') {
         const a = ($('#aPw') as HTMLInputElement).value;
         if (a.length < 8) throw new Error('Password must be at least 8 characters');
         if (a !== ($('#aPw2') as HTMLInputElement).value) throw new Error('Passwords don’t match');
-        await state.store.updatePassword(a); history.replaceState(null, '', location.pathname); toast('Password updated. You’re signed in.'); location.reload();
+        await state.store.updatePassword(a); history.replaceState(null, '', location.pathname); toast('Password updated. You’re logged in.'); location.reload();
       }
     } catch (err: any) { toast(err.message ?? 'Something went wrong', 4000); }
     finally { btn.disabled = false; }

@@ -67,7 +67,7 @@ async function pushTo(db: Db, subs: SubRow[], message: Record<string, string>) {
   return { sent, removed: gone.length, failed: results.length - sent - gone.length };
 }
 
-const CATS: Record<string, string> = { bug: 'Something’s broken', idea: 'Idea', account: 'Account or sign-in', other: 'Other' };
+const CATS: Record<string, string> = { bug: 'Something’s broken', idea: 'Idea', account: 'Account or log-in', other: 'Other' };
 
 /** A member reported a problem: tell every admin by push and, if configured, by email. */
 async function onIssue(db: Db, rec: IssueRecord) {
@@ -149,6 +149,14 @@ Deno.serve(async (req) => {
     if (sErr) throw new Error(`Session lookup failed: ${sErr.message}`);
     if (!session) return json(200, { skipped: 'session not found' });
     if (session.user_id === rec.user_id) return json(200, { skipped: 'own action' });
+
+    // Hearts notify once per person per session: un-hearting and hearting again doesn't buzz the owner again.
+    if (payload.table === 'likes') {
+      const { data: first, error: logErr } = await db.from('notify_log')
+        .upsert({ key: `like:${rec.session_id}:${rec.user_id}` }, { onConflict: 'key', ignoreDuplicates: true }).select('key');
+      if (logErr) console.error('notify_log unavailable (run supabase/hardening-2.sql):', logErr.message);
+      else if (!first?.length) return json(200, { skipped: 'already notified for this heart' });
+    }
 
     const [{ data: actor }, { data: subs, error: subErr }] = await Promise.all([
       db.from('profiles').select('name').eq('id', rec.user_id).maybeSingle(),

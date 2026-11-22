@@ -231,7 +231,8 @@ describe('SessionTimer', () => {
       { set: 1, rep: 1, hand: 'both', target: 10, held: 10, full: true },
       { set: 2, rep: 1, hand: 'both', target: 10, held: 10, full: true },
     ]);
-    expect(h.onPhase.mock.calls.map(c => c[1])).toEqual([0, 1, 2]);
+    // phases skipped while throttled aren't announced (no burst of beeps); the session just finishes
+    expect(h.onPhase.mock.calls.map(c => c[1])).toEqual([0, 1]);
   });
 
   it('catches up when advancing by a large amount at once', () => {

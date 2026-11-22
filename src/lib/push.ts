@@ -110,7 +110,7 @@ export async function enablePush(): Promise<void> {
   if (support === 'demo') throw new Error('Notifications aren\'t set up for this app yet.');
   if (support === 'ios-install') throw new Error('On iPhone, first add the app to your Home Screen (Share → Add to Home Screen), then open it from there.');
   if (support === 'unsupported') throw new Error('This browser doesn\'t support notifications. Try Chrome, or install the app to your home screen.');
-  if (!state.me) throw new Error('Sign in to turn on notifications.');
+  if (!state.me) throw new Error('Log in to turn on notifications.');
   if (Notification.permission === 'denied') throw blocked();
   const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   if (perm !== 'granted') throw perm === 'denied' ? blocked() : new Error('Notifications weren\'t allowed. Tap again and choose Allow.');

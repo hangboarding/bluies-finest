@@ -20,8 +20,10 @@ export function sessionPoints(s: Pick<Session, 'tutS' | 'fullHangs' | 'isPb' | '
   return Math.round(5 + (s.tutS * loadFactor(s) * edgeFactor(s.edgeMm)) / 2 + 2 * s.fullHangs + (s.isPb ? 20 : 0));
 }
 
+/** Whole % only (finer values would reveal bodyweight), kept inside the 10–400% the database accepts
+ *  so an extreme assist or added weight can't make a session impossible to save. */
 export const loadPct = (bw: number | null, add: number, assist: number) =>
-  bw && bw > 0 ? Math.round(((bw + add - assist) / bw) * 100) : null; // whole % only — finer values would reveal bodyweight
+  bw && bw > 0 ? Math.min(400, Math.max(10, Math.round(((bw + add - assist) / bw) * 100))) : null;
 
 /** Monday 00:00 (local time) of the week containing d. */
 export function weekStart(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }

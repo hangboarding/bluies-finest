@@ -17,7 +17,7 @@ export function renderProfile(root: HTMLElement) {
     `<div class="tg"><span>${ic(icon)} ${label}<small>${sub}</small></span><button class="sw2 ${P[k] ? 'on' : ''}" data-set="${k}" role="switch" aria-checked="${!!P[k]}" aria-label="${label}"></button></div>`;
   root.innerHTML = `
   <div class="card center">
-    <label class="upl" id="upl" aria-label="Change photo">${avatar(me, 'uplpic')}<span class="camb">${ic('camera')}</span><input type="file" accept="image/jpeg,image/png,image/webp" hidden id="file"></label>
+    <label class="upl" id="upl" aria-label="Change photo">${avatar(me, 'uplpic')}<span class="camb">${ic('camera')}</span><input type="file" accept="image/jpeg,image/png,image/webp" class="vh" id="file" aria-label="Change photo"></label>
     <label class="f left">Name</label>
     <div class="fld"><input class="tx" id="pName" maxlength="40" placeholder="Name" value="${esc(me.name)}" aria-label="Name"></div>
     <div class="about">
@@ -40,7 +40,7 @@ export function renderProfile(root: HTMLElement) {
   <div class="card"><h3>${ic('theme')} Theme</h3>
     <label class="f">Mode</label><div class="seg" id="mode"><button data-m="dark" class="${P.mode === 'dark' ? 'on' : ''}">Dark</button><button data-m="light" class="${P.mode === 'light' ? 'on' : ''}">Light</button></div><br>
     <label class="f">Icons</label><div class="seg" id="icons"><button data-i="emoji" class="${P.icons === 'emoji' ? 'on' : ''}">😀 Emoji</button><button data-i="flat" class="${P.icons === 'flat' ? 'on' : ''}">${ic('mountain', 'flat')} Flat</button></div><br>
-    <label class="f">Accent colour</label><div class="sw" id="sw">${ACCENTS.map(c => `<i data-c="${c}" style="background:${c}" class="${c === P.acc ? 'on' : ''}" role="button" aria-label="Accent ${c}"></i>`).join('')}<label class="sw-custom ${ACCENTS.includes(P.acc) ? '' : 'on'}" style="${ACCENTS.includes(P.acc) ? '' : `--mine:${P.acc}`}" aria-label="Pick your own colour" title="Pick your own colour"><input type="color" id="accPick" value="${P.acc}"></label></div></div>
+    <label class="f">Accent colour</label><div class="sw" id="sw">${ACCENTS.map(c => `<i data-c="${c}" style="background:${c}" class="${c === P.acc ? 'on' : ''}" role="button" tabindex="0" aria-label="Accent ${c}"></i>`).join('')}<label class="sw-custom ${ACCENTS.includes(P.acc) ? '' : 'on'}" style="${ACCENTS.includes(P.acc) ? '' : `--mine:${P.acc}`}" aria-label="Pick your own colour" title="Pick your own colour"><input type="color" id="accPick" value="${P.acc}"></label></div></div>
   <div class="card"><h3>${ic('settings')} Settings</h3>
     ${toggle('sound', 'Sounds', 'Countdown beeps and the finish chime', 'sound')}
     ${toggle('vib', 'Vibration', 'Buzz on phase changes (phones only)', 'vib')}
@@ -78,6 +78,7 @@ function markCustom(on: boolean, colour?: string) {
   if (on) $$('#sw i').forEach(x => x.classList.remove('on'));
 }
 function setAccent(colour: string) {
+  if (!/^#[0-9a-f]{6}$/i.test(colour)) return;
   const S = state.settings;
   S.prefs.acc = colour; if (bumpDaily(S.flags, 'accent') >= 10) S.flags.spinCycle = true;
   applyTheme(); saveSettings();
@@ -174,6 +175,7 @@ async function onPhoto(e: Event) {
     state.me!.avatarUrl = url; state.profiles.get(state.me!.id)!.avatarUrl = url;
     $('#upl .uplpic').outerHTML = avatar(state.me!, 'uplpic'); refreshHeader(); toast('Photo updated');
   } catch (err: any) { toast(err.message ?? 'Upload failed'); }
+  finally { (e.target as HTMLInputElement).value = ''; } // so picking the same photo again still works
 }
 /** Resize to a square JPEG so uploads stay small. */
 async function shrink(file: File, size: number): Promise<Blob> {

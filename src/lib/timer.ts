@@ -26,7 +26,7 @@ export const setSound = (on: boolean) => { soundOn = on; };
 export function unlockAudio() {
   try {
     ac ??= new (window.AudioContext || (window as any).webkitAudioContext)();
-    if (ac.state !== 'running') ac.resume(); // iOS can leave it 'suspended' or 'interrupted' after a call/lock
+    if (ac.state !== 'running') ac.resume().catch(() => {}); // iOS can leave it 'suspended' or 'interrupted' after a call/lock
     const b = ac.createBuffer(1, 1, 22050), s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start(0);
   } catch { /* no audio available */ }
 }
@@ -40,12 +40,18 @@ export function beep(freq = 880, dur = 0.12, delay = 0) {
 export const fanfare = () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.25, i * 0.15));
 
 // ---------- wake lock ----------
-let lock: any = null, wantLock = false;
+let lock: any = null, wantLock = false, requesting = false;
 export async function keepAwake(on: boolean) {
   wantLock = on;
   try {
-    if (on && !lock && 'wakeLock' in navigator) { lock = await (navigator as any).wakeLock.request('screen'); lock.addEventListener?.('release', () => { lock = null; }); }
-    if (!on && lock) { await lock.release(); lock = null; }
+    if (on && !lock && !requesting && 'wakeLock' in navigator) {
+      requesting = true;
+      try { lock = await (navigator as any).wakeLock.request('screen'); } finally { requesting = false; }
+      lock?.addEventListener?.('release', () => { lock = null; });
+      // turned off while the request was still pending: let go straight away
+      if (!wantLock && lock) { const l = lock; lock = null; await l.release(); }
+    }
+    if (!on && lock) { const l = lock; lock = null; await l.release(); }
   } catch { /* denied or unsupported — the timer still works */ }
 }
 document.addEventListener('visibilitychange', () => {
@@ -75,7 +81,10 @@ export class SessionTimer {
   private tick() {
     if (this.paused || this.done || this.idx >= this.steps.length) return;
     // catch up on any phases that ended while we were throttled
-    while (performance.now() >= this.endAt) { if (!this.advance(true)) return; }
+    // (beep/announce only the phase we land on, not every one that was skipped)
+    let moved = false;
+    while (performance.now() >= this.endAt) { if (!this.advance(true, true)) return; moved = true; }
+    if (moved) this.hooks.onPhase(this.step, this.idx);
     const l = this.left();
     if (l !== this.lastLeft) {
       this.lastLeft = l;
@@ -85,7 +94,7 @@ export class SessionTimer {
     }
   }
   /** Move to the next step. Returns false when the session is over. */
-  private advance(natural: boolean): boolean {
+  private advance(natural: boolean, quiet = false): boolean {
     const c = this.step;
     if (c.p === 'hang' && !c.logged) { this.log.push({ set: c.set!, rep: c.rep!, hand: c.hand!, target: c.t, held: c.t, full: true }); c.logged = true; }
     const overshoot = natural ? performance.now() - this.endAt : 0;
@@ -93,11 +102,11 @@ export class SessionTimer {
     if (this.idx >= this.steps.length) { this.finish(); return false; }
     this.endAt = performance.now() - overshoot + this.step.t * 1000; this.lastLeft = -1;
     if (this.paused) this.remaining = this.step.t * 1000; // a skip while paused starts the next step fresh
-    this.hooks.onPhase(this.step, this.idx);
+    if (!quiet) this.hooks.onPhase(this.step, this.idx);
     return true;
   }
   /** Seconds held so far on the current hang (respects pause). */
-  private elapsed() { const c = this.step, rem = this.paused ? this.remaining : this.endAt - performance.now(); return Math.min(c.t, Math.max(0, Math.round(c.t - rem / 1000))); }
+  private elapsed() { const c = this.step, rem = this.paused ? this.remaining : this.endAt - performance.now(); return Math.min(c.t, Math.max(0, Math.floor(c.t - rem / 1000 + 1e-6))); } // letting go at 9.5s of 10s isn't a full hang
   /** Log the current hang as cut short and move on. */
   private cutShort() {
     const c = this.step, held = this.elapsed();

@@ -4,22 +4,18 @@ import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
 import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, CATEGORIES } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
 import type { Session } from '../lib/types';
+import { placeOf } from '../lib/leaderboard';
 
 const DAY = 864e5, MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], DW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 let hs: 'w' | 'm' | 'q' | 'y' = 'm', ho = 0;
 
 export function renderStats(root: HTMLElement) {
   const mine = mySessions(), now = new Date();
-  const rank = (() => {
-    const c = CATEGORIES[0]!, by = new Map<string, Session[]>();
-    for (const s of state.sessions) (by.get(s.userId) ?? by.set(s.userId, []).get(s.userId)!).push(s);
-    const rows = [...by.entries()].map(([id, xs]) => ({ id, v: c.value(xs, state.sessions, now)! })).sort((a, b) => b.v - a.v);
-    const i = rows.findIndex(r => r.id === state.me?.id); return i >= 0 ? `#${i + 1}` : '–';
-  })();
+  const rank = placeOf(state.me?.id); // same ranking as the Ranks page
   root.innerHTML = `
   <div class="card"><div class="stats" style="margin:0"><div class="stat"><b>${mine.length}</b>sessions</div><div class="stat"><b>${weekStreak(mine)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank}</b>rank</div></div>${(() => { const f = favouriteProtocol(mine); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}</div>
   <div class="card"><h3>${ic('calendar')} Consistency</h3>
-    <div class="chips g g4" id="hscale" style="margin-bottom:10px">${(['w', 'm', 'q', 'y'] as const).map(k => `<span class="chip ${hs === k ? 'on' : ''}" data-s="${k}">${{ w: 'Week', m: 'Month', q: '3 months', y: 'Year' }[k]}</span>`).join('')}</div>
+    <div class="chips g g4" id="hscale" style="margin-bottom:10px">${(['w', 'm', 'q', 'y'] as const).map(k => `<span class="chip ${hs === k ? 'on' : ''}" data-s="${k}" role="button" tabindex="0" aria-pressed="${hs === k}">${{ w: 'Week', m: 'Month', q: '3 months', y: 'Year' }[k]}</span>`).join('')}</div>
     <div class="hnav"><button id="hPrev" aria-label="Previous period">‹</button><b id="hLbl"></b><button id="hNext" aria-label="Next period">›</button></div>
     <div class="heatbox" id="heatbox"><div class="yr-wrap"><div class="ydays"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div><div><div class="ymon" id="ymon"></div><div class="heat" id="heat"></div></div></div></div>
     <div class="hsum" id="hsum"></div>
@@ -70,7 +66,7 @@ function heat() {
   $('#hsum').innerHTML = `<span><b>${count}</b> sessions</span><span><b>${(count / Math.max(1, elapsed / 7)).toFixed(1)}</b>/week</span><span>Best run <b>${bestDayRun(inRange)}</b> day${bestDayRun(inRange) === 1 ? "" : "s"}</span>`;
 }
 document.addEventListener('keydown', e => {
-  if (!$('#heat') || ($('#view-stats')?.classList.contains('hide') ?? true) || (e.target as HTMLElement).matches?.('input,select,textarea')) return;
+  if (!$('#heat') || document.querySelector('.modal') || ($('#view-stats')?.classList.contains('hide') ?? true) || (e.target as HTMLElement).matches?.('input,select,textarea')) return;
   if (e.key === 'ArrowLeft') { ho--; heat(); }
   if (e.key === 'ArrowRight' && ho < 0) { ho++; heat(); }
 });

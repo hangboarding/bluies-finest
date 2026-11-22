@@ -125,7 +125,7 @@ function friendlyMessage(err: unknown, fallback: string): Error {
     return new Error("That email address doesn't look right.");
   }
   if (msg.includes('auth session missing') || msg.includes('jwt expired') || code === 'PGRST301') {
-    return new Error('Your session has expired. Please sign in again.');
+    return new Error('Your session has expired. Please log in again.');
   }
   if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('network request failed')) {
     return new Error("Can't reach the server. Check your internet connection.");
@@ -202,7 +202,7 @@ export class SupabaseStore implements Store {
   }
 
   private requireUid(): string {
-    if (!this.uid) throw new Error('You need to be signed in to do that.');
+    if (!this.uid) throw new Error('You need to be logged in to do that.');
     return this.uid;
   }
 
@@ -525,11 +525,15 @@ export class SupabaseStore implements Store {
   }
 
   async setIssueStatus(id: string, status: Issue['status']): Promise<void> {
-    this.requireUid(); check(await this.client.from('issues').update({ status }).eq('id', id));
+    this.requireUid();
+    const rows = check(await this.client.from('issues').update({ status }).eq('id', id).select('id')) as any[];
+    if (!rows?.length) throw new Error('Only admins can change reports.');
   }
 
   async deleteIssue(id: string): Promise<void> {
-    this.requireUid(); check(await this.client.from('issues').delete().eq('id', id));
+    this.requireUid();
+    const rows = check(await this.client.from('issues').delete().eq('id', id).select('id')) as any[];
+    if (!rows?.length) throw new Error('Only admins can delete reports.');
   }
 
   async listInviteCodes(): Promise<InviteCode[]> {

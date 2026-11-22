@@ -94,6 +94,10 @@ export async function loadUserData() {
   merged.panels = { ...d.panels, ...(older.panels ?? {}), ...(newer.panels ?? {}) };
   merged.owner = id;
   merged.about = { ...(older.about ?? {}), ...(newer.about ?? {}) };
+  // Achievement flags and tour progress only ever get added, so keep what either copy has:
+  // a flag earned on one phone isn't lost because another phone saved something later.
+  merged.flags = { ...(older.flags ?? {}), ...(newer.flags ?? {}) };
+  merged.toursSeen = { ...(older.toursSeen ?? {}), ...(newer.toursSeen ?? {}) };
   // One-time migration: flat icons became the default; earlier accounts saved "emoji".
   const migrate = (merged.iconsV ?? 0) < 1;
   if (migrate) { merged.prefs.icons = 'flat'; merged.iconsV = 1; }

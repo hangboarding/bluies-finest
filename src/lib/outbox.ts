@@ -25,6 +25,12 @@ export const queuedCount = () => queuedSessions().length;
  *  (offline, expired login, server hiccup) keeps the session queued so it's never lost. */
 const REJECTED = new Set(['23514', '23502', '22P02', '22003', '23503', '22001']);
 const isRejected = (e: any) => REJECTED.has(String(e?.code ?? ''));
+const isNetwork = (e: any) => e instanceof TypeError || /fetch|network|load failed|timed? ?out/i.test(String(e?.message ?? ''));
+/** Forget queued sessions the server already has (the save landed but the reply was lost). */
+export function dropUploaded(serverIds: Set<string>) {
+  const q = read(), keep = q.filter(x => !serverIds.has(x.tempId));
+  if (keep.length !== q.length) write(keep);
+}
 const newId = () => (crypto as any).randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
 
 /** Save a session; falls back to the outbox when offline. Returns the session either way. */
@@ -54,11 +60,16 @@ export async function flushOutbox() {
       try {
         const saved = await state.store.addSession(q.session);
         write(read().filter(x => x.tempId !== q.tempId));
+        // replace the placeholder (and any copy already loaded from the server) with the saved row
         const i = state.sessions.findIndex(x => x.id === q.tempId);
-        if (i >= 0) state.sessions[i] = saved; else state.sessions.unshift(saved);
+        state.sessions = state.sessions.filter(x => x.id !== q.tempId);
+        state.sessions.splice(i >= 0 ? i : 0, 0, saved);
         sent++;
       } catch (e) {
-        if (!isRejected(e)) break; // offline, expired login or server hiccup — try again later
+        if (!isRejected(e)) {
+          if (!navigator.onLine || isNetwork(e)) break; // offline or server unreachable: try again later
+          continue; // some other problem with just this one: keep it queued, but don't let it block the rest
+        }
         // The server rejected the data itself (e.g. out-of-range values). Drop it so it doesn't block the queue.
         write(read().filter(x => x.tempId !== q.tempId));
         state.sessions = state.sessions.filter(x => x.id !== q.tempId);

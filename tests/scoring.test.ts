@@ -220,6 +220,11 @@ describe('loadPct', () => {
     expect(loadPct(null, 10, 0)).toBeNull();
     expect(loadPct(0, 10, 0)).toBeNull();
   });
+
+  it('stays within the 10–400% the database accepts, so a session can always be saved', () => {
+    expect(loadPct(60, 0, 55)).toBe(10);   // would be 8%
+    expect(loadPct(40, 150, 0)).toBe(400); // would be 475%
+  });
 });
 
 describe('CATEGORIES', () => {

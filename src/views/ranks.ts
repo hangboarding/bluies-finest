@@ -1,7 +1,8 @@
 import { $, esc, avatar } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { CATEGORIES } from '../lib/scoring';
-import { state, saveSettings, RECENT_DAYS } from '../lib/state';
+import { state, saveSettings } from '../lib/state';
+import { rankRows, type RankRow } from '../lib/leaderboard';
 import { bumpDaily } from '../lib/achievements';
 import { seasonOf, daysLeft, seasonNameFromStart } from '../lib/seasons';
 
@@ -33,27 +34,27 @@ function fmt(v: number, unit: string) {
 
 function draw() {
   const c = CATEGORIES.find(x => x.id === cat)!, now = new Date();
-  // Everyone is ranked on the same window (my own older history is loaded too, but mustn't count).
-  const cutoff = Math.min(+now - RECENT_DAYS * 864e5, +seasonOf(now).start), pool = state.sessions.filter(s => +new Date(s.createdAt) >= cutoff && !s.pendingUpload);
-  const by = new Map<string, typeof state.sessions>();
-  for (const s of pool) (by.get(s.userId) ?? by.set(s.userId, []).get(s.userId)!).push(s);
-  const rows = [...state.profiles.values()].map(p => ({ p, v: c.value(by.get(p.id) ?? [], pool, now) }))
-    .filter(r => r.v != null && ((c.id !== 'overall' && c.id !== 'season') || (by.get(r.p.id)?.length ?? 0) > 0))
-    .sort((a, b) => (c.lower ? a.v! - b.v! : b.v! - a.v!));
+  const rows = rankRows(c, now);
   const se = seasonOf(now), left = daysLeft(se, now);
   $('#catDesc').innerHTML = c.id === 'season'
     ? `${ic('crown')} <b>${se.name}</b> · ${left ? `${left + 1} days left` : 'last day!'}. Most points wins the season`
     : `${ic(c.icon)} ${esc(c.desc)}`;
   const me = state.me?.id;
-  const nm = (r: (typeof rows)[0]) => esc(r.p.name) + (r.p.id === me ? ' (you)' : '');
-  const pod = (r: (typeof rows)[0] | undefined, k: 1 | 2 | 3) => r ? `<div class="pod p${k}" data-uid="${r.p.id}">${k === 1 ? `<span class="crown">${ic('crown')}</span>` : ''}${avatar(r.p, 'ph')}<b>${nm(r)}</b>
-      <div class="sub pv">${fmt(r.v!, c.unit)}</div><div class="blk">${k}</div></div>` : `<div class="pod p${k}"></div>`;
+  const nm = (r: RankRow) => esc(r.p.name) + (r.p.id === me ? ' (you)' : '');
+  const pod = (r: RankRow | undefined, k: 1 | 2 | 3) => r ? `<div class="pod p${k}" data-uid="${r.p.id}">${r.place === 1 ? `<span class="crown">${ic('crown')}</span>` : ''}${avatar(r.p, 'ph')}<b>${nm(r)}</b>
+      <div class="sub pv">${fmt(r.v, c.unit)}</div><div class="blk">${k}</div></div>` : `<div class="pod p${k}"></div>`;
   $('#podium').innerHTML = rows.length ? pod(rows[1], 2) + pod(rows[0], 1) + pod(rows[2], 3) : '';
-  $('#champ').innerHTML = rows[0] ? `${ic('crown')} ${rows[0].p.id === me ? 'You rule' : esc(rows[0].p.name) + ' rules'} ${c.name.toLowerCase()} with ${fmt(rows[0].v!, c.unit)}` : 'No one has a result here yet. Be the first!';
+  const top = rows.filter(r => r.place === 1);
+  $('#champ').innerHTML = !rows[0] ? 'No one has a result here yet. Be the first!'
+    : top.length > 1 ? `${ic('crown')} ${top.map(r => r.p.id === me ? 'You' : esc(r.p.name)).join(' & ')} share ${c.name.toLowerCase()} with ${fmt(rows[0].v, c.unit)}`
+    : `${ic('crown')} ${rows[0].p.id === me ? 'You rule' : esc(rows[0].p.name) + ' rules'} ${c.name.toLowerCase()} with ${fmt(rows[0].v, c.unit)}`;
   hydrateIcons($('#podium')); hydrateIcons($('#champ'));
-  $('#lbList').innerHTML = rows.slice(3).map((r, i) => `<div class="lrow ${r.p.id === me ? 'me' : ''}" data-uid="${r.p.id}"><span class="r">${i + 4}</span>${avatar(r.p)}<span class="nm">${nm(r)}</span><span class="pt">${fmt(r.v!, c.unit)}</span></div>`).join('');
+  $('#lbList').innerHTML = rows.slice(3).map(r => `<div class="lrow ${r.p.id === me ? 'me' : ''}" data-uid="${r.p.id}"><span class="r">${r.place}</span>${avatar(r.p)}<span class="nm">${nm(r)}</span><span class="pt">${fmt(r.v, c.unit)}</span></div>`).join('');
   const mi = rows.findIndex(r => r.p.id === me);
-  $('#gap').textContent = mi === 0 ? "🥇 You're number one!" : mi > 0 ? `⬆ ${fmt(Math.abs(rows[mi - 1]!.v! - rows[mi]!.v!), c.unit).replace('+', '')} to pass ${rows[mi - 1]!.p.name}` : 'Log a session to get on this board.';
+  const ahead = mi > 0 ? rows.slice(0, mi).reverse().find(r => r.v !== rows[mi]!.v) : undefined; // first one actually ahead of me
+  $('#gap').textContent = mi < 0 ? 'Log a session to get on this board.'
+    : rows[mi]!.place === 1 ? (top.length > 1 ? '🥇 Tied for number one!' : "🥇 You're number one!")
+    : ahead ? `⬆ ${fmt(Math.abs(ahead.v - rows[mi]!.v), c.unit).replace('+', '')} to pass ${ahead.p.name}` : '';
   hydrateIcons($('#catDesc'));
 }
 

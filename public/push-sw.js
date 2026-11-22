@@ -28,7 +28,7 @@ self.addEventListener('notificationclick', (event) => {
   const url = (event.notification.data && event.notification.data.url) || new URL('#feed', scope).href;
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const win = wins.find((c) => c.url.startsWith(scope)) || wins[0];
+    const win = wins.find((c) => c.url.startsWith(scope)); // never hijack another app on the same domain
     if (win) {
       try {
         // Don't reload an open app (it could be mid-session) — ask it to show the post instead.

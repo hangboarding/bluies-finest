@@ -8,30 +8,38 @@ import { weekStreak, dayKey, addDays, weekStart, favouriteProtocol, CATEGORIES }
 import { TIERED, TIER_NAMES, TIER_COLOURS, tierOf, type Ctx } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { sessRow } from './stats';
+import { placeOf } from '../lib/leaderboard';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const cache = new Map<string, Session[]>();
+// other climbers' full history, kept for a few minutes so reopening a profile is instant but stays fresh
+const cache = new Map<string, { at: number; xs: Session[] }>(), TTL = 5 * 60e3;
+document.addEventListener('bf:sessions-changed', () => cache.clear());
+export const forgetClimber = (uid?: string) => { if (uid) cache.delete(uid); else cache.clear(); };
 
 async function historyOf(uid: string): Promise<Session[]> {
   if (uid === state.me?.id) return state.sessions.filter(s => s.userId === uid);
-  if (!cache.has(uid)) cache.set(uid, await state.store.listSessions({ userId: uid }));
-  return cache.get(uid)!;
+  const hit = cache.get(uid);
+  if (hit && Date.now() - hit.at < TTL) return hit.xs;
+  const xs = await state.store.listSessions({ userId: uid });
+  cache.set(uid, { at: Date.now(), xs });
+  return xs;
 }
 
+let opening = false;
 export async function openClimber(uid: string) {
-  const p = state.profiles.get(uid); if (!p) return;
+  const p = state.profiles.get(uid); if (!p || opening || document.querySelector('.climber-sheet')) return; // ignore double taps
+  opening = true; setTimeout(() => { opening = false; }, 400);
   let body: HTMLElement | null = null;
   sheet({ body: `<div class="climber"><div class="sub center">Loading…</div></div>`, onMount: el => { body = el.querySelector('.climber'); el.classList.add('climber-sheet'); } });
   let xs: Session[];
-  try { xs = await historyOf(uid); } catch (e: any) { toast(e.message ?? 'Couldn’t load that profile'); return; }
+  try { xs = await historyOf(uid); } catch (e: any) {
+    if (body && (body as HTMLElement).isConnected) (body as HTMLElement).innerHTML = `<p class="sub center">${esc(e.message ?? 'Couldn’t load that profile')}</p>`;
+    toast(e.message ?? 'Couldn’t load that profile'); return;
+  }
   if (!body || !(body as HTMLElement).isConnected) return;
   const el = body as HTMLElement, now = new Date();
 
-  // rank on Overall (same window as the leaderboard)
-  const overall = CATEGORIES[0]!, by = new Map<string, Session[]>();
-  for (const s of state.sessions) (by.get(s.userId) ?? by.set(s.userId, []).get(s.userId)!).push(s);
-  const ranked = [...by.entries()].map(([id, ss]) => ({ id, v: overall.value(ss, state.sessions, now) ?? 0 })).sort((a, b) => b.v - a.v);
-  const rank = ranked.findIndex(r => r.id === uid);
+  const rank = placeOf(uid); // same ranking as the Ranks page
 
   // personal bests (no bodyweight-derived numbers)
   const hangs = xs.filter(s => s.mode === 'hang' && s.fullHangs > 0);
@@ -59,7 +67,7 @@ export async function openClimber(uid: string) {
   const since = new Date(p.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
   el.innerHTML = `
     <div class="center">${avatar(p, 'cav')}<h2 style="margin:10px 0 2px">${esc(p.name)}</h2>${p.location ? `<p class="cloc">${ic('pin')} ${esc(p.location)}</p>` : ''}<p class="sub" style="margin:0">Member since ${since}</p>${titles ? `<p class="titles">${ic('crown')} ${titles > 1 ? `${titles}× season champion` : 'Season champion'}</p>` : ''}</div>
-    <div class="stats" style="margin:14px 0"><div class="stat"><b>${xs.length}</b>sessions</div><div class="stat"><b>${weekStreak(xs, now)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank >= 0 ? '#' + (rank + 1) : '–'}</b>overall</div></div>
+    <div class="stats" style="margin:14px 0"><div class="stat"><b>${xs.length}</b>sessions</div><div class="stat"><b>${weekStreak(xs, now)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank}</b>overall</div></div>
     ${(() => { const f = favouriteProtocol(xs); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}
     ${pbs ? `<h3>${ic('medal')} Personal bests</h3><div class="cpbs">${pbs}</div>` : ''}
     <h3 style="margin-top:14px">${ic('calendar')} Last 5 weeks</h3><div class="cgrid">${grid}</div>

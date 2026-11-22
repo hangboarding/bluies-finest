@@ -71,7 +71,7 @@ export class LocalStore implements Store {
   }
   async ready() { /* nothing to wait for */ }
   private save() { try { localStorage.setItem(KEY, JSON.stringify(this.db)); } catch { /* storage blocked or full */ } }
-  private need() { if (!this.db.me) throw new Error('Please sign in first'); return this.db.me; }
+  private need() { if (!this.db.me) throw new Error('Please log in first'); return this.db.me; }
   private emit() { this.listeners.forEach(f => f(this.db.me)); }
 
   currentUserId() { return this.db.me; }
@@ -79,9 +79,9 @@ export class LocalStore implements Store {
   async signUp({ email, password, name, inviteCode }: { email: string; password: string; name: string; inviteCode: string }) {
     const code = this.codes().find(x => x.code === inviteCode.trim().toUpperCase());
     if (!code || (code.maxUses != null && code.uses >= code.maxUses)) throw new Error("That invite code isn't valid");
-    code.uses++;
     if (this.db.users.some(u => u.email === email.toLowerCase())) throw new Error('An account with that email already exists');
     if (password.length < 8) throw new Error('Password must be at least 8 characters');
+    code.uses++; // only once the sign-up will go through, like the server
     const id = uid();
     this.db.users.push({ id, email: email.toLowerCase(), password });
     this.db.profiles.push({ id, name, avatarUrl: null, isAdmin: this.db.users.length === 1, createdAt: new Date().toISOString() });
@@ -113,7 +113,7 @@ export class LocalStore implements Store {
     this.db.profiles.find(x => x.id === this.need())!.avatarUrl = url; this.save(); return url;
   }
   async getPrivate() { return structuredClone(this.db.priv[this.need()] ?? { bodyweightKg: null, settings: {} }); }
-  async savePrivate(d: Partial<PrivateData>) { const me = this.need(); this.db.priv[me] = { ...(this.db.priv[me] ?? { bodyweightKg: null, settings: {} }), ...d }; this.save(); }
+  async savePrivate(d: Partial<PrivateData>) { const me = this.need(); this.db.priv[me] = structuredClone({ ...(this.db.priv[me] ?? { bodyweightKg: null, settings: {} }), ...d }); this.save(); } // a copy, like a real upload
 
   async listSessions(o: { userId?: string; sinceIso?: string } = {}) {
     return structuredClone(this.db.sessions.filter(s => (!o.userId || s.userId === o.userId) && (!o.sinceIso || s.createdAt >= o.sinceIso)));
@@ -130,7 +130,9 @@ export class LocalStore implements Store {
   }
   async deleteSession(id: string) {
     const me = this.need(), admin = this.db.profiles.find(p => p.id === me)?.isAdmin;
-    this.db.sessions = this.db.sessions.filter(s => !(s.id === id && (s.userId === me || admin)));
+    const s = this.db.sessions.find(x => x.id === id);
+    if (!s || !(s.userId === me || admin)) throw new Error("That session doesn't exist or you can't delete it.");
+    this.db.sessions = this.db.sessions.filter(x => x.id !== id);
     this.db.likes = this.db.likes.filter(l => l.s !== id); this.db.comments = this.db.comments.filter(c => c.sessionId !== id); this.save();
   }
 

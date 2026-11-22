@@ -48,6 +48,10 @@ body {
   overflow-x: hidden;
 }
 .wrap { max-width: 980px; margin: 0 auto; }
+.topbar { display: flex; justify-content: flex-end; padding-top: max(14px, env(safe-area-inset-top, 0px)); }
+.login { color: var(--ink); text-decoration: none; font: 600 14px var(--display); padding: 9px 18px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+.login:hover { border-color: var(--acc); }
+.login:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
 header { display: grid; gap: 10px; min-height: 62vh; align-content: center; padding-block: 40px 24px; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand svg { width: 44px; height: 44px; flex: none; }
@@ -117,6 +121,7 @@ footer a { color: var(--acc); }
 <body>
 
 <div class="wrap">
+  <nav class="topbar" aria-label="Account"><a class="login" href="https://hangboarding.github.io/bluies-finest/">Log in</a></nav>
   <header>
     <div class="brand">
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f1419"/><path d="M4 50 L9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L60 50 Z" fill="#6f8597"/><path d="M4 50 L9 33 L13 35 L40 31 L22 50 Z" fill="#4f6474"/><path d="M9 33 L13 29.5 L33 29 L39 26 L44 19.5 Q48 16 52 19 L55 26 L53 28.5 L45 26.5 L40 31 L13 35 Z" fill="#c9d6df"/></svg>
@@ -144,7 +149,7 @@ footer a { color: var(--acc); }
 
   <footer>
     <span><b>Works best installed:</b> Share → Add to Home Screen (iPhone) or ⋮ → Install app (Android).</span>
-    <span>Already have an account? <a href="https://hangboarding.github.io/bluies-finest/">Sign in</a></span>
+    <span>Already have an account? <a href="https://hangboarding.github.io/bluies-finest/">Log in</a></span>
   </footer>
 </div>
 
