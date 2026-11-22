@@ -112,6 +112,23 @@ export async function loadUserData() {
   if (localNewer || migrate) saveSettings();
 }
 
+/** Re-fetch what other people change (profiles, recent sessions, challenges) without touching my
+ *  settings. Sessions still waiting to upload from this phone are kept. Used by pull-to-refresh. */
+export async function refreshShared() {
+  const s = state.store, id = s.currentUserId(); if (!id) return;
+  const since = new Date(Math.min(Date.now() - RECENT_DAYS * 864e5, +seasonOf(new Date()).start)).toISOString();
+  const [profiles, mine, recent, social, challenges] = await Promise.all([s.listProfiles(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }),
+    s.socialCounts().catch(() => state.social), s.listChallenges().catch(() => state.challenges)]);
+  const byId = new Map<string, Session>();
+  for (const x of [...mine, ...recent]) byId.set(x.id, x);
+  const pending = state.sessions.filter(x => x.pendingUpload && !byId.has(x.id));
+  state.sessions = [...pending, ...[...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))];
+  state.profiles = new Map(profiles.map(p => [p.id, p]));
+  state.me = state.profiles.get(id) ?? state.me;
+  state.social = social; state.challenges = challenges;
+  document.dispatchEvent(new CustomEvent('bf:sessions-changed'));
+}
+
 let saveTimer: number | undefined;
 /** Persist settings locally right away and to the backend shortly after.
  *  Does nothing until the user's real settings have loaded, so defaults can never overwrite them. */

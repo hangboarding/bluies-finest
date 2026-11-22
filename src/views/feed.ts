@@ -1,6 +1,7 @@
 import { $, esc, avatar, relTime, toast, confirmSheet, vibrate } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { state, profileOf } from '../lib/state';
+import { state, profileOf, refreshShared } from '../lib/state';
+import { refreshNotifs } from './notifs';
 import type { FeedItem } from '../lib/types';
 import { weeklyRecap } from '../lib/recap';
 import { challengeCard, championBanner, maybeCelebrate } from './challenge-card';
@@ -11,7 +12,8 @@ let open = '';
 const liking = new Set<string>();
 
 export async function renderFeed(root: HTMLElement) {
-  root.innerHTML = `<div class="chips g g3" id="feedF" style="margin-bottom:12px">
+  feedRoot = root;
+  root.innerHTML = `<div class="ptr" id="ptr" aria-hidden="true"><i class="ptr-sp"></i></div><div class="chips g g3" id="feedF" style="margin-bottom:12px">
       <span class="chip ${filter === 'all' ? 'on' : ''}" data-f="all" role="button" tabindex="0" aria-pressed="${filter === 'all'}">${ic('globe')} Everyone</span><span class="chip ${filter === 'me' ? 'on' : ''}" data-f="me" role="button" tabindex="0" aria-pressed="${filter === 'me'}">${ic('users')} Me</span><span class="chip ${filter === 'pb' ? 'on' : ''}" data-f="pb" role="button" tabindex="0" aria-pressed="${filter === 'pb'}">${ic('medal')} PBs</span></div>
     ${championBanner()}
     ${challengeCard()}
@@ -30,6 +32,40 @@ export async function renderFeed(root: HTMLElement) {
     el?.scrollIntoView({ block: 'center' }); el?.classList.add('flash');
   }
 }
+
+// ---------- pull to refresh ----------
+let feedRoot: HTMLElement | null = null, pullY: number | null = null, pulled = 0, refreshing = false;
+const PULL = 70; // how far to drag (px) before letting go refreshes
+const feedVisible = () => !!feedRoot?.isConnected && !feedRoot.closest('.hide') && !document.querySelector('.modal');
+/** dist = how far it's pulled; the spinner turns as you pull and spins while refreshing. */
+function ptrShow(dist: number, spin = false, dragging = false) {
+  const p = $('#ptr'); if (!p) return;
+  p.style.height = `${dist}px`; p.classList.toggle('spin', spin); p.classList.toggle('drag', dragging);
+  p.style.setProperty('--pull', String(Math.min(1, dist / PULL)));
+}
+export async function refreshFeed() {
+  if (refreshing || !feedRoot) return;
+  refreshing = true; ptrShow(48, true);
+  try { await refreshShared(); refreshNotifs(); await renderFeed(feedRoot); }
+  catch (e: any) { toast(e?.message ?? 'Couldn’t refresh. Check your connection.'); ptrShow(0); }
+  finally { refreshing = false; }
+}
+addEventListener('touchstart', e => {
+  pullY = feedVisible() && scrollY <= 0 && !refreshing && e.touches.length === 1 ? e.touches[0]!.clientY : null; pulled = 0;
+}, { passive: true });
+addEventListener('touchmove', e => {
+  if (pullY == null) return;
+  const dy = e.touches[0]!.clientY - pullY;
+  if (dy <= 0 || scrollY > 0) { pulled = 0; ptrShow(0); return; }
+  pulled = Math.min(110, dy * 0.5); // resistance, like the native gesture
+  ptrShow(pulled, false, true);
+}, { passive: true });
+addEventListener('touchend', () => {
+  if (pullY == null) return;
+  pullY = null;
+  if (pulled >= PULL) { vibrate(10); refreshFeed(); } else ptrShow(0);
+  pulled = 0;
+});
 
 /** Open the feed at a particular post (used by notifications). */
 let focusId = '';

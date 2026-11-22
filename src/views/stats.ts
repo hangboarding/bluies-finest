@@ -7,7 +7,7 @@ import type { Session } from '../lib/types';
 import { placeOf } from '../lib/leaderboard';
 
 const DAY = 864e5, MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], DW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-let hs: 'w' | 'm' | 'q' | 'y' = 'm', ho = 0;
+let hs: 'w' | 'm' | 'q' | 'y' = 'y', ho = 0;
 
 export function renderStats(root: HTMLElement) {
   const mine = mySessions(), now = new Date();
@@ -15,7 +15,7 @@ export function renderStats(root: HTMLElement) {
   root.innerHTML = `
   <div class="card"><div class="stats" style="margin:0"><div class="stat"><b>${mine.length}</b>sessions</div><div class="stat"><b>${weekStreak(mine)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank}</b>rank</div></div>${(() => { const f = favouriteProtocol(mine); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}</div>
   <div class="card"><h3>${ic('calendar')} Consistency</h3>
-    <div class="chips g g4" id="hscale" style="margin-bottom:10px">${(['w', 'm', 'q', 'y'] as const).map(k => `<span class="chip ${hs === k ? 'on' : ''}" data-s="${k}" role="button" tabindex="0" aria-pressed="${hs === k}">${{ w: 'Week', m: 'Month', q: '3 months', y: 'Year' }[k]}</span>`).join('')}</div>
+    <div class="chips g g4" id="hscale" style="margin-bottom:10px">${(['y', 'q', 'm', 'w'] as const).map(k => `<span class="chip ${hs === k ? 'on' : ''}" data-s="${k}" role="button" tabindex="0" aria-pressed="${hs === k}">${{ w: 'Week', m: 'Month', q: '3 months', y: 'Year' }[k]}</span>`).join('')}</div>
     <div class="hnav"><button id="hPrev" aria-label="Previous period">‹</button><b id="hLbl"></b><button id="hNext" aria-label="Next period">›</button></div>
     <div class="heatbox" id="heatbox"><div class="yr-wrap"><div class="ydays"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div><div><div class="ymon" id="ymon"></div><div class="heat" id="heat"></div></div></div></div>
     <div class="hsum" id="hsum"></div>
@@ -58,8 +58,17 @@ function heat() {
   }
   h.innerHTML = html; $('#hLbl').textContent = lbl; ($('#hNext') as HTMLButtonElement).disabled = ho >= 0;
   if (hs === 'y') {
-    let m = '', last = -1;
-    for (let c = 0; c < cols; c++) { const d = addDays(st, c * 7 - lead), mo = d.getMonth(); m += `<span>${c === 0 || (mo !== last && d.getFullYear() === st.getFullYear()) ? MON[mo] : ''}</span>`; last = mo; }
+    // Label a column with its month when that month starts there (using the first day of the column
+    // that's inside this year, so the week of 1 Jan reads "Jan", not "Dec"), and keep labels at least
+    // 3 columns apart so they never overlap.
+    let m = '', last = -1, lastCol = -9;
+    for (let c = 0; c < cols; c++) {
+      const d = addDays(st, Math.max(0, c * 7 - lead)), mo = d.getMonth();
+      const show = mo !== last && c - lastCol >= 3;
+      m += `<span>${show ? MON[mo] : ''}</span>`;
+      if (show) lastCol = c;
+      last = mo;
+    }
     $('#ymon').innerHTML = m; box.scrollLeft = ho < 0 ? 0 : box.scrollWidth;
   }
   const elapsed = Math.max(1, Math.min(n, Math.round((+today - +st) / DAY) + 1));

@@ -254,3 +254,10 @@ html:has(.modal),body:has(.modal){overflow:hidden}
 .vh{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .upl:focus-within{outline:2px solid var(--acc);outline-offset:3px}
 .numset{display:flex;align-items:center;gap:4px;flex:none;margin-left:10px}.numset .tx{width:64px;height:40px;text-align:center;padding:0 6px}.numset small{color:var(--mute)}
+/* pull to refresh (Activity): a spinner that turns as you pull and spins while refreshing */
+.ptr{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:height .2s ease}.ptr.drag{transition:none}
+.ptr-sp{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--acc);opacity:var(--pull,0);transform:rotate(calc(var(--pull,0) * 270deg))}
+.ptr.spin .ptr-sp{opacity:1;animation:ptrspin .7s linear infinite}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
+/* our own pull gesture replaces the browser's pull-to-reload on Activity */
+html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
