@@ -4,6 +4,7 @@ import { $, esc, avatar, relTime, sheet } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, saveSettings } from '../lib/state';
 import type { Notif } from '../lib/types';
+import { openAdmin } from './admin';
 
 let items: Notif[] = [];
 let loading = false;
@@ -41,6 +42,7 @@ export function wireBell(goToFeed: (sessionId: string) => void) {
     const since = seenAt();
     const rows = items.map(n => {
       const p = state.profiles.get(n.fromUserId), isNew = !since || n.createdAt > since;
+      if (n.kind === 'issue') return `<button class="nrow ${isNew ? 'new' : ''}" data-issue="${n.sessionId}">${avatar(p)}<span><b>${esc(p?.name ?? 'Someone')}</b> ${ic('bug')} reported an issue: “${esc((n.body ?? '').slice(0, 80))}”<small>${relTime(n.createdAt)}</small></span></button>`;
       const what = n.kind === 'like'
         ? `${ic('hearted')} hearted your <b>${esc(n.protocolName)}</b>`
         : `${ic('comment')} commented on your <b>${esc(n.protocolName)}</b>: “${esc((n.body ?? '').slice(0, 80))}”`;
@@ -55,7 +57,7 @@ export function wireBell(goToFeed: (sessionId: string) => void) {
     el.addEventListener('click', e => {
       const r = (e.target as HTMLElement).closest('.nrow') as HTMLElement | null; if (!r) return;
       el.closest('.modal')?.remove();
-      goToFeed(r.dataset.sid!);
+      if (r.dataset.issue) openAdmin(); else goToFeed(r.dataset.sid!);
     });
     await done;
   });

@@ -1,6 +1,6 @@
 // Real multi-user backend on Supabase. See docs/SUPABASE.md and supabase/schema.sql.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store, Notif, InviteCode, SeasonChampion, ChallengeRow } from './types';
+import type { Issue, IssueCategory, Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store, Notif, InviteCode, SeasonChampion, ChallengeRow } from './types';
 
 // ---------------------------------------------------------------------------
 // Row <-> object mapping
@@ -499,11 +499,37 @@ export class SupabaseStore implements Store {
     ]);
     if (likes.error) throw friendly(likes.error);
     if (comments.error) throw friendly(comments.error);
+    // Admins also hear about open problem reports. The database only shows other people's reports to
+    // admins, so everyone else gets none; an error (issues.sql not run yet) is ignored.
+    const issues = await this.client.from('issues').select('id,user_id,body,created_at').eq('status', 'open').neq('user_id', uid).order('created_at', { ascending: false }).limit(limit);
     const out: Notif[] = [
+      ...((issues.error ? [] : issues.data) as any[]).map(r => ({ kind: 'issue' as const, sessionId: r.id, protocolName: '', fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
       ...(likes.data as any[]).map(r => ({ kind: 'like' as const, sessionId: r.session_id, protocolName: r.sessions?.protocol_name ?? '', fromUserId: r.user_id, createdAt: r.created_at })),
       ...(comments.data as any[]).map(r => ({ kind: 'comment' as const, sessionId: r.session_id, protocolName: r.sessions?.protocol_name ?? '', fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
     ];
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  }
+
+  async reportIssue(i: { category: IssueCategory; body: string; context: string }): Promise<void> {
+    this.requireUid();
+    const body = i.body.trim().slice(0, 2000);
+    if (!body) throw new Error('Describe the problem first');
+    const { error } = await this.client.from('issues').insert({ category: i.category, body, context: i.context.slice(0, 500) });
+    if (error) throw error.code === '42P01' || /relation .*issues/.test(error.message) ? new Error('Problem reports aren’t set up yet. Ask an admin to run supabase/issues.sql.') : friendly(error);
+  }
+
+  async listIssues(): Promise<Issue[]> {
+    this.requireUid();
+    const rows = check(await this.client.from('issues').select('id,user_id,category,body,context,status,created_at').order('created_at', { ascending: false }).limit(200)) as any[];
+    return rows.map(r => ({ id: r.id, userId: r.user_id, category: r.category, body: r.body, context: r.context ?? '', status: r.status, createdAt: r.created_at }));
+  }
+
+  async setIssueStatus(id: string, status: Issue['status']): Promise<void> {
+    this.requireUid(); check(await this.client.from('issues').update({ status }).eq('id', id));
+  }
+
+  async deleteIssue(id: string): Promise<void> {
+    this.requireUid(); check(await this.client.from('issues').delete().eq('id', id));
   }
 
   async listInviteCodes(): Promise<InviteCode[]> {

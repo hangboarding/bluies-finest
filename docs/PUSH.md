@@ -107,6 +107,22 @@ Then push a commit, or re-run the deploy from the **Actions** tab, to rebuild th
 
 Notifications are per device, so turn them on on each phone you use.
 
+## Problem reports (Report an issue)
+
+Members can send a report from **Profile → Report an issue**. Admins see every report under **Profile → Admin tools**, and open ones show in their notification bell. To set it up:
+
+1. In the **SQL Editor**, run [`supabase/issues.sql`](../supabase/issues.sql). Reports work in the app from this point.
+2. **Phone notifications to admins:** add a third webhook as in step 6, named `notify_issues`, on the `issues` table, **Insert** only, same function and header. Redeploy the function (step 5) so it has the issue code. Admins get a push on each phone where they've turned notifications on.
+3. **Emails to admins (optional):** make a free account at [resend.com](https://resend.com), create an API key, then add these secrets (as in step 3):
+
+   | Name | Value |
+   |---|---|
+   | `RESEND_API_KEY` | the API key from Resend |
+   | `ISSUE_EMAIL_FROM` | optional. The sender, e.g. `Bluies Finest <reports@yourdomain.com>`; the domain must be verified in Resend. Leave it out to use Resend's test sender `onboarding@resend.dev`, which can only email the address your Resend account was made with. |
+   | `APP_URL` | optional. The app's address, e.g. `https://hangboarding.github.io/bluies-finest/`, for a link in the email |
+
+   Every member with **is_admin** ticked in the `profiles` table gets the email, at the address they sign in with. If you don't add `RESEND_API_KEY`, no emails are sent and everything else still works.
+
 ## Troubleshooting
 
 **No notification arrives**

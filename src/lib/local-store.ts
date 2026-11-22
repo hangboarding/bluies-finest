@@ -1,7 +1,7 @@
 // Demo backend: everything lives in this browser's localStorage, seeded with a few
 // pretend climbers so the leaderboard and feed have something in them.
 // Used when no Supabase keys are configured. Not secure — demo only.
-import type { ChallengeRow, Comment, FeedItem, InviteCode, NewSession, Notif, PrivateData, Profile, SeasonChampion, Session, Store } from './types';
+import type { ChallengeRow, Comment, FeedItem, InviteCode, Issue, IssueCategory, NewSession, Notif, PrivateData, Profile, SeasonChampion, Session, Store } from './types';
 import { championsFrom } from './seasons';
 import { sessionPoints } from './scoring';
 import { PROTOCOLS } from './protocols';
@@ -159,6 +159,8 @@ export class LocalStore implements Store {
       ...this.db.likes.filter(l => mine.has(l.s) && l.u !== me).map(l => ({ kind: 'like' as const, sessionId: l.s, protocolName: mine.get(l.s)!.protocolName, fromUserId: l.u, createdAt: (l as any).at ?? mine.get(l.s)!.createdAt })),
       ...this.db.comments.filter(c => mine.has(c.sessionId) && c.userId !== me).map(c => ({ kind: 'comment' as const, sessionId: c.sessionId, protocolName: mine.get(c.sessionId)!.protocolName, fromUserId: c.userId, body: c.body, createdAt: c.createdAt })),
     ];
+    if (this.db.profiles.find(p => p.id === me)?.isAdmin)
+      out.push(...this.issues().filter(i => i.status === 'open' && i.userId !== me).map(i => ({ kind: 'issue' as const, sessionId: i.id, protocolName: '', fromUserId: i.userId, body: i.body, createdAt: i.createdAt })));
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
   }
   private codes(): InviteCode[] { return ((this.db as any).codes ??= [{ code: 'BLUIES', maxUses: null, uses: this.db.users.length, createdAt: new Date().toISOString() }]); }
@@ -173,6 +175,15 @@ export class LocalStore implements Store {
   }
   async deleteInviteCode(code: string) { this.needAdmin(); (this.db as any).codes = this.codes().filter(x => x.code !== code); this.save(); }
   async seasonChampions(): Promise<SeasonChampion[]> { this.need(); return championsFrom(this.db.sessions); }
+  private issues(): Issue[] { return ((this.db as any).issues ??= []); }
+  async reportIssue(i: { category: IssueCategory; body: string; context: string }) {
+    const me = this.need(), body = i.body.trim().slice(0, 2000);
+    if (!body) throw new Error('Describe the problem first');
+    this.issues().unshift({ id: uid(), userId: me, category: i.category, body, context: i.context.slice(0, 500), status: 'open', createdAt: new Date().toISOString() }); this.save();
+  }
+  async listIssues() { this.needAdmin(); return structuredClone(this.issues()); }
+  async setIssueStatus(id: string, status: Issue['status']) { this.needAdmin(); const x = this.issues().find(i => i.id === id); if (x) { x.status = status; this.save(); } }
+  async deleteIssue(id: string) { this.needAdmin(); (this.db as any).issues = this.issues().filter(i => i.id !== id); this.save(); }
   private challenges(): ChallengeRow[] { return ((this.db as any).challenges ??= []); }
   async listChallenges() { this.need(); return structuredClone(this.challenges()); }
   async saveChallenge(c: Omit<ChallengeRow, 'id'> & { id?: string }) {

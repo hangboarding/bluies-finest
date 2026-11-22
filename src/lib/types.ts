@@ -54,7 +54,10 @@ export interface Comment { id: string; sessionId: string; userId: string; body: 
 export interface FeedItem { session: Session; likes: number; likedByMe: boolean; comments: Comment[]; }
 
 /** Someone hearted or commented on one of my sessions. */
-export interface Notif { kind: 'like' | 'comment'; sessionId: string; protocolName: string; fromUserId: string; body?: string; createdAt: string; }
+export type IssueCategory = 'bug' | 'idea' | 'account' | 'other';
+export interface Issue { id: string; userId: string; category: IssueCategory; body: string; context: string; status: 'open' | 'resolved'; createdAt: string; }
+/** kind 'issue' only reaches admins: sessionId is then the issue id. */
+export interface Notif { kind: 'like' | 'comment' | 'issue'; sessionId: string; protocolName: string; fromUserId: string; body?: string; createdAt: string; }
 /** Admin-only view of a sign-up code. */
 export interface SeasonChampion { seasonStart: string; userId: string; points: number; }
 export interface ChallengeRow { id: string; title: string; metric: 'hangs' | 'sessions' | 'minutes' | 'pbs' | 'climbers'; target: number; startsOn: string; endsOn: string; }
@@ -101,6 +104,11 @@ export interface Store {
   listInviteCodes(): Promise<InviteCode[]>;
   saveInviteCode(code: string, maxUses: number | null): Promise<void>;
   deleteInviteCode(code: string): Promise<void>;
+  // problem reports: anyone can send one; only admins can list and update them
+  reportIssue(i: { category: IssueCategory; body: string; context: string }): Promise<void>;
+  listIssues(): Promise<Issue[]>;
+  setIssueStatus(id: string, status: Issue['status']): Promise<void>;
+  deleteIssue(id: string): Promise<void>;
   // seasons & challenges
   /** Winners of every finished season (ties share the title). */
   /** null = the season_champions function isn't installed on the server yet. */

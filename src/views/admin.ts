@@ -3,7 +3,8 @@
 import { esc, avatar, sheet, toast, confirmSheet, promptSheet, relTime } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state } from '../lib/state';
-import type { ChallengeRow, Comment, InviteCode } from '../lib/types';
+import type { ChallengeRow, Comment, InviteCode, Issue } from '../lib/types';
+import { ISSUE_CATS } from './report';
 import { METRICS, todayISO, type Metric } from '../lib/challenges';
 
 let root: HTMLElement | null = null;
@@ -21,6 +22,8 @@ async function draw() {
   const [c, f] = await Promise.allSettled([state.store.listInviteCodes(), state.store.feed(60)]);
   if (c.status === 'fulfilled') codes = c.value;
   else codeErr = 'Run supabase/admin.sql in the Supabase SQL editor to manage invite codes from here.';
+  let issues: Issue[] = [], issueErr = '';
+  try { issues = await state.store.listIssues(); } catch { issueErr = 'Run supabase/issues.sql in the Supabase SQL editor to receive problem reports.'; }
   if (f.status === 'fulfilled') comments = f.value.flatMap(x => x.comments.map(cm => ({ ...cm, protocol: x.session.protocolName }))).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 25);
   if (!root?.isConnected) return;
 
@@ -35,6 +38,13 @@ async function draw() {
   root.innerHTML = `
     <h2 style="display:flex;align-items:center;gap:8px;margin:0">${ic('admin')} Admin tools</h2>
     <p class="sub" style="margin:4px 0 0">Only admins can see this page.</p>
+
+    <h3>${ic('bug')} Reported issues${issues.some(i => i.status === 'open') ? ` (${issues.filter(i => i.status === 'open').length} open)` : ''}</h3>
+    ${issueErr ? `<p class="sub">${issueErr}</p>` : issues.map(i => `<div class="iss ${i.status === 'resolved' ? 'done' : ''}" data-iss="${i.id}">
+      <div class="iss-hd">${avatar(who(i.userId))}<b>${esc(who(i.userId)?.name ?? 'Climber')}</b> · ${esc(ISSUE_CATS[i.category] ?? i.category)}<small>${relTime(i.createdAt)}${i.status === 'resolved' ? ' · resolved' : ''}</small></div>
+      <p>${esc(i.body)}</p>${i.context ? `<div class="ctx">${esc(i.context)}</div>` : ''}
+      <div class="iss-act"><button class="pill" data-act="${i.status === 'open' ? 'resolve' : 'reopen'}">${i.status === 'open' ? `${ic('check')} Mark resolved` : 'Reopen'}</button>
+        <button class="ed" data-act="deliss" aria-label="Delete report">${ic('trash')}</button></div></div>`).join('') || '<p class="sub">No reports. Members can send one from Profile → Report an issue.</p>'}
 
     <h3>${ic('ticket')} Invite codes</h3>
     ${codeErr ? `<p class="sub">${codeErr}</p>` : `
@@ -135,6 +145,11 @@ async function onClick(e: MouseEvent) {
   try {
     switch (b.dataset.act) {
       case 'backup': await backupAll(b as HTMLButtonElement); return;
+      case 'resolve': case 'reopen':
+        await state.store.setIssueStatus((b.closest('.iss') as HTMLElement).dataset.iss!, b.dataset.act === 'resolve' ? 'resolved' : 'open'); break;
+      case 'deliss':
+        if (!await confirmSheet('Delete report?', 'This permanently removes the report.', 'Delete')) return;
+        await state.store.deleteIssue((b.closest('.iss') as HTMLElement).dataset.iss!); toast('Report deleted'); break;
       case 'addchal': {
         const v = (id: string) => (root!.querySelector(id) as HTMLInputElement).value.trim();
         const title = v('#chTitle'), target = Math.floor(+v('#chTarget')), startsOn = v('#chStart'), endsOn = v('#chEnd');

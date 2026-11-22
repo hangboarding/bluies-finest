@@ -10,22 +10,9 @@ const EYE_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" str
 
 export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
   const demo = state.store.kind === 'local';
-  // Safari, DuckDuckGo and others offer saved passwords as soon as a login field exists on the page,
-  // whatever its autocomplete says. So the email/password boxes start as look-alike buttons and only
-  // become real inputs when tapped; the browser's saved-password offer then appears at that point.
-  const real = new Map<string, string>();
   const field = (id: string, ph: string, type = 'text', ac = '') => {
-    const pw = type === 'password';
-    const input = `<input class="tx" id="${id}" type="${type}" placeholder="${ph}" aria-label="${ph}" autocomplete="${ac}"${pw ? ' autocapitalize="off" autocorrect="off" spellcheck="false"' : ''} style="margin-bottom:10px">`;
-    const html = pw ? `<div class="pwwrap">${input}<button type="button" class="pweye" aria-label="Show password" aria-pressed="false">${EYE}</button></div>` : input;
-    if (!pw && type !== 'email') return html;
-    real.set(id, html);
-    return `<button type="button" class="tx fakein" data-for="${id}" aria-label="${ph}">${ph}</button>`;
-  };
-  // Swap every look-alike for its real input (all at once, so the browser sees the whole login form).
-  const reveal = (focusId?: string) => {
-    root.querySelectorAll<HTMLElement>('.fakein').forEach(f => { f.outerHTML = real.get(f.dataset.for!)!; });
-    if (focusId) ($(`#${focusId}`) as HTMLInputElement | null)?.focus();
+    const input = `<input class="tx" id="${id}" type="${type}" placeholder="${ph}" aria-label="${ph}" autocomplete="${ac}" style="margin-bottom:10px">`;
+    return type === 'password' ? `<div class="pwwrap">${input}<button type="button" class="pweye" aria-label="Show password" aria-pressed="false">${EYE}</button></div>` : input;
   };
   root.innerHTML = `<div class="auth">
     ${animatedLogo(156)}
@@ -53,8 +40,6 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
   };
   const form = $('#authForm') as HTMLFormElement;
   form.addEventListener('click', e => {
-    const fake = (e.target as HTMLElement).closest('.fakein') as HTMLElement | null;
-    if (fake) { reveal(fake.dataset.for); return; }
     const b = (e.target as HTMLElement).closest('.pweye') as HTMLButtonElement | null; if (!b) return;
     const i = b.previousElementSibling as HTMLInputElement, show = i.type === 'password';
     i.type = show ? 'text' : 'password';
@@ -62,7 +47,6 @@ export function renderAuth(root: HTMLElement, mode: Mode = 'in') {
   });
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    if (form.querySelector('.fakein')) { reveal(); toast('Fill in the form first', 3000); return; }
     const v = (id: string) => (($(`#${id}`) as HTMLInputElement | null)?.value ?? '').trim();
     const btn = $('#aGo') as HTMLButtonElement; btn.disabled = true;
     try {

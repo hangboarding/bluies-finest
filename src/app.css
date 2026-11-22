@@ -223,4 +223,11 @@ header{padding-top:calc(12px + env(safe-area-inset-top, 0px))}
 .pweye{position:absolute;right:4px;top:4px;width:40px;height:40px;display:grid;place-items:center;background:none;border:0;border-radius:10px;color:var(--mute);cursor:pointer}
 .pweye:hover{color:var(--ink)}
 input.tx::-ms-reveal{display:none}
-.fakein{display:block;text-align:left;color:var(--mute);margin-bottom:10px;cursor:text;font:inherit;font-size:16px}
+/* report an issue */
+.report-sheet{text-align:left}.report-sheet h2{display:flex;align-items:center;gap:8px}
+.rep-cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.rep-cats .chip{padding:8px 12px;font-size:13px}
+textarea.tx{width:100%;background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:14px;height:auto;min-height:130px;padding:12px;resize:vertical;line-height:1.45;font:inherit}
+.iss{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--card2)}
+.iss.done{opacity:.6}.iss-hd{display:flex;align-items:center;gap:8px;font-size:13px}.iss-hd small{margin-left:auto;color:var(--mute)}
+.iss p{margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere}.iss .ctx{font-size:11px;color:var(--mute);overflow-wrap:anywhere}
+.iss-act{display:flex;gap:6px;margin-top:8px}.iss-act .pill{padding:6px 12px;font-size:12px}
