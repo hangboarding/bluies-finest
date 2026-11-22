@@ -6,7 +6,7 @@ import { applyTheme, ACCENTS, refreshHeader, rerender } from '../main';
 import { bumpDaily } from '../lib/achievements';
 import { setSound } from '../lib/timer';
 import { resetTours } from './tour';
-import { addBoard, hangBusy, hangPending } from './hang';
+import { addBoard, hangBusy, hangPending, getReady, preHang } from './hang';
 import { openAdmin } from './admin';
 import { openReport } from './report';
 import { pushSupport, pushEnabled, enablePush, disablePush } from '../lib/push';
@@ -44,6 +44,8 @@ export function renderProfile(root: HTMLElement) {
   <div class="card"><h3>${ic('settings')} Settings</h3>
     ${toggle('sound', 'Sounds', 'Countdown beeps and the finish chime', 'sound')}
     ${toggle('vib', 'Vibration', 'Buzz on phase changes (phones only)', 'vib')}
+    <div class="tg"><span>${ic('ready')} Get-ready countdown<small>Before the first hang, to chalk up and get set. 0 skips it.</small></span><span class="numset"><input class="tx" id="setReady" type="number" inputmode="numeric" min="0" max="60" value="${getReady()}" aria-label="Get-ready countdown in seconds"><small>s</small></span></div>
+    <div class="tg"><span>${ic('rest')} Pre-hang countdown<small>Beeps for the last few seconds of each rest. Always ends before the rest does.</small></span><span class="numset"><input class="tx" id="setPre" type="number" inputmode="numeric" min="0" max="30" value="${preHang()}" aria-label="Pre-hang countdown in seconds"><small>s</small></span></div>
     ${toggle('warmup', 'Warm-up reminder', 'Suggest a warm-up before max-effort sessions', 'sprout')}
     ${toggle('nudges', 'Overtraining warnings', 'Warn about back-to-back hard days or too many max sessions in a week', 'help')}
     <div class="tg hide" id="pushRow"><span>${ic('bell')} Phone notifications<small id="pushSub">When someone hearts or comments on your sessions</small></span><button class="sw2" id="pushTg" role="switch" aria-checked="false" aria-label="Phone notifications"></button></div>
@@ -59,6 +61,17 @@ export function renderProfile(root: HTMLElement) {
   <button class="big ghost danger-text" id="delAcc" style="margin-top:10px">${ic('trash')} Delete account</button>`;
   drawBoardList(); hydrateIcons(root); drawPush();
   root.onclick = onClick;
+  // countdown settings: saved when the box loses focus or Enter is pressed
+  const numPref = (id: string, key: 'ready' | 'pre', max: number, label: string) => {
+    const i = $(`#${id}`) as HTMLInputElement;
+    i.addEventListener('change', () => {
+      const n = Math.round(+i.value);
+      if (!Number.isFinite(n) || n < 0 || n > max) { i.value = String(key === 'ready' ? getReady() : preHang()); return toast(`${label} can be 0–${max} seconds`); }
+      S.prefs[key] = n; i.value = String(n); saveSettings(); toast(`${label}: ${n ? n + 's' : 'off'}`);
+    });
+  };
+  numPref('setReady', 'ready', 60, 'Get-ready countdown');
+  numPref('setPre', 'pre', 30, 'Pre-hang countdown');
   $('#file').addEventListener('change', onPhoto);
   // custom colour: live preview while dragging, saved when the picker closes
   const pick = $('#accPick') as HTMLInputElement;

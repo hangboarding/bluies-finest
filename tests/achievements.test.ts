@@ -58,12 +58,20 @@ describe('diffUnlocks', () => {
     const s = sessionAt(2026, 11, 22, 12, { grip: 'Half crimp', protocolKey: 'max', edgeMm: 20, fullHangs: 5, totalHangs: 5 });
     expect(diffUnlocks(ctx(), ctx({ sessions: [s] }))).toEqual([
       { icon: '🧗', text: 'Sessions → Iron' },
-      { icon: '📏', text: 'Smallest edge → Bronze' },
       { icon: '🤏', text: 'Crimp sessions → Iron' },
       { icon: '📅', text: 'Training days → Iron' },
       { icon: '👶', text: 'First Hang' },
       { icon: '💯', text: 'Perfect Session' },
     ]);
+  });
+
+  it('"best" badges need the level in 3 different sessions, not one lucky hang', () => {
+    const at = (edgeMm: number, held: number) => sessionAt(2026, 11, 22, 12, { edgeMm, fullHangs: 1, totalHangs: 1, hangs: [{ set: 1, rep: 1, hand: 'both', target: held, held, full: true }] });
+    const edge = TIERED.find(t => t.name === 'Smallest edge')!, long = TIERED.find(t => t.name === 'Longest hang')!;
+    expect(edge.value(ctx({ sessions: [at(14, 10)] }))).toBeNull();
+    expect(edge.value(ctx({ sessions: [at(14, 10), at(15, 10)] }))).toBeNull();
+    expect(edge.value(ctx({ sessions: [at(14, 10), at(15, 10), at(18, 10)] }))).toBe(18); // 18mm is held in 3 sessions
+    expect(long.value(ctx({ sessions: [at(20, 60), at(20, 30), at(20, 31)] }))).toBe(30); // one 60s hang doesn't count yet
   });
 
   it('reports a tier-up between existing tiers', () => {

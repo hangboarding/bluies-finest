@@ -49,7 +49,7 @@ language plpgsql
 set search_path = public
 as $$
 declare
-  lf double precision;
+  li double precision;
   ef double precision;
 begin
   if tg_op = 'INSERT' then
@@ -83,13 +83,18 @@ begin
   end if;
   if new.full_hangs = 0 then new.is_pb := false; end if; -- no PB without a single full hang
 
-  -- Same formula as src/lib/scoring.ts sessionPoints()
-  lf := case when new.mode = 'lift' then coalesce(nullif(new.effort_pct, 0), 60) / 100.0
-             else coalesce(new.load_pct, 100) / 100.0 end;
-  lf := least(2, greatest(0.4, lf));
+  -- Same formula as src/lib/scoring.ts sessionPoints() (points v2, November 2026):
+  -- intensity = load as a fraction of bodyweight on two arms (one-arm counts double; lifts store
+  -- per-hand kg × 2 ÷ bodyweight in load_pct), clamped 0.4–3; work = tut × intensity² × edge factor;
+  -- points = 5 + 40·ln(1 + work/40) + 10 × share of hangs held full + 10 for a PB.
+  li := case when new.mode = 'lift' then coalesce(new.load_pct / 100.0, coalesce(nullif(new.effort_pct, 0), 60) / 100.0)
+             else coalesce(new.load_pct, 100) / 100.0 * case when new.hands = 'both' then 1 else 2 end end;
+  li := least(3, greatest(0.4, li));
   ef := least(1.6, greatest(0.6, 20.0 / greatest(1, new.edge_mm)));
   -- numeric rounding (halves round up) to match JavaScript's Math.round exactly
-  new.points := round((5 + new.tut_s * lf * ef / 2 + 2 * new.full_hangs + case when new.is_pb then 20 else 0 end)::numeric);
+  new.points := round((5 + 40 * ln(1 + greatest(0, new.tut_s) * li * li * ef / 40.0)
+                       + case when new.total_hangs > 0 then 10.0 * new.full_hangs / new.total_hangs else 0 end
+                       + case when new.is_pb then 10 else 0 end)::numeric);
   return new;
 end $$;
 

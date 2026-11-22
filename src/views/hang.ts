@@ -3,7 +3,7 @@ import { ic, hydrateIcons } from '../lib/icons';
 import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, type Values, type Protocol } from '../lib/protocols';
 import { state, saveSettings, mySessions, achievementCtx } from '../lib/state';
 import { SessionTimer, buildSteps, beep, fanfare, unlockAudio, keepAwake, handsLabel, type Step } from '../lib/timer';
-import { sessionPoints, loadPct } from '../lib/scoring';
+import { sessionPoints, loadPct, liftPct } from '../lib/scoring';
 import { diffUnlocks, bumpDaily } from '../lib/achievements';
 import type { HangResult, NewSession } from '../lib/types';
 import { confetti } from '../lib/confetti';
@@ -126,6 +126,8 @@ const LIMITS: Record<string, [number, number]> = {
   hang: [1, 300], rest: [0, 900], sets: [1, 50], reps: [1, 30], setRest: [0, 1800], edge: [3, 60],
   add: [0, 150], rem: [0, 150], lift: [0, 200], effort: [5, 100], sw: [0, 120], ready: [0, 60],
 };
+export const getReady = () => { const v = state.settings.prefs.ready; return v == null ? 10 : Math.min(60, Math.max(0, Math.round(v))); };
+export const preHang = () => { const v = state.settings.prefs.pre; return v == null ? 3 : Math.min(30, Math.max(0, Math.round(v))); };
 function readInputs() {
   for (const f of FIELDS) {
     const i = $(`#i-${f.k}`) as HTMLInputElement | null; if (!i) continue;
@@ -149,6 +151,7 @@ function loadProto(k: string) {
   const p = P[k]!; cur = k;
   val = { ...DEFAULTS, ...p, ...(state.settings.vals[k] ?? {}) } as Values;
   val.simple = !!p.simple;
+  val.ready = getReady(); // one setting for every protocol (Profile → Settings)
   ($('#proto') as HTMLSelectElement).value = k;
   $('#protoHint').innerHTML = hint(p);
   setChip('mode', val.mode); setChip('hands', val.hands);
@@ -169,6 +172,14 @@ function applyLoadSuggestion(s: NewSession) {
   if (!p || p.simple || k === 'warm' || k === 'abra' || s.rpe == null) { saveSettings(); return; }
   const d = s.rpe <= 5 ? 2.5 : s.rpe >= 9 ? -2.5 : 0;
   if (!d) { saveSettings(); return; }
+  // Min Edge makes it harder by shrinking the edge, not by adding weight: 1mm smaller when easy, 1mm bigger when very hard
+  if (k === 'min' && s.mode !== 'lift') {
+    const edge = Math.min(60, Math.max(3, s.edgeMm + (d > 0 ? -1 : 1)));
+    if (edge === s.edgeMm) { saveSettings(); return; }
+    S.vals[k] = { ...(S.vals[k] ?? {}), edge };
+    S.suggest[k] = { text: `${d > 0 ? 'Felt easy' : 'Felt very hard'} last time (RPE ${s.rpe}), so the edge is now ${edge}mm`, prev: { add: s.addedKg, rem: s.assistKg, lift: s.liftKg, edge: s.edgeMm } };
+    saveSettings(); if (k === cur) loadProto(k); return;
+  }
   const v = { add: s.addedKg, rem: s.assistKg, lift: s.liftKg }, prev = { ...v };
   if (s.mode === 'lift') v.lift = Math.max(0, v.lift + d);
   else if (d > 0) { const fromAssist = Math.min(v.rem, d); v.rem -= fromAssist; v.add += d - fromAssist; }
@@ -181,8 +192,8 @@ function applyLoadSuggestion(s: NewSession) {
 }
 function undoSuggestion() {
   const S = state.settings, sg = S.suggest?.[cur]; if (!sg) return;
-  S.vals[cur] = { ...(S.vals[cur] ?? {}), add: sg.prev.add, rem: sg.prev.rem, lift: sg.prev.lift };
-  delete S.suggest![cur]; saveSettings(); loadProto(cur); toast('Back to last time’s load');
+  S.vals[cur] = { ...(S.vals[cur] ?? {}), add: sg.prev.add, rem: sg.prev.rem, lift: sg.prev.lift, ...(sg.prev.edge != null ? { edge: sg.prev.edge } : {}) };
+  delete S.suggest![cur]; saveSettings(); loadProto(cur); toast(sg.prev.edge != null ? 'Back to last time’s edge' : 'Back to last time’s load');
 }
 
 // ---------- safety nudges before hard sessions ----------
@@ -326,7 +337,14 @@ function wireSetup(root: HTMLElement) {
   });
   $('#board').addEventListener('change', e => { if ((e.target as HTMLSelectElement).value === '__add') addBoard(); else persist(); });
 
-  $('#start').addEventListener('click', async () => { unlockAudio(); if (!(editing && timer) && !(await preStartCheck())) return; start(); });
+  $('#start').addEventListener('click', async () => {
+    unlockAudio(); readInputs();
+    // the server stores at most 1,500 hangs and 2 hours under tension per session
+    const hangs = val.sets * val.reps * (val.hands === 'LR' ? 2 : 1);
+    if (hangs > 1500 || hangs * val.hang > 7200) return toast(`That's ${hangs.toLocaleString()} hangs${hangs * val.hang > 7200 ? ` and over 2 hours on the board` : ''}. Cut the sets, reps or hang time to log it.`, 5000);
+    if (!(editing && timer) && !(await preStartCheck())) return;
+    start();
+  });
   $('#sugg').addEventListener('click', e => { if ((e.target as HTMLElement).closest('#suggUndo')) undoSuggestion(); });
   $('#pause').addEventListener('click', togglePause);
   $('#skip').addEventListener('click', () => { unlockAudio(); timer?.skip(); });
@@ -373,6 +391,7 @@ function start() {
   timer?.stop();
   timer = new SessionTimer(steps, { onTick: render, onPhase: phase, onWarn: () => beep(880), onDone: done });
   timer.log = prevLog;
+  timer.preWarn = preHang();
   const load = val.mode === 'lift' ? `lift ${val.lift}kg @ ${val.effort}%` : val.add ? `+${val.add}kg` : val.rem ? `−${val.rem}kg` : 'bodyweight';
   $('#tmeta').textContent = `${allProtos()[cur]!.n} · ${val.edge}mm ${chipVal('mat').toLowerCase()} · ${load}`;
   $('#pause').innerHTML = `${ic('pause')} Pause`; hydrateIcons($('#pause'));
@@ -434,16 +453,23 @@ function done(log: HangResult[]) {
   const q = QUOTES[Math.floor(Math.random() * QUOTES.length)]!;
   const tut = log.reduce((a, h) => a + h.held, 0), full = log.filter(h => h.full).length, short = log.filter(h => !h.full);
   const bw = state.priv.bodyweightKg;
-  const lp = val.mode === 'lift' ? null : loadPct(bw, val.add, val.rem);
+  const lp = val.mode === 'lift' ? liftPct(bw, val.lift) : loadPct(bw, val.add, val.rem);
   const mine = mySessions();
   // A PB only counts against genuinely comparable sessions: same mode, edge, hands
   // (one-arm vs two) and a similar hang length (within ±3s).
   const comparable = mine.filter(s => s.mode === val.mode && s.edgeMm === val.edge && s.fullHangs > 0
     && (s.hands === 'both') === (val.hands === 'both') && Math.abs(s.hang - val.hang) <= 3
     && (val.mode === 'lift' || s.loadPct != null)); // sessions logged before bodyweight was set can't be compared
-  const isPb = full > 0 && comparable.length > 0 && (val.mode === 'lift'
+  const heavier = full > 0 && comparable.length > 0 && (val.mode === 'lift'
     ? comparable.every(s => s.liftKg < val.lift)
     : lp != null && comparable.every(s => (s.loadPct ?? 0) < lp));
+  // Also a PB: held a smaller edge than ever before at the same load or more (how Min Edge progresses).
+  const sameStyle = mine.filter(s => s.mode === 'hang' && val.mode === 'hang' && s.fullHangs > 0 && s.loadPct != null
+    && (s.hands === 'both') === (val.hands === 'both') && Math.abs(s.hang - val.hang) <= 3);
+  const smallerEdge = full > 0 && lp != null && sameStyle.length > 0
+    && sameStyle.filter(s => s.loadPct! >= lp).every(s => s.edgeMm > val.edge)
+    && sameStyle.some(s => s.edgeMm > val.edge); // must actually beat an earlier edge
+  const isPb = heavier || smallerEdge;
   pending = {
     protocolKey: cur, protocolName: allProtos()[cur]!.n, mode: val.mode, hang: val.hang, rest: val.rest, sets: val.sets, reps: val.reps, setRest: val.setRest,
     edgeMm: val.edge, addedKg: val.mode === 'lift' ? 0 : val.add, assistKg: val.mode === 'lift' ? 0 : val.rem, liftKg: val.mode === 'lift' ? val.lift : 0, effortPct: val.effort,

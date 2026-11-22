@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   weekStart, addDays, parseDayKey, weekStreak, bestDayRun, dayKey,
-  sessionPoints, loadFactor, edgeFactor, loadPct, CATEGORIES,
+  sessionPoints, intensity, edgeFactor, loadPct, liftPct, CATEGORIES,
 } from '../src/lib/scoring';
 import { session, sessionAt } from './helpers';
 import type { Session } from '../src/lib/types';
@@ -166,45 +166,60 @@ describe('bestDayRun', () => {
 });
 
 describe('points', () => {
-  it('hang session: 5 + tut × load × edge ÷ 2 + 2 per full hang', () => {
-    // 5 + 50 × 1 × 1 / 2 + 2 × 5 = 40
-    expect(sessionPoints(session({ mode: 'hang', tutS: 50, loadPct: 100, edgeMm: 20, fullHangs: 5, isPb: false }))).toBe(40);
+  const pts = (over: Partial<Parameters<typeof session>[0]>) => sessionPoints(session({ mode: 'hang', hands: 'both', tutS: 50, loadPct: 100, edgeMm: 20, fullHangs: 5, totalHangs: 5, isPb: false, ...over } as any));
+
+  it('5 + 40·ln(1 + work/40) + share of full hangs × 10 + PB 10', () => {
+    // work = 50 × 1² × 1 = 50 → 40·ln(2.25) = 32.44; +10 for every hang held → 47.4 → 47
+    expect(pts({})).toBe(47);
+    expect(pts({ isPb: true })).toBe(57);
+    expect(pts({ fullHangs: 0 })).toBe(37);
   });
 
-  it('PB adds 20', () => {
-    expect(sessionPoints(session({ mode: 'hang', tutS: 50, loadPct: 100, edgeMm: 20, fullHangs: 5, isPb: true }))).toBe(60);
+  it('more weight always means more points, and clearly so', () => {
+    const bw = pts({ loadPct: 100 }), plus10 = pts({ loadPct: 110 }), plus20 = pts({ loadPct: 120 }), plus50 = pts({ loadPct: 150 });
+    expect(plus10).toBeGreaterThan(bw);
+    expect(plus20).toBeGreaterThan(plus10);
+    expect(plus50).toBeGreaterThan(plus20);
+    expect(pts({ loadPct: 80 })).toBeLessThan(bw); // assisted scores less
   });
 
-  it('lift session uses target effort, not loadPct', () => {
-    // 5 + 100 × 0.5 × 1 / 2 + 2 × 10 = 50
-    expect(sessionPoints(session({ mode: 'lift', tutS: 100, effortPct: 50, loadPct: 180, edgeMm: 20, fullHangs: 10 }))).toBe(50);
+  it('a heavy Max Hangs session is worth about as much as a long Repeaters session', () => {
+    const max = pts({ tutS: 50, loadPct: 140, fullHangs: 5, totalHangs: 5 });                 // 5 × 10s at +40%
+    const rep = pts({ tutS: 252, loadPct: 80, fullHangs: 36, totalHangs: 36 });               // 36 × 7s assisted
+    const easy = pts({ tutS: 300, loadPct: 50, fullHangs: 30, totalHangs: 30 });              // lots of easy volume
+    expect(Math.abs(max - rep)).toBeLessThanOrEqual(20); // 65 vs 80: repeaters are a longer workload, but not a runaway
+    expect(easy).toBeLessThan(max);
   });
 
-  it('rounds to a whole number', () => {
-    // 5 + 33 × 1.1 × (20/14) / 2 = 30.93 -> 31
-    expect(sessionPoints(session({ mode: 'hang', tutS: 33, loadPct: 110, edgeMm: 14, fullHangs: 0 }))).toBe(31);
+  it('one-arm hangs count double the load', () => {
+    expect(intensity({ mode: 'hang', hands: 'LR', loadPct: 100, effortPct: 0 })).toBe(2);
+    expect(intensity({ mode: 'hang', hands: 'L', loadPct: 80, effortPct: 0 })).toBe(1.6);
+    expect(pts({ hands: 'LR' })).toBeGreaterThan(pts({ hands: 'both' }));
   });
 
-  it('edgeFactor clamps to 0.6–1.6', () => {
+  it('lifts score by weight lifted (stored as per-hand kg × 2 ÷ bodyweight), falling back to target effort', () => {
+    expect(liftPct(70, 35)).toBe(100);
+    expect(liftPct(70, 42)).toBe(120);
+    expect(liftPct(null, 40)).toBeNull();
+    const light = pts({ mode: 'lift', loadPct: liftPct(70, 30) }), heavy = pts({ mode: 'lift', loadPct: liftPct(70, 45) });
+    expect(heavy).toBeGreaterThan(light);
+    expect(intensity({ mode: 'lift', hands: 'both', loadPct: null, effortPct: 50 })).toBe(0.5);
+  });
+
+  it('edgeFactor clamps to 0.6–1.6 and smaller edges score more', () => {
     expect(edgeFactor(20)).toBe(1);
     expect(edgeFactor(5)).toBe(1.6);
     expect(edgeFactor(0)).toBe(1.6);
     expect(edgeFactor(50)).toBe(0.6);
     expect(edgeFactor(16)).toBe(1.25);
+    expect(pts({ edgeMm: 14 })).toBeGreaterThan(pts({ edgeMm: 20 }));
   });
 
-  it('small vs big edge changes points via the clamp', () => {
-    const base = { mode: 'hang' as const, tutS: 100, loadPct: 100, fullHangs: 0 };
-    expect(sessionPoints(session({ ...base, edgeMm: 6 }))).toBe(5 + 80);
-    expect(sessionPoints(session({ ...base, edgeMm: 45 }))).toBe(5 + 30);
-  });
-
-  it('loadFactor clamps to 0.4–2 and defaults sensibly', () => {
-    expect(loadFactor({ mode: 'hang', loadPct: 250, effortPct: 60 })).toBe(2);
-    expect(loadFactor({ mode: 'hang', loadPct: 20, effortPct: 60 })).toBe(0.4);
-    expect(loadFactor({ mode: 'hang', loadPct: null, effortPct: 60 })).toBe(1);
-    expect(loadFactor({ mode: 'lift', loadPct: 100, effortPct: 0 })).toBe(0.6);
-    expect(loadFactor({ mode: 'lift', loadPct: 100, effortPct: 100 })).toBe(1);
+  it('intensity clamps to 0.4–3 and defaults sensibly', () => {
+    expect(intensity({ mode: 'hang', hands: 'both', loadPct: 350, effortPct: 60 })).toBe(3);
+    expect(intensity({ mode: 'hang', hands: 'both', loadPct: 20, effortPct: 60 })).toBe(0.4);
+    expect(intensity({ mode: 'hang', hands: 'both', loadPct: null, effortPct: 60 })).toBe(1);
+    expect(intensity({ mode: 'lift', hands: 'both', loadPct: null, effortPct: 0 })).toBe(0.6);
   });
 });
 

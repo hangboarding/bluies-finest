@@ -17,20 +17,28 @@ export interface Tiered { icon: string; name: string; desc: string; thresholds: 
 export interface OneOff { icon: string; name: string; desc: string; secret?: boolean; hint?: string; got: (c: Ctx) => boolean; }
 
 const max = (xs: number[]) => (xs.length ? Math.max(...xs) : null);
+/** Sessions needed at a level before a "best" badge counts it: one lucky hang isn't enough. */
+export const REPEATS = 3;
+/** The level reached in at least REPEATS different sessions (one value per session), or null. */
+const repeated = (perSession: number[], lower = false) => {
+  if (perSession.length < REPEATS) return null;
+  const sorted = [...perSession].sort((a, b) => (lower ? a - b : b - a));
+  return sorted[REPEATS - 1]!;
+};
 const hr = (s: Session) => new Date(s.createdAt).getHours();
 
 export const TIERED: Tiered[] = [
   { icon: '🧗', name: 'Sessions', desc: 'Complete hangboard sessions.', thresholds: [1, 5, 10, 25, 50, 100, 200, 365, 500, 1000], value: c => c.sessions.length },
   { icon: '🔥', name: 'Week streak', desc: 'Consecutive weeks with at least 2 sessions.', thresholds: [1, 2, 4, 8, 12, 20, 26, 40, 52, 104], value: c => weekStreak(c.sessions) },
   { icon: '🏔️', name: 'Total hangs', desc: "Every hang you've logged, all time.", thresholds: [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000], value: c => c.sessions.reduce((a, s) => a + s.totalHangs, 0) },
-  { icon: '🏋️', name: 'Added weight', desc: 'Heaviest added weight on a ≤15s hang (kg).', thresholds: [2.5, 5, 10, 15, 20, 25, 30, 40, 50, 60], value: c => max(c.sessions.filter(s => s.mode === 'hang' && s.hang <= 15 && s.fullHangs > 0).map(s => s.addedKg)) },
-  { icon: '📏', name: 'Smallest edge', desc: 'Smallest edge held full time at bodyweight (mm).', lower: true, thresholds: [25, 20, 18, 15, 14, 12, 10, 8, 6, 5], value: c => { const xs = c.sessions.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0).map(s => s.edgeMm); return xs.length ? Math.min(...xs) : null; } },
-  { icon: '⏱', name: 'Longest hang', desc: 'Longest single hang, any edge (seconds).', thresholds: [10, 20, 30, 45, 60, 75, 90, 120, 150, 180], value: c => max(c.sessions.flatMap(s => s.hangs.map(h => h.held))) },
+  { icon: '🏋️', name: 'Added weight', desc: 'Added weight held full time on a ≤15s hang, in 3 different sessions (kg).', thresholds: [2.5, 5, 10, 15, 20, 25, 30, 40, 50, 60], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.hang <= 15 && s.fullHangs > 0 && s.addedKg > 0).map(s => s.addedKg)) },
+  { icon: '📏', name: 'Smallest edge', desc: 'Smallest edge held full time at bodyweight, in 3 different sessions (mm).', lower: true, thresholds: [25, 20, 18, 15, 14, 12, 10, 8, 6, 5], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0).map(s => s.edgeMm), true) },
+  { icon: '⏱', name: 'Longest hang', desc: 'Longest hang, any edge, held in 3 different sessions (seconds).', thresholds: [10, 20, 30, 45, 60, 75, 90, 120, 150, 180], value: c => repeated(c.sessions.filter(s => s.hangs.length).map(s => Math.max(...s.hangs.map(h => h.held)))) },
   { icon: '🌱', name: 'Abrahang days', desc: "Days you've done Abrahangs.", thresholds: [1, 7, 14, 30, 60, 100, 150, 200, 300, 365], value: c => new Set(c.sessions.filter(s => s.protocolKey === 'abra').map(s => dayKey(new Date(s.createdAt)))).size },
   { icon: '🤏', name: 'Crimp sessions', desc: 'Sessions using half or full crimp.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => isCrimp(s.grip)).length },
   { icon: '✋', name: 'Open-hand sessions', desc: 'Sessions using open hand.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => s.grip === 'Open').length },
   { icon: '☝️', name: 'One-arm hangs', desc: 'Single-arm hangs completed.', thresholds: [1, 5, 10, 25, 50, 100, 150, 250, 400, 600], value: c => c.sessions.reduce((a, s) => a + s.hangs.filter(h => h.hand !== 'both' && h.full).length, 0) },
-  { icon: '🪨', name: 'No-hang lift', desc: 'Heaviest no-hang lift (kg).', thresholds: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100], value: c => max(c.sessions.filter(s => s.mode === 'lift').map(s => s.liftKg)) },
+  { icon: '🪨', name: 'No-hang lift', desc: 'No-hang lift managed in 3 different sessions (kg).', thresholds: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100], value: c => repeated(c.sessions.filter(s => s.mode === 'lift' && s.fullHangs > 0).map(s => s.liftKg)) },
   { icon: '⏳', name: 'Time on the board', desc: 'Total minutes under tension, all time.', thresholds: [5, 15, 30, 60, 120, 240, 500, 1000, 2000, 5000], value: c => Math.floor(c.sessions.reduce((a, s) => a + (s.tutS || 0), 0) / 60) },
   { icon: '📅', name: 'Training days', desc: 'Different days you trained.', thresholds: [1, 7, 14, 30, 60, 100, 150, 200, 300, 365], value: c => new Set(c.sessions.map(s => dayKey(new Date(s.createdAt)))).size },
   { icon: '👑', name: 'Seasons won', desc: 'Finish a season (Summer, Autumn, Winter or Spring) with the most points.', thresholds: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20], value: c => c.seasonsWon ?? 0 },

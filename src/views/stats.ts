@@ -1,7 +1,7 @@
 import { $, $$, esc, sheet, confirmSheet, toast, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
-import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, CATEGORIES } from '../lib/scoring';
+import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, CATEGORIES, liftPct } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { placeOf } from '../lib/leaderboard';
@@ -123,6 +123,7 @@ async function editSession(s: Session) {
   // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have).
   const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;
   if (s.mode === 'hang' && bw && (next.addedKg !== s.addedKg || next.assistKg !== s.assistKg)) patch.loadPct = next.loadPct = loadPct(bw, next.addedKg, next.assistKg);
+  if (s.mode === 'lift' && bw && next.liftKg !== s.liftKg) patch.loadPct = next.loadPct = liftPct(bw, next.liftKg);
   patch.points = next.points = sessionPoints(next);
   try {
     await state.store.updateSession(s.id, patch);

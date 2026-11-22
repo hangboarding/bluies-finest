@@ -13,7 +13,7 @@ export interface Settings {
   board?: string;
   boards: { list: string[]; def: string; custom: string[] };
   customProtos: Record<string, Protocol>;
-  prefs: { sound: boolean; vib: boolean; icons: 'emoji' | 'flat'; pgrip: boolean; psetup: boolean; mode: 'dark' | 'light'; acc: string; nudges: boolean; warmup: boolean };
+  prefs: { sound: boolean; vib: boolean; icons: 'emoji' | 'flat'; pgrip: boolean; psetup: boolean; mode: 'dark' | 'light'; acc: string; nudges: boolean; warmup: boolean; ready?: number; pre?: number };
   panels: Record<string, boolean>;                  // remembered open/closed sections
   toursSeen: Record<string, boolean>;
   chart?: string;
@@ -24,7 +24,7 @@ export interface Settings {
   /** Optional personal details. Private: stored with the user's private settings, never shown to others. */
   about?: { age?: number | null; heightCm?: number | null; location?: string; showLocation?: boolean };
   /** Load changes suggested from the last session's effort rating, per protocol (shown with an Undo). */
-  suggest?: Record<string, { text: string; prev: { add: number; rem: number; lift: number } }>;
+  suggest?: Record<string, { text: string; prev: { add: number; rem: number; lift: number; edge?: number } }>;
   /** Protocol to switch back to after a warm-up. */
   returnTo?: string;
 }

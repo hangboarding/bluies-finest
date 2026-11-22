@@ -68,6 +68,8 @@ export interface TimerHooks {
   onDone(log: HangResult[]): void;
 }
 export class SessionTimer {
+  /** Countdown beeps for the last N seconds of a rest, switch or get-ready (always ends before the rest does). */
+  preWarn = 5;
   steps: Step[]; idx = 0; log: HangResult[] = []; paused = false;
   private endAt = 0; private remaining = 0; private h: number | undefined; private lastLeft = -1;
   pausedMs = 0; private pausedAt = 0; maxPauseMs = 0;
@@ -88,7 +90,7 @@ export class SessionTimer {
     const l = this.left();
     if (l !== this.lastLeft) {
       this.lastLeft = l;
-      const warnAt = this.step.p === 'hang' ? 3 : 5;
+      const warnAt = this.step.p === 'hang' ? 3 : Math.min(this.preWarn, this.step.t - 1);
       if (l <= warnAt && l > 0) this.hooks.onWarn(l);
       this.hooks.onTick(this.step, l, this.idx);
     }

@@ -11,7 +11,7 @@ export const PROTOCOLS: Record<string, Protocol> = {
   jlmh: { n: 'JUST LET ME HANG', simple: true, by: 'No theory, no fuss', use: 'Quick hangs with zero setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },
   warm: { n: 'Warm-up', by: 'Standard practice, progressive loading', use: 'Prepping fingers before hard hangs', hang: 10, rest: 20, sets: 6, reps: 1, edge: 25, int: 'Easy, ~40–60%, feet on or assisted', freq: 'Before every hard session', d: 'Easy hangs on a big edge, building gradually. Pair with arm circles and a few easy climbs if you can.' },
   max: { n: 'Max Hangs', by: 'Eva López (2012–14 studies) · popularised by Eric Hörst', use: 'Max finger strength', hang: 10, rest: 180, sets: 5, reps: 1, edge: 20, int: '~85–90%, 2–3s in reserve', freq: '2×/week', d: 'Near-max load on a medium edge with full recovery between hangs.' },
-  abra: { n: 'Abrahangs', by: "Emil Abrahamsson · based on Keith Baar's tendon research", use: 'Tendon health, rehab, recovery', mode: 'lift', hang: 10, rest: 20, sets: 10, reps: 1, edge: 20, effort: 50, int: '40–60%, never to failure', freq: 'Daily is fine', d: 'Light, feet-assisted hangs or lifts, done often to load tendons gently.' },
+  abra: { n: 'Abrahangs', by: "Emil Abrahamsson · based on Keith Baar's tendon research", use: 'Tendon health, rehab, recovery', hang: 10, rest: 20, sets: 10, reps: 1, edge: 20, int: '40–60%, never to failure (use assist or feet)', freq: 'Daily is fine', d: 'Light, feet-assisted hangs or lifts, done often to load tendons gently.' },
   rep: { n: 'Repeaters', by: "Mark & Mike Anderson, The Rock Climber's Training Manual", use: 'Strength-endurance', hang: 7, rest: 3, sets: 6, reps: 6, setRest: 180, edge: 20, int: '~60–80%', freq: '2×/week', d: '7s on / 3s off × 6 makes one set. Builds power you can repeat on a route.' },
   min: { n: 'Min Edge', by: 'Eva López, MinEdge protocol', use: 'Max strength on small holds', hang: 10, rest: 120, sets: 5, reps: 1, edge: 14, int: 'Bodyweight, smallest edge for 10s', freq: '2×/week', d: 'Instead of adding weight, shrink the edge until 10s is hard.' },
   dens: { n: 'Density Hangs', by: 'Tyler Nelson, Camp4 Human Performance', use: 'Connective-tissue adaptation', hang: 30, rest: 60, sets: 4, reps: 1, edge: 20, int: '~60–70%', freq: '2–3×/week', d: 'Long, moderate hangs (20–40s) to thicken and strengthen tendons.' },
@@ -43,14 +43,13 @@ export const FIELDS: Field[] = [
   { k: 'lift', label: 'Load lifted', unit: 'kg', step: 0.5, icon: 'lift', colour: '#ff5a4e', show: v => v.mode === 'lift' && !v.simple },
   { k: 'effort', label: 'Target effort', unit: '%', step: 5, icon: 'effort', colour: '#4ecdc4', show: v => v.mode === 'lift' && !v.simple },
   { k: 'sw', label: 'Hand switch rest', unit: 's', step: 1, icon: 'switch', colour: '#c9d1d9', show: v => v.hands === 'LR' && !v.simple },
-  { k: 'ready', label: 'Get-ready', unit: 's', step: 1, icon: 'ready', colour: '#b48cff' },
 ];
 
 export const TIPS: Record<string, [string, string]> = {
   add: ['Added weight', 'Extra weight on a harness or belt. Can’t be combined with Assist.'],
   rem: ['Assist (removed)', 'Weight taken off you, like a pulley counterweight or feet on a chair. Can’t be combined with Added weight.'],
   sw: ['Hand switch rest', 'Rest between your left-hand and right-hand hang in “L then R” mode.'],
-  ready: ['Get-ready', 'Countdown before the first hang so you can chalk up and get into position. Set to 0 to skip it.'],
+  ready: ['Get-ready', 'Countdown before the first hang so you can chalk up and get into position. Change it in Profile → Settings.'],
   lift: ['Load lifted', 'Weight you pull off the floor with a lifting edge or block, per hand.'],
   effort: ['Target effort', 'How hard to pull, as % of your max. Abrahangs ≈ 40–60%, recruitment pulls ≈ 100%.'],
   setRest: ['Rest between sets', 'Longer rest after finishing all reps in a set.'],

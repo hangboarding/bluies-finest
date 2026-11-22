@@ -1,29 +1,46 @@
 // Points + leaderboard maths. Kept deliberately simple and explainable.
 //
+// Intensity  = load as a fraction of bodyweight, on two arms. Bodyweight on two arms = 1.0;
+//              +20% added = 1.2; one-arm hangs count double (each arm takes it all);
+//              no-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Clamped 0.4–3.
+// Work       = time under tension × intensity² × edge factor
+//              (squared, so heavier hangs earn clearly more: +10% load ≈ +21% work)
 // Session points = 5 for showing up
-//               + time under tension × load factor × edge factor ÷ 2
-//               + 2 per hang held for its full time
-//               + 20 if the session set a personal best
-// Load factor  = load as % of bodyweight ÷ 100 (no-hang: target effort ÷ 100), clamped 0.4–2
-// Edge factor  = 20mm ÷ edge size, clamped 0.6–1.6 (smaller edges score more)
+//               + 40 × ln(1 + work ÷ 40)   (more work always scores more, but each extra
+//                                           minute counts a little less, so long, easy
+//                                           volume can't outscore heavy quality work)
+//               + up to 10 for holding every hang its full time (share of hangs held)
+//               + 10 if the session set a personal best
+// Edge factor = 20mm ÷ edge size, clamped 0.6–1.6 (smaller edges score more)
 // Overall rank = points over the last 28 days + 15 per week of current weekly streak.
 import type { Session } from './types';
 import { seasonOf, inSeason } from './seasons';
 
-export function loadFactor(s: Pick<Session, 'mode' | 'loadPct' | 'effortPct'>) {
-  const raw = s.mode === 'lift' ? (s.effortPct || 60) / 100 : (s.loadPct ?? 100) / 100;
-  return Math.min(2, Math.max(0.4, raw));
+type Scored = Pick<Session, 'tutS' | 'fullHangs' | 'totalHangs' | 'isPb' | 'mode' | 'loadPct' | 'effortPct' | 'edgeMm' | 'hands'>;
+
+export function intensity(s: Pick<Session, 'mode' | 'loadPct' | 'effortPct' | 'hands'>) {
+  const raw = s.mode === 'lift'
+    ? (s.loadPct != null ? s.loadPct / 100 : (s.effortPct || 60) / 100) // lifts store per-hand kg × 2 ÷ bodyweight
+    : ((s.loadPct ?? 100) / 100) * (s.hands === 'both' ? 1 : 2);
+  return Math.min(3, Math.max(0.4, raw));
 }
+/** @deprecated name kept for older callers: the intensity used for points. */
+export const loadFactor = intensity;
 export const edgeFactor = (mm: number) => Math.min(1.6, Math.max(0.6, 20 / Math.max(1, mm)));
 
-export function sessionPoints(s: Pick<Session, 'tutS' | 'fullHangs' | 'isPb' | 'mode' | 'loadPct' | 'effortPct' | 'edgeMm'>) {
-  return Math.round(5 + (s.tutS * loadFactor(s) * edgeFactor(s.edgeMm)) / 2 + 2 * s.fullHangs + (s.isPb ? 20 : 0));
+export function sessionPoints(s: Scored) {
+  const i = intensity(s), work = Math.max(0, s.tutS) * i * i * edgeFactor(s.edgeMm);
+  const held = s.totalHangs > 0 ? (10 * s.fullHangs) / s.totalHangs : 0;
+  return Math.round(5 + 40 * Math.log(1 + work / 40) + held + (s.isPb ? 10 : 0));
 }
 
 /** Whole % only (finer values would reveal bodyweight), kept inside the 10–400% the database accepts
  *  so an extreme assist or added weight can't make a session impossible to save. */
 export const loadPct = (bw: number | null, add: number, assist: number) =>
   bw && bw > 0 ? Math.min(400, Math.max(10, Math.round(((bw + add - assist) / bw) * 100))) : null;
+/** No-hang lifts: weight lifted per hand × 2 as % of bodyweight (the same scale as a two-arm hang). */
+export const liftPct = (bw: number | null, liftKg: number) =>
+  bw && bw > 0 ? Math.min(400, Math.max(10, Math.round(((2 * liftKg) / bw) * 100))) : null;
 
 /** Monday 00:00 (local time) of the week containing d. */
 export function weekStart(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
