@@ -231,3 +231,12 @@ textarea.tx{width:100%;background:var(--card2);color:var(--ink);border:1px solid
 .iss.done{opacity:.6}.iss-hd{display:flex;align-items:center;gap:8px;font-size:13px}.iss-hd small{margin-left:auto;color:var(--mute)}
 .iss p{margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere}.iss .ctx{font-size:11px;color:var(--mute);overflow-wrap:anywhere}
 .iss-act{display:flex;gap:6px;margin-top:8px}.iss-act .pill{padding:6px 12px;font-size:12px}
+.showloc{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);margin:-2px 0 8px;cursor:pointer}.showloc input{width:18px;height:18px;accent-color:var(--acc)}
+/* climber profile: location, wide consistency strip, badge info */
+.cloc{margin:0 0 2px;color:var(--ink);font-size:14px;display:flex;align-items:center;justify-content:center;gap:4px}.cloc .lic{color:var(--acc);width:15px;height:15px}
+.climber .cgrid{max-width:none;gap:4px}.climber .cgrid i{aspect-ratio:auto;height:22px;border-radius:4px}
+button.cbadge{font:inherit;font-size:20px;color:inherit;cursor:pointer}button.cbadge.on{background:color-mix(in srgb,var(--tc) 18%,var(--card2))}
+.cbinfo{margin-top:8px;border:1px solid var(--tc);border-radius:12px;padding:10px 12px;background:var(--card2);text-align:left}
+.cbinfo b{display:flex;align-items:center;gap:6px;font-size:14px}.cbinfo b span{color:var(--tc)}.cbinfo .lic{color:var(--tc);width:18px;height:18px}
+.cbinfo p{margin:4px 0;font-size:13px;color:var(--mute)}.cbinfo small{font-size:12px;color:var(--mute)}
+.climber .cbadges{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}.climber .cbadge{min-width:0}

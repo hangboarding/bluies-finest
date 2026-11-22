@@ -31,6 +31,8 @@ export const TIERED: Tiered[] = [
   { icon: '✋', name: 'Open-hand sessions', desc: 'Sessions using open hand.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => s.grip === 'Open').length },
   { icon: '☝️', name: 'One-arm hangs', desc: 'Single-arm hangs completed.', thresholds: [1, 5, 10, 25, 50, 100, 150, 250, 400, 600], value: c => c.sessions.reduce((a, s) => a + s.hangs.filter(h => h.hand !== 'both' && h.full).length, 0) },
   { icon: '🪨', name: 'No-hang lift', desc: 'Heaviest no-hang lift (kg).', thresholds: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100], value: c => max(c.sessions.filter(s => s.mode === 'lift').map(s => s.liftKg)) },
+  { icon: '⏳', name: 'Time on the board', desc: 'Total minutes under tension, all time.', thresholds: [5, 15, 30, 60, 120, 240, 500, 1000, 2000, 5000], value: c => Math.floor(c.sessions.reduce((a, s) => a + (s.tutS || 0), 0) / 60) },
+  { icon: '📅', name: 'Training days', desc: 'Different days you trained.', thresholds: [1, 7, 14, 30, 60, 100, 150, 200, 300, 365], value: c => new Set(c.sessions.map(s => dayKey(new Date(s.createdAt)))).size },
   { icon: '👑', name: 'Seasons won', desc: 'Finish a season (Summer, Autumn, Winter or Spring) with the most points.', thresholds: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20], value: c => c.seasonsWon ?? 0 },
   { icon: '💎', name: 'Points', desc: 'All-time points earned.', thresholds: [50, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000], value: c => c.pointsTotal },
 ];

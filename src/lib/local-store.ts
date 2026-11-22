@@ -107,7 +107,7 @@ export class LocalStore implements Store {
   }
 
   async listProfiles() { return structuredClone(this.db.profiles); }
-  async updateProfile(p: { name?: string }) { const pr = this.db.profiles.find(x => x.id === this.need())!; if (p.name) pr.name = p.name; this.save(); }
+  async updateProfile(p: { name?: string; location?: string | null }) { const pr = this.db.profiles.find(x => x.id === this.need())!; if (p.name) pr.name = p.name; if (p.location !== undefined) pr.location = p.location?.trim().slice(0, 60) || null; this.save(); }
   async uploadAvatar(file: Blob) {
     const url = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
     this.db.profiles.find(x => x.id === this.need())!.avatarUrl = url; this.save(); return url;

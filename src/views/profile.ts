@@ -27,8 +27,9 @@ export function renderProfile(root: HTMLElement) {
         <div><label class="f">Age <small>(optional)</small></label><input class="tx" id="pAge" type="number" inputmode="numeric" min="10" max="100" value="${S.about?.age ?? ''}" placeholder="Not set" aria-label="Age"></div>
         <div><label class="f">Height <small>(cm, optional)</small></label><input class="tx" id="pHeight" type="number" inputmode="numeric" min="100" max="230" value="${S.about?.heightCm ?? ''}" placeholder="Not set" aria-label="Height in centimetres"></div>
       </div>
-      <div><label class="f">Location <small>(optional)</small></label><input class="tx" id="pLoc" maxlength="60" value="${esc(S.about?.location ?? '')}" placeholder="e.g. Katoomba" aria-label="Location"></div>
-      <p class="sub" style="margin:0">${ic('lock')} Age, height and location are private. Your bodyweight is never shown. Others only see a rounded % on your sessions.</p>
+      <div><label class="f">Location <small>(optional)</small></label><input class="tx" id="pLoc" maxlength="60" value="${esc(S.about?.location ?? '')}" placeholder="e.g. Katoomba" aria-label="Location">
+        <label class="showloc"><input type="checkbox" id="pLocShow" ${S.about?.showLocation ? 'checked' : ''}> Show my location on my profile</label></div>
+      <p class="sub" style="margin:0">${ic('lock')} Age and height are private, and so is your location unless you tick the box above. Your bodyweight is never shown. Others only see a rounded % on your sessions.</p>
     </div>
     <button class="big" id="saveName">Save</button>
     ${state.store.kind === 'local' ? '<p class="sub" style="margin-top:10px">Demo mode: data is stored in this browser only.</p>' : ''}
@@ -144,13 +145,17 @@ async function saveAbout() {
   if (age === undefined) return toast('Age should be between 10 and 100');
   if (heightCm === undefined) return toast('Height should be between 100 and 230 cm');
   const location = ($('#pLoc') as HTMLInputElement).value.trim().slice(0, 60);
+  const showLocation = ($('#pLocShow') as HTMLInputElement).checked;
   const btn = $('#saveName') as HTMLButtonElement; btn.disabled = true;
   try {
     if (name !== state.me!.name) {
       await state.store.updateProfile({ name });
       state.me!.name = name; state.profiles.get(state.me!.id)!.name = name; refreshHeader();
     }
-    state.settings.about = { age, heightCm, location };
+    // the public copy of the location only exists while "show" is ticked
+    const shown = showLocation && location ? location : null, mine = state.profiles.get(state.me!.id);
+    if ((mine?.location ?? null) !== shown) { await state.store.updateProfile({ location: shown }); if (mine) mine.location = shown; }
+    state.settings.about = { age, heightCm, location, showLocation };
     state.settings.savedAt = Date.now();
     state.priv.bodyweightKg = bw;
     // bodyweight + private details go up together in one private write

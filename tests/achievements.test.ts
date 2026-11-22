@@ -60,6 +60,7 @@ describe('diffUnlocks', () => {
       { icon: '🧗', text: 'Sessions → Iron' },
       { icon: '📏', text: 'Smallest edge → Bronze' },
       { icon: '🤏', text: 'Crimp sessions → Iron' },
+      { icon: '📅', text: 'Training days → Iron' },
       { icon: '👶', text: 'First Hang' },
       { icon: '💯', text: 'Perfect Session' },
     ]);

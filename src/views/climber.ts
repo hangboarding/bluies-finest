@@ -1,5 +1,6 @@
 // Public climber profile: training stats, PBs, consistency and badges.
-// Deliberately shows NO personal details — no bodyweight, % bodyweight, age, height or location.
+// Shows no private details: no bodyweight, % bodyweight, age or height. Location only appears
+// when the climber ticked "Show my location on my profile".
 import { esc, avatar, sheet, toast } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, seasonsWon } from '../lib/state';
@@ -57,12 +58,27 @@ export async function openClimber(uid: string) {
 
   const since = new Date(p.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
   el.innerHTML = `
-    <div class="center">${avatar(p, 'cav')}<h2 style="margin:10px 0 2px">${esc(p.name)}</h2><p class="sub" style="margin:0">Member since ${since}</p>${titles ? `<p class="titles">${ic('crown')} ${titles > 1 ? `${titles}× season champion` : 'Season champion'}</p>` : ''}</div>
+    <div class="center">${avatar(p, 'cav')}<h2 style="margin:10px 0 2px">${esc(p.name)}</h2>${p.location ? `<p class="cloc">${ic('pin')} ${esc(p.location)}</p>` : ''}<p class="sub" style="margin:0">Member since ${since}</p>${titles ? `<p class="titles">${ic('crown')} ${titles > 1 ? `${titles}× season champion` : 'Season champion'}</p>` : ''}</div>
     <div class="stats" style="margin:14px 0"><div class="stat"><b>${xs.length}</b>sessions</div><div class="stat"><b>${weekStreak(xs, now)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank >= 0 ? '#' + (rank + 1) : '–'}</b>overall</div></div>
     ${(() => { const f = favouriteProtocol(xs); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}
     ${pbs ? `<h3>${ic('medal')} Personal bests</h3><div class="cpbs">${pbs}</div>` : ''}
     <h3 style="margin-top:14px">${ic('calendar')} Last 5 weeks</h3><div class="cgrid">${grid}</div>
-    ${badges.length ? `<h3 style="margin-top:14px">${ic('award')} Badges</h3><div class="cbadges">${badges.map(({ a, lv }) => `<span class="cbadge" style="--tc:${TIER_COLOURS[lv - 1]}" title="${a.name}: ${TIER_NAMES[lv - 1]}">${ic(a.icon)}<small>${TIER_NAMES[lv - 1]}</small></span>`).join('')}</div>` : ''}
+    ${badges.length ? `<h3 style="margin-top:14px">${ic('award')} Badges</h3><div class="cbadges">${badges.map(({ a, lv }) => `<button type="button" class="cbadge" data-badge="${TIERED.indexOf(a)}" style="--tc:${TIER_COLOURS[lv - 1]}" aria-label="${a.name}: ${TIER_NAMES[lv - 1]}">${ic(a.icon)}<small>${TIER_NAMES[lv - 1]}</small></button>`).join('')}</div><p class="sub" style="font-size:12px;margin:6px 0 0">Tap a badge to see what it’s for.</p>` : ''}
     <h3 style="margin-top:14px">${ic('calendar')} Recent sessions</h3><div class="daysess">${xs.slice(0, 5).map(s => sessRow(s, false)).join('') || '<p class="sub">No sessions yet.</p>'}</div>`;
   hydrateIcons(el);
+
+  // tapping a badge explains it, inside the profile so it doesn't close the sheet
+  el.addEventListener('click', e => {
+    const b = (e.target as HTMLElement).closest('[data-badge]') as HTMLElement | null; if (!b) return;
+    const a = TIERED[+b.dataset.badge!]!, v = a.value(ctx), lv = tierOf(v, a.thresholds, a.lower), nx = a.thresholds[lv];
+    el.querySelector('.cbinfo')?.remove();
+    el.querySelectorAll('.cbadge.on').forEach(x => x.classList.remove('on'));
+    if (b.dataset.open) { delete b.dataset.open; return; }
+    el.querySelectorAll<HTMLElement>('[data-open]').forEach(x => delete x.dataset.open);
+    b.dataset.open = '1'; b.classList.add('on');
+    const box = document.createElement('div'); box.className = 'cbinfo'; box.style.setProperty('--tc', TIER_COLOURS[lv - 1]!);
+    box.innerHTML = `<b>${ic(a.icon)} ${esc(a.name)} · <span>${TIER_NAMES[lv - 1]}</span></b><p>${esc(a.desc)}</p>
+      <small>${esc(p.name)} is at ${v}${nx != null ? `. Next tier, ${TIER_NAMES[lv]}, at ${a.lower ? '≤ ' : ''}${nx}.` : '. Top tier reached.'}</small>`;
+    b.parentElement!.after(box); hydrateIcons(box);
+  });
 }

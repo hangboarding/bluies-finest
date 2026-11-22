@@ -8,6 +8,8 @@ export interface Profile {
   id: string;
   name: string;
   avatarUrl: string | null;
+  /** Only set when the member chose to show it on their profile. */
+  location?: string | null;
   isAdmin: boolean;
   createdAt: string;
 }
@@ -82,7 +84,7 @@ export interface Store {
   deleteAccount(): Promise<void>;
   // profiles
   listProfiles(): Promise<Profile[]>;
-  updateProfile(p: { name?: string }): Promise<void>;
+  updateProfile(p: { name?: string; location?: string | null }): Promise<void>;
   uploadAvatar(file: Blob): Promise<string>; // returns public URL
   getPrivate(): Promise<PrivateData>;
   savePrivate(d: Partial<PrivateData>): Promise<void>;

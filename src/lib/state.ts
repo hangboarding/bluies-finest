@@ -22,7 +22,7 @@ export interface Settings {
   owner?: string;                                   // user id the local copy belongs to
   iconsV?: number;                                  // settings migration marker
   /** Optional personal details. Private: stored with the user's private settings, never shown to others. */
-  about?: { age?: number | null; heightCm?: number | null; location?: string };
+  about?: { age?: number | null; heightCm?: number | null; location?: string; showLocation?: boolean };
   /** Load changes suggested from the last session's effort rating, per protocol (shown with an Undo). */
   suggest?: Record<string, { text: string; prev: { add: number; rem: number; lift: number } }>;
   /** Protocol to switch back to after a warm-up. */

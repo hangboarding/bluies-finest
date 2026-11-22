@@ -70,6 +70,7 @@ function rowToProfile(r: any): Profile {
     id: r.id,
     name: r.name,
     avatarUrl: r.avatar_url ?? null,
+    location: r.location ?? null,
     isAdmin: !!r.is_admin,
     createdAt: r.created_at,
   };
@@ -292,16 +293,14 @@ export class SupabaseStore implements Store {
   // ---------------------------------------------------------------- profiles
 
   async listProfiles(): Promise<Profile[]> {
-    const rows = check(
-      await this.client
-        .from('profiles')
-        .select('id,name,avatar_url,is_admin,created_at')
-        .order('created_at', { ascending: true }),
-    );
+    // location needs supabase/profile-location.sql; fall back without it so the app still loads
+    let res = await this.client.from('profiles').select('id,name,avatar_url,location,is_admin,created_at').order('created_at', { ascending: true });
+    if (res.error && /location/.test(res.error.message)) res = await this.client.from('profiles').select('id,name,avatar_url,is_admin,created_at').order('created_at', { ascending: true }) as any;
+    const rows = check(res);
     return (rows ?? []).map(rowToProfile);
   }
 
-  async updateProfile(p: { name?: string }): Promise<void> {
+  async updateProfile(p: { name?: string; location?: string | null }): Promise<void> {
     const uid = this.requireUid();
     const patch: Record<string, unknown> = {};
     if (p.name !== undefined) {
@@ -310,6 +309,7 @@ export class SupabaseStore implements Store {
       if (name.length > 40) throw new Error('Name must be 40 characters or fewer.');
       patch.name = name;
     }
+    if (p.location !== undefined) patch.location = p.location?.trim().slice(0, 60) || null;
     if (!Object.keys(patch).length) return;
     check(await this.client.from('profiles').update(patch).eq('id', uid));
   }
