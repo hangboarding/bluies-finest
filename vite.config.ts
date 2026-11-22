@@ -27,7 +27,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         importScripts: ['push-sw.js'],
         navigateFallbackDenylist: [/^\/auth/, /\/tour\//],
-        globIgnores: ['**/tour/**'],
+        globIgnores: ['**/tour/**', '**/og-image.png'],
         runtimeCaching: [{ urlPattern: /supabase\.co\/storage/, handler: 'CacheFirst', options: { cacheName: 'avatars', cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 100, maxAgeSeconds: 30 * 864e2 } } }],
       },
     }),
