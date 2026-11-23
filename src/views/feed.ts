@@ -5,6 +5,7 @@ import { refreshNotifs } from './notifs';
 import type { FeedItem } from '../lib/types';
 import { weeklyRecap } from '../lib/recap';
 import { challengeCard, championBanner, maybeCelebrate } from './challenge-card';
+import { checkUnlocks } from './unlocks';
 
 let items: FeedItem[] = [];
 let filter: 'all' | 'me' | 'pb' = 'all';
@@ -142,7 +143,7 @@ async function onClick(e: MouseEvent) {
     i.disabled = btn.disabled = true;
     try {
       const c = await state.store.addComment(it.session.id, body);
-      it.comments.push(c); if (it.session.userId !== state.me?.id) state.social.commentsGiven++; open = it.session.id; draw();
+      it.comments.push(c); if (it.session.userId !== state.me?.id) { state.social.commentsGiven++; checkUnlocks(); } open = it.session.id; draw();
     } catch (err: any) { i.disabled = btn.disabled = false; toast(err.message ?? 'Couldn’t post that comment'); }
     return;
   }

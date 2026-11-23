@@ -1,5 +1,6 @@
 // Real multi-user backend on Supabase. See docs/SUPABASE.md and supabase/schema.sql.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { currentName } from './protocols';
 import type { Issue, IssueCategory, Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store, Notif, InviteCode, SeasonChampion, ChallengeRow } from './types';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,7 @@ function rowToSession(r: any): Session {
   for (const [key, col] of Object.entries(SESSION_COLUMNS)) s[key] = r[col];
   s.hangs = Array.isArray(s.hangs) ? s.hangs : [];
   s.note = s.note ?? '';
+  s.protocolName = currentName(s.protocolName ?? '');
   return s as Session;
 }
 
@@ -502,10 +504,13 @@ export class SupabaseStore implements Store {
     // Admins also hear about open problem reports. The database only shows other people's reports to
     // admins, so everyone else gets none; an error (schema.sql not updated yet) is ignored.
     const issues = await this.client.from('issues').select('id,user_id,body,created_at').eq('status', 'open').neq('user_id', uid).order('created_at', { ascending: false }).limit(limit);
+    // Top-3 places lost (written by the notify function). Ignored if schema.sql hasn't been updated yet.
+    const ranks = await this.client.from('rank_alerts').select('id,by_user_id,session_id,old_place,new_place,created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(limit);
     const out: Notif[] = [
+      ...((ranks.error ? [] : ranks.data) as any[]).map(r => ({ kind: 'rank' as const, sessionId: r.session_id ?? r.id, protocolName: '', fromUserId: r.by_user_id, was: r.old_place, now: r.new_place, createdAt: r.created_at })),
       ...((issues.error ? [] : issues.data) as any[]).map(r => ({ kind: 'issue' as const, sessionId: r.id, protocolName: '', fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
-      ...(likes.data as any[]).map(r => ({ kind: 'like' as const, sessionId: r.session_id, protocolName: r.sessions?.protocol_name ?? '', fromUserId: r.user_id, createdAt: r.created_at })),
-      ...(comments.data as any[]).map(r => ({ kind: 'comment' as const, sessionId: r.session_id, protocolName: r.sessions?.protocol_name ?? '', fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
+      ...(likes.data as any[]).map(r => ({ kind: 'like' as const, sessionId: r.session_id, protocolName: currentName(r.sessions?.protocol_name ?? ''), fromUserId: r.user_id, createdAt: r.created_at })),
+      ...(comments.data as any[]).map(r => ({ kind: 'comment' as const, sessionId: r.session_id, protocolName: currentName(r.sessions?.protocol_name ?? ''), fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
     ];
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
   }

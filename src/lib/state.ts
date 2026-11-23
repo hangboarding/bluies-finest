@@ -5,7 +5,7 @@ import { seasonOf, championsFrom } from './seasons';
 import { LocalStore } from './local-store';
 import { BUILTIN_BOARDS, PROTOCOLS, type Protocol } from './protocols';
 import { mergeWorkouts, mergeDeleted, readWorkouts, type Deleted, type Workout } from './workouts';
-import type { Ctx } from './achievements';
+import { mergeSeen, type Ctx } from './achievements';
 
 export interface Settings {
   proto: string;
@@ -36,6 +36,8 @@ export interface Settings {
   workoutSel?: string;
   /** Workouts and custom protocols deleted recently (id → ms), so the deletion syncs to other devices. */
   deleted?: Deleted;
+  /** Achievements already announced (see earned() in achievements.ts), so each one pops up once. */
+  achSeen?: Record<string, number>;
 }
 
 export const DEFAULT_SETTINGS = (): Settings => ({
@@ -107,6 +109,7 @@ export async function loadUserData() {
   // a flag earned on one phone isn't lost because another phone saved something later.
   merged.flags = { ...(older.flags ?? {}), ...(newer.flags ?? {}) };
   merged.toursSeen = { ...(older.toursSeen ?? {}), ...(newer.toursSeen ?? {}) };
+  if (older.achSeen || newer.achSeen) merged.achSeen = mergeSeen(older.achSeen, newer.achSeen);
   // Workouts and custom protocols merge one by one (see mergeWorkouts), so a device that hadn't seen
   // a new one can't wipe it just by saving its settings later.
   merged.deleted = mergeDeleted(older.deleted, newer.deleted);

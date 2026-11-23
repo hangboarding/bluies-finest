@@ -58,8 +58,9 @@ export interface FeedItem { session: Session; likes: number; likedByMe: boolean;
 /** Someone hearted or commented on one of my sessions. */
 export type IssueCategory = 'bug' | 'idea' | 'account' | 'other';
 export interface Issue { id: string; userId: string; category: IssueCategory; body: string; context: string; status: 'open' | 'resolved'; createdAt: string; }
-/** kind 'issue' only reaches admins: sessionId is then the issue id. */
-export interface Notif { kind: 'like' | 'comment' | 'issue'; sessionId: string; protocolName: string; fromUserId: string; body?: string; createdAt: string; }
+/** kind 'issue' only reaches admins: sessionId is then the issue id.
+ *  kind 'rank': fromUserId's session knocked me from place `was` (top 3 on the Overall board) to `now`. */
+export interface Notif { kind: 'like' | 'comment' | 'issue' | 'rank'; sessionId: string; protocolName: string; fromUserId: string; body?: string; createdAt: string; was?: number; now?: number; }
 /** Admin-only view of a sign-up code. */
 export interface SeasonChampion { seasonStart: string; userId: string; points: number; }
 export interface ChallengeRow { id: string; title: string; metric: 'hangs' | 'sessions' | 'minutes' | 'pbs' | 'climbers'; target: number; startsOn: string; endsOn: string; }
@@ -100,7 +101,7 @@ export interface Store {
   deleteComment(id: string): Promise<void>;
   /** Hearts received on my sessions + comments I've written on others' (for achievements). */
   socialCounts(): Promise<{ heartsReceived: number; commentsGiven: number }>;
-  /** Hearts and comments others left on my sessions, newest first. */
+  /** Hearts and comments others left on my sessions, and top-3 places I've lost, newest first. */
   notifications(limit?: number): Promise<Notif[]>;
   // admin (the database only allows these for admins)
   listInviteCodes(): Promise<InviteCode[]>;

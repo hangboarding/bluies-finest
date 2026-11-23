@@ -1,6 +1,6 @@
 # Setting up phone notifications
 
-Once this is set up, members can get a notification on their phone when someone hearts or comments on one of their sessions, even while the app is closed. For example: "Mika ❤️ hearted your Max Hangs" or "Priya commented on your Repeaters: “Strong effort!”". Tapping it opens the app on that post in **Activity**. Nobody gets notified about their own hearts or comments.
+Once this is set up, members can get a notification on their phone when someone hearts or comments on one of their sessions, or takes their place in the top 3 (see [Top-3 alerts](#top-3-alerts-sam-just-took-your-2-spot)), even while the app is closed. For example: "Mika ❤️ hearted your Max Hangs" or "Priya commented on your Repeaters: “Strong effort!”". Tapping it opens the app on that post in **Activity**. Nobody gets notified about their own hearts or comments.
 
 You only need to do this once. It takes about 20 minutes and is free. You need the Supabase backend working first (see [SUPABASE.md](SUPABASE.md)), and [Node.js](https://nodejs.org) installed for the `npx` commands. Run them in **PowerShell** or **Windows Terminal**, inside the project folder.
 
@@ -119,6 +119,16 @@ Members can send a report from **Profile → Report an issue**. Admins see every
    | `APP_URL` | optional. The app's address, e.g. `https://hangboarding.github.io/bluies-finest/`, for a link in the email |
 
    Every member with **is_admin** ticked in the `profiles` table gets the email, at the address they sign in with. If you don't add `RESEND_API_KEY`, no emails are sent and everything else still works.
+
+## Top-3 alerts ("Sam just took your #2 spot")
+
+When someone's new session moves them ahead of a climber in the top 3 of the **Overall** board, that climber gets "Sam just took your #2 spot" in their notification bell, and on their phone if they've turned notifications on. Tapping it opens **Ranks**. It's at most once a day for each pair, so two climbers trading places all evening don't keep buzzing each other. Sessions logged for an earlier day don't send one. To set it up:
+
+1. Run all of [`supabase/schema.sql`](../supabase/schema.sql) in the **SQL Editor** (it adds the `rank_alerts` table). It's safe to run again.
+2. Redeploy the function (step 5) so it has the ranking code. With the command line, the `rank.ts` file next to `index.ts` is included automatically. With the dashboard editor, add `rank.ts` as a second file in the function, next to `index.ts`.
+3. Add a webhook as in step 6, named `notify_sessions`, on the `sessions` table, **Insert** only, with the same function and header.
+
+The function works the board out the same way the Ranks page does: points from the last 28 days plus the weekly-streak bonus, with weeks counted in Blue Mountains time.
 
 ## Troubleshooting
 

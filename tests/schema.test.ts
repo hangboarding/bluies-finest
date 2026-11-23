@@ -66,4 +66,37 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
   for (const t of ['issues', 'push_subscriptions', 'challenges', 'invite_codes', 'notify_log'])
     expect((await db.query<any>(`select to_regclass('public.' || $1) is not null ok`, [t])).rows[0].ok, t).toBe(true);
   expect((await db.query<any>(`select count(*)::int n from information_schema.columns where table_name = 'profiles' and column_name = 'location'`)).rows[0].n).toBe(1);
+
+  // Edit session: how it was done can be changed, the timer's numbers can't
+  const can = async (role: string, col: string) => (await db.query<any>(`select has_column_privilege($1, 'public.sessions', $2, 'UPDATE') ok`, [role, col])).rows[0].ok;
+  for (const c of ['grip', 'fingers', 'board', 'edge_material', 'edge_profile', 'feel', 'effort_pct', 'edge_mm', 'added_kg', 'rpe', 'note']) expect(await can('authenticated', c), c).toBe(true);
+  for (const c of ['hang', 'rest', 'sets', 'hangs', 'tut_s', 'created_at', 'user_id', 'hands', 'protocol_key', 'is_pb']) expect(await can('authenticated', c), c).toBe(false);
+
+  // top-3 alerts: members read their own, only the notify function writes them
+  const priv = async (role: string, what: string) => (await db.query<any>(`select has_table_privilege($1, 'public.rank_alerts', $2) ok`, [role, what])).rows[0].ok;
+  expect([await priv('authenticated', 'SELECT'), await priv('authenticated', 'INSERT'), await priv('anon', 'SELECT')]).toEqual([true, false, false]);
+  expect([await priv('service_role', 'SELECT'), await priv('service_role', 'INSERT')]).toEqual([true, true]);
+  expect((await db.query<any>(`select count(*)::int n from pg_policies where tablename = 'rank_alerts' and policyname = 'rank_alerts: read own'`)).rows[0].n).toBe(1);
+}, 60000);
+
+test('a session logged for an earlier day keeps its date, up to 7 days back', async () => {
+  const db = new PGlite();
+  await db.exec(SUPABASE_STANDINS);
+  await db.exec(SCHEMA);
+  await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, 'b@example.test', '{"name":"Bea","invite":"BLUIES","invite_code":"BLUIES","code":"BLUIES"}')`, [U]);
+  await db.exec(`set test.uid = '${U}'`);
+  const hangs = JSON.stringify(Array.from({ length: 5 }, (_, i) => ({ set: i + 1, rep: 1, hand: 'both', target: 10, held: 10, full: true })));
+  // the season must have started long enough ago for these to be inside it; otherwise only the 7-day rule is checked
+  const seasonStart = +new Date((await db.query<any>(`select public.current_season_start() t`)).rows[0].t);
+  const save = async (daysAgo: number) => {
+    const at = new Date(Date.now() - daysAgo * 864e5).toISOString();
+    const r = (await db.query<any>(`insert into public.sessions (created_at, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, hangs) values ($1,'hang','both',10,180,5,1,180,20,$2) returning created_at`, [at, hangs])).rows[0];
+    return { sent: +new Date(at), kept: +new Date(r.created_at) };
+  };
+  const three = await save(3);
+  if (three.sent >= seasonStart) expect(three.kept).toBe(three.sent);   // kept as picked
+  const ten = await save(10);
+  expect(Math.abs(ten.kept - Date.now())).toBeLessThan(60e3);            // too far back: the server's time instead
+  const future = await save(-1);
+  expect(Math.abs(future.kept - Date.now())).toBeLessThan(60e3);         // in the future: the server's time
 }, 60000);

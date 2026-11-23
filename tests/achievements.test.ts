@@ -101,12 +101,14 @@ describe('diffUnlocks', () => {
     expect(diffUnlocks(c, ctx())).toEqual([]);
   });
 
-  it('week streak tier uses the current date', () => {
-    // system time is Sun 22 Nov; two sessions last week (w/c 9 Nov) keep a 1-week streak alive
-    const ss = [sessionAt(2026, 11, 10), sessionAt(2026, 11, 12)];
-    expect(tiered('Week streak').value(ctx({ sessions: ss }))).toBe(1);
-    vi.setSystemTime(new Date(2026, 10, 30, 12)); // two weeks later: broken
-    expect(tiered('Week streak').value(ctx({ sessions: ss }))).toBe(0);
+  it('the week streak badge is your best streak, so it stays once the streak ends', () => {
+    // three weeks running (w/c 26 Oct, 2 Nov, 9 Nov) with two training days each
+    const ss = [sessionAt(2026, 10, 27), sessionAt(2026, 10, 29), sessionAt(2026, 11, 3), sessionAt(2026, 11, 5), sessionAt(2026, 11, 10), sessionAt(2026, 11, 12)];
+    expect(tiered('Week streak').value(ctx({ sessions: ss }))).toBe(3);
+    vi.setSystemTime(new Date(2026, 11, 30, 12)); // weeks later: the streak itself is long broken
+    expect(tiered('Week streak').value(ctx({ sessions: ss }))).toBe(3);
+    // a week with only one training day breaks the run
+    expect(tiered('Week streak').value(ctx({ sessions: ss.filter(s => s.createdAt !== ss[3]!.createdAt) }))).toBe(1);
   });
 });
 

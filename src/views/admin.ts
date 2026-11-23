@@ -13,7 +13,8 @@ let root: HTMLElement | null = null;
 
 export function openAdmin() {
   if (!state.me?.isAdmin) return toast('Only admins can open this');
-  sheet({ body: '<div class="admin"><p class="sub center">Loading…</p></div>', onMount: el => { el.classList.add('admin-sheet'); root = el.querySelector('.admin'); } });
+  // full screen with ← Back at the top and Close at the bottom, so no ✕
+  sheet({ body: '<div class="admin"><p class="sub center">Loading…</p></div>', buttons: [{ label: 'Close', kind: 'ghost' }], onMount: el => { el.classList.add('admin-sheet'); root = el.querySelector('.admin'); } });
   draw();
   root!.addEventListener('click', onClick);
 }

@@ -1,10 +1,11 @@
-// In-app notifications: hearts and comments other climbers leave on my sessions.
+// In-app notifications: hearts and comments other climbers leave on my sessions, and top-3 places I've lost.
 // A bell in the header shows the unread count; the list opens in a sheet.
 import { $, esc, avatar, relTime, sheet, closeSheet } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, saveSettings } from '../lib/state';
 import type { Notif } from '../lib/types';
 import { openAdmin } from './admin';
+import { checkUnlocks } from './unlocks';
 
 let items: Notif[] = [];
 let loading = false;
@@ -24,7 +25,12 @@ export async function refreshNotifs() {
   if (loading || !state.store?.currentUserId() || !navigator.onLine) return;
   loading = true;
   try {
+    const before = items[0]?.createdAt;
     items = await state.store.notifications(40);
+    // new hearts may have earned a badge (Heart Throb): recount them
+    if (before && items[0] && items[0].createdAt > before && items.some(n => n.kind === 'like' && n.createdAt > before)) {
+      state.social = await state.store.socialCounts().catch(() => state.social); checkUnlocks();
+    }
     // first ever load: don't flood a new user with old activity — but do start the clock even if there's none yet
     if (!seenAt()) { (state.settings as any).notifSeen = items[0]?.createdAt ?? new Date().toISOString(); saveSettings(); }
     paintBadge();
@@ -36,7 +42,7 @@ export function bellHtml() {
   return `<button class="bell" id="bell" aria-label="Notifications">${ic('bell')}<span class="bell-n hide" id="bellCount"></span></button>`;
 }
 
-export function wireBell(goToFeed: (sessionId: string) => void) {
+export function wireBell(goToFeed: (sessionId: string) => void, goToRanks: () => void) {
   let opening = false;
   $('#bell')?.addEventListener('click', async () => {
     if (opening || document.querySelector('.nlist')) return; // ignore double taps
@@ -48,6 +54,7 @@ export function wireBell(goToFeed: (sessionId: string) => void) {
     const since = seenAt();
     const rows = items.map(n => {
       const p = state.profiles.get(n.fromUserId), isNew = !since || n.createdAt > since;
+      if (n.kind === 'rank') return `<button class="nrow ${isNew ? 'new' : ''}" data-rank>${avatar(p)}<span><b>${esc(p?.name ?? 'Someone')}</b> ${ic('tabRanks')} took your <b>#${n.was}</b> spot on the Overall board. You’re #${n.now} now.<small>${relTime(n.createdAt)}</small></span></button>`;
       if (n.kind === 'issue') return `<button class="nrow ${isNew ? 'new' : ''}" data-issue="${n.sessionId}">${avatar(p)}<span><b>${esc(p?.name ?? 'Someone')}</b> ${ic('bug')} reported an issue: “${esc((n.body ?? '').slice(0, 80))}”<small>${relTime(n.createdAt)}</small></span></button>`;
       const what = n.kind === 'like'
         ? `${ic('hearted')} hearted your <b>${esc(n.protocolName)}</b>`
@@ -58,12 +65,12 @@ export function wireBell(goToFeed: (sessionId: string) => void) {
     if (items.length) { (state.settings as any).notifSeen = items[0]!.createdAt; saveSettings(); }
     paintBadge();
     let el!: HTMLElement;
-    const done = sheet({ title: 'Notifications', body: `<div class="nlist">${rows || '<p class="sub">Nothing yet. When someone hearts or comments on your sessions, it shows up here.</p>'}</div>`, onMount: e => { el = e; } });
+    const done = sheet({ title: 'Notifications', body: `<div class="nlist">${rows || '<p class="sub">Nothing yet. When someone hearts or comments on your sessions, or takes your place in the top 3, it shows up here.</p>'}</div>`, onMount: e => { el = e; } });
     hydrateIcons(el);
     el.addEventListener('click', e => {
       const r = (e.target as HTMLElement).closest('.nrow') as HTMLElement | null; if (!r) return;
       closeSheet(el);
-      if (r.dataset.issue) openAdmin(); else goToFeed(r.dataset.sid!);
+      if (r.dataset.issue) openAdmin(); else if (r.dataset.rank != null) goToRanks(); else goToFeed(r.dataset.sid!);
     });
     await done;
   };

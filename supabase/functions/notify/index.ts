@@ -1,11 +1,14 @@
 // Bluies Finest: "notify" Edge Function (Deno).
-// Called by Supabase Database Webhooks on INSERT into public.likes, public.comments and public.issues.
+// Called by Supabase Database Webhooks on INSERT into public.likes, public.comments, public.issues and public.sessions.
 // Hearts/comments: sends a Web Push notification to the owner of the session.
 // Issues (problem reports): sends a Web Push notification to every admin and, if RESEND_API_KEY
 // is set, an email to every admin as well.
+// Sessions: anyone the new session knocked down from the top 3 of the Overall board gets an alert in the app's
+// bell (public.rank_alerts) and a push notification.
 // Deploy with: npx supabase functions deploy notify --no-verify-jwt   (see docs/PUSH.md)
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3';
+import { overtaken, poolStart, sydneyDay, type RankSession } from './rank.ts';
 
 interface LikeRecord { session_id: string; user_id: string; created_at?: string }
 interface CommentRecord extends LikeRecord { id: string; body: string }
@@ -14,7 +17,7 @@ interface WebhookPayload {
   type: 'INSERT' | 'UPDATE' | 'DELETE';
   table: string;
   schema: string;
-  record: LikeRecord | CommentRecord | IssueRecord | null;
+  record: LikeRecord | CommentRecord | IssueRecord | RankSession | null;
   old_record: unknown;
 }
 interface SubRow { endpoint: string; p256dh: string; auth: string }
@@ -65,6 +68,50 @@ async function pushTo(db: Db, subs: SubRow[], message: Record<string, string>) {
     if (error) console.error('Could not delete expired subscriptions:', error.message);
   }
   return { sent, removed: gone.length, failed: results.length - sent - gone.length };
+}
+
+/** A session was saved: tell anyone it knocked out of their top-3 place on the Overall board. */
+async function onSession(db: Db, rec: RankSession) {
+  const now = Date.now();
+  // a session logged for an earlier day (or uploaded long after) doesn't announce anything
+  if (now - +new Date(rec.created_at) > 2 * 864e5) return { skipped: 'not a recent session' };
+  // everyone's sessions in the leaderboard window, a page at a time (the API returns at most 1000 rows per request)
+  const pool: RankSession[] = [], since = new Date(poolStart(now)).toISOString(), PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db.from('sessions').select('id, user_id, created_at, points, tut_s')
+      .gte('created_at', since).order('created_at').order('id').range(from, from + PAGE - 1);
+    if (error) throw new Error(`Session lookup failed: ${error.message}`);
+    pool.push(...((data ?? []) as RankSession[]));
+    if ((data?.length ?? 0) < PAGE) break;
+  }
+  const hits = overtaken(pool, rec, now);
+  if (!hits.length) return { skipped: 'no one dropped down the top 3' };
+
+  const { data: actor } = await db.from('profiles').select('name').eq('id', rec.user_id).maybeSingle();
+  const who = (actor?.name as string | undefined)?.trim() || 'Someone', day = sydneyDay(now);
+  const results: unknown[] = [];
+  for (const h of hits) {
+    // once a day for each pair, so two climbers trading places all evening don't buzz each other every time
+    const { data: first, error: logErr } = await db.from('notify_log')
+      .upsert({ key: `rank:${day}:${h.userId}:${rec.user_id}` }, { onConflict: 'key', ignoreDuplicates: true }).select('key');
+    if (logErr) console.error('notify_log unavailable (run supabase/schema.sql):', logErr.message);
+    else if (!first?.length) { results.push({ skipped: 'already told today' }); continue; }
+
+    const { error: aErr } = await db.from('rank_alerts').insert({ user_id: h.userId, by_user_id: rec.user_id, session_id: rec.id, old_place: h.was, new_place: h.now });
+    if (aErr) console.error('rank_alerts unavailable (run supabase/schema.sql):', aErr.message);
+
+    if (!Deno.env.get('VAPID_PRIVATE_KEY')) { results.push({ skipped: 'push not configured' }); continue; }
+    const { data: subs, error: subErr } = await db.from('push_subscriptions').select('endpoint, p256dh, auth').eq('user_id', h.userId);
+    if (subErr) { console.error('Subscription lookup failed:', subErr.message); continue; }
+    if (!subs?.length) { results.push({ skipped: 'no devices with notifications on' }); continue; }
+    results.push(await pushTo(db, subs as SubRow[], {
+      title: h.was === 1 ? `👑 ${who} just took your #1 spot` : `${who} just took your #${h.was} spot`,
+      body: h.now > 3 ? `You’re #${h.now} on the Overall board now, out of the top 3. Time to hang 💪` : `You’re #${h.now} on the Overall board now. Time to hang 💪`,
+      url: '#ranks',
+      tag: 'rank', // a newer alert replaces an older one
+    }));
+  }
+  return { overtaken: hits.length, results };
 }
 
 const CATS: Record<string, string> = { bug: 'Something’s broken', idea: 'Idea', account: 'Account or log-in', other: 'Other' };
@@ -142,6 +189,7 @@ Deno.serve(async (req) => {
 
     const db = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
     if (payload.table === 'issues') return json(200, await onIssue(db, payload.record as IssueRecord));
+    if (payload.table === 'sessions') return json(200, await onSession(db, payload.record as unknown as RankSession));
     if (payload.table !== 'likes' && payload.table !== 'comments') return json(200, { skipped: `table ${payload.table}` });
     const rec = payload.record as LikeRecord | CommentRecord;
 
@@ -166,7 +214,7 @@ Deno.serve(async (req) => {
     if (!subs?.length) return json(200, { skipped: 'owner has no push subscriptions' });
 
     const who = (actor?.name as string | undefined)?.trim() || 'Someone';
-    const what = (session.protocol_name as string)?.trim() || 'session';
+    const what = ((session.protocol_name as string)?.trim() || 'session').replace(/^JUST LET ME HANG$/, 'QUICK SESH'); // renamed since
     const isComment = payload.table === 'comments';
     return json(200, await pushTo(db, subs as SubRow[], {
       title: isComment ? `${who} commented on your ${what}` : `${who} ❤️ hearted your ${what}`,

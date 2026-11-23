@@ -17,6 +17,7 @@ import { openClimber } from './views/climber';
 import { bellHtml, wireBell } from './views/notifs';
 import { syncPush, disablePush } from './lib/push';
 import { renderFeed, focusPost } from './views/feed';
+import { checkUnlocks } from './views/unlocks';
 import { registerSW } from 'virtual:pwa-register';
 import { maybeInstallNudge } from './lib/install'; // imported early so it catches the browser's install prompt
 
@@ -80,7 +81,7 @@ function shell() {
     <main>${PAGES.map(p => `<div id="view-${p.id}" class="hide"></div>`).join('')}</main>
     <nav class="tabs" id="tabs" aria-label="Main">${PAGES.map(p => `<button data-v="${p.id}"><b>${ic(p.icon)}</b>${p.label}</button>`).join('')}</nav>`;
   hydrateIcons($('#tabs')); hydrateIcons($('header'));
-  wireBell(sid => { if (!(current === 'hang' && hangBusy())) { focusPost(sid); go('feed'); } else toast('Finish or cancel your session first'); });
+  wireBell(sid => { if (!(current === 'hang' && hangBusy())) { focusPost(sid); go('feed'); } else toast('Finish or cancel your session first'); }, () => { go('ranks'); });
   $$('#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v as Page)));
 }
 
@@ -133,7 +134,9 @@ async function boot() {
   const post = new URLSearchParams(location.search).get('post');
   if (post) history.replaceState(null, '', location.pathname);
   if (post && UUID.test(post)) { focusPost(post); await go('feed'); }
+  else if (location.hash === '#ranks') { history.replaceState(null, '', location.pathname); await go('ranks'); } // a top-3 alert
   else await go('hang');
+  checkUnlocks(0); // anything earned since last time (hearts, a season won, another phone) pops up now
   if (!welcomed) setTimeout(maybeInstallNudge, 1500); // once per device, for people who've been here before
 }
 
@@ -153,7 +156,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // (go() refuses to leave a running or unsaved session, so nothing is lost).
 navigator.serviceWorker?.addEventListener('message', e => {
   if (e.data?.type !== 'open-post' || !state.me) return;
-  const id = new URL(e.data.url, location.href).searchParams.get('post') ?? '';
+  const u = new URL(e.data.url, location.href), id = u.searchParams.get('post') ?? '';
+  if (u.hash === '#ranks') { go('ranks'); return; } // a top-3 alert (go() won't leave a running session)
   if (UUID.test(id)) { if (!(current === 'hang' && hangBusy())) { focusPost(id); go('feed'); } else toast('Finish or cancel your session first'); }
 });
 // Re-draw Stats and History when offline sessions finish uploading.

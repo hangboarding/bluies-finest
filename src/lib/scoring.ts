@@ -86,15 +86,26 @@ export function addDays(d: Date | number, n: number) { const x = new Date(d); x.
 /** Parse a "YYYY-MM-DD" day key as local midnight (new Date('YYYY-MM-DD') would be UTC). */
 export function parseDayKey(k: string) { const [y, m, d] = k.split('-').map(Number); return new Date(y!, m! - 1, d!); }
 
-/** Consecutive weeks (ending this week or last) with real sessions on at least 2 different days. */
-export function weekStreak(sessions: Pick<Session, 'createdAt' | 'tutS'>[], now = new Date()) {
+/** Week start (ms) → how many different days that week had a real session. */
+function trainingDaysPerWeek(sessions: Pick<Session, 'createdAt' | 'tutS'>[]) {
   const days = new Map<number, Set<string>>();
   for (const s of sessions) {
     if (!qualifies(s)) continue;
     const d = new Date(s.createdAt), w = +weekStart(d);
     (days.get(w) ?? days.set(w, new Set()).get(w)!).add(dayKey(d));
   }
-  const counts = new Map([...days].map(([w, ds]) => [w, ds.size]));
+  return new Map([...days].map(([w, ds]) => [w, ds.size]));
+}
+/** The longest run ever of consecutive weeks with real sessions on at least 2 different days. */
+export function bestWeekStreak(sessions: Pick<Session, 'createdAt' | 'tutS'>[]) {
+  const good = [...trainingDaysPerWeek(sessions)].filter(([, n]) => n >= 2).map(([w]) => w).sort((a, b) => a - b);
+  let best = 0, run = 0;
+  good.forEach((w, i) => { run = i > 0 && +addDays(good[i - 1]!, 7) === w ? run + 1 : 1; best = Math.max(best, run); });
+  return best;
+}
+/** Consecutive weeks (ending this week or last) with real sessions on at least 2 different days. */
+export function weekStreak(sessions: Pick<Session, 'createdAt' | 'tutS'>[], now = new Date()) {
+  const counts = trainingDaysPerWeek(sessions);
   let w = weekStart(now), n = 0;
   if ((counts.get(+w) ?? 0) < 2) w = addDays(w, -7); // this week isn't over yet — don't break the streak
   while ((counts.get(+w) ?? 0) >= 2) { n++; w = addDays(w, -7); }

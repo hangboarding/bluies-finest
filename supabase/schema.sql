@@ -6,7 +6,8 @@
 --
 -- Sections, in order: tables, security and policies, avatars, invite codes, hardening,
 -- admin page access, seasons and crew challenges, push notifications, server-function
--- access, problem reports, profile location, hardening 2, fair scoring (points v3).
+-- access, problem reports, profile location, hardening 2, fair scoring (points v3),
+-- fuller Edit session and top-3 alerts.
 -- =====================================================================
 
 create extension if not exists pgcrypto;
@@ -1075,3 +1076,39 @@ create trigger sessions_rescore_upd after update on public.sessions
 -- Re-score this season with the new rules (each session's points depend only on the other
 -- sessions' weights and times, so the order rows are updated in doesn't matter).
 update public.sessions set points = points where created_at >= public.current_season_start();
+
+
+-- =====================================================================
+-- Bluies Finest: fuller "Edit session", and top-3 alerts (November 2026). Part of schema.sql, safe to run again.
+--
+--   • Edit session can also change how a session was done: grip, fingers, board, edge material and
+--     profile, pre-session feel, and a no-hang lift's target effort. None of these change points.
+--     The timings and the hang-by-hang log still can't be changed.
+--   • rank_alerts: "Sam took your #2 spot" notices. The notify function writes one when a new session
+--     knocks someone down from the top 3 of the Overall board; they show in the app's bell. For phone
+--     notifications too, add the sessions webhook in docs/PUSH.md ("Top-3 alerts").
+-- =====================================================================
+
+grant update (edge_mm, added_kg, assist_kg, lift_kg, rpe, note, load_pct, points,
+              grip, fingers, board, edge_material, edge_profile, feel, effort_pct) on public.sessions to authenticated;
+
+create table if not exists public.rank_alerts (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles (id) on delete cascade,  -- who lost their place
+  by_user_id  uuid not null references public.profiles (id) on delete cascade,  -- whose session did it
+  session_id  uuid references public.sessions (id) on delete cascade,
+  old_place   integer not null check (old_place between 1 and 3),
+  new_place   integer not null check (new_place > old_place),
+  created_at  timestamptz not null default now()
+);
+create index if not exists rank_alerts_user_idx on public.rank_alerts (user_id, created_at desc);
+
+alter table public.rank_alerts enable row level security;
+-- members can only read their own; only the notify function (service_role) writes them
+revoke all on public.rank_alerts from public, anon, authenticated;
+grant select on public.rank_alerts to authenticated;
+grant select, insert, delete on public.rank_alerts to service_role;
+
+drop policy if exists "rank_alerts: read own" on public.rank_alerts;
+create policy "rank_alerts: read own" on public.rank_alerts
+  for select to authenticated using (user_id = (select auth.uid()));

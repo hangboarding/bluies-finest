@@ -1,5 +1,5 @@
 import type { Session } from './types';
-import { weekStreak, dayKey, isCrimp, parseDayKey, qualifies } from './scoring';
+import { bestWeekStreak, dayKey, isCrimp, parseDayKey, qualifies } from './scoring';
 
 export const TIER_NAMES = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond', 'Master', 'Grand Master', 'GOAT'];
 export const TIER_COLOURS = ['#8a8f94', '#c8814a', '#c9d1d9', '#f2c14e', '#9fd8d1', '#2ecc71', '#7ad7f0', '#b48cff', '#ff5a8a', '#ffd700'];
@@ -28,7 +28,7 @@ const hr = (s: Session) => new Date(s.createdAt).getHours();
 
 export const TIERED: Tiered[] = [
   { icon: '🧗', name: 'Sessions', desc: 'Complete hangboard sessions.', thresholds: [1, 5, 10, 25, 50, 100, 200, 365, 500, 1000], value: c => c.sessions.length },
-  { icon: '🔥', name: 'Week streak', desc: 'Consecutive weeks training on at least 2 different days.', thresholds: [1, 2, 4, 8, 12, 20, 26, 40, 52, 104], value: c => weekStreak(c.sessions) },
+  { icon: '🔥', name: 'Week streak', desc: 'Your longest run of consecutive weeks training on at least 2 different days.', thresholds: [1, 2, 4, 8, 12, 20, 26, 40, 52, 104], value: c => bestWeekStreak(c.sessions) },
   { icon: '🏔️', name: 'Total hangs', desc: "Every hang you've logged, all time.", thresholds: [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000], value: c => c.sessions.reduce((a, s) => a + s.totalHangs, 0) },
   { icon: '🏋️', name: 'Added weight', desc: 'Added weight held full time on a ≤15s hang, in 3 different sessions (kg).', thresholds: [2.5, 5, 10, 15, 20, 25, 30, 40, 50, 60], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.hang <= 15 && s.fullHangs > 0 && s.addedKg > 0).map(s => s.addedKg)) },
   { icon: '📏', name: 'Smallest edge', desc: 'Smallest edge held full time at bodyweight, in 3 different sessions (mm).', lower: true, thresholds: [25, 20, 18, 15, 14, 12, 10, 8, 6, 5], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0).map(s => s.edgeMm), true) },
@@ -67,7 +67,7 @@ export const ONE_OFFS: OneOff[] = [
   { icon: '🦉', name: 'Night Owl', desc: 'Finish a session after 11pm.', got: c => c.sessions.some(s => hr(s) >= 23) },
   { icon: '💯', name: 'Perfect Session', desc: 'Every hang held full time on Max Hangs.', got: c => c.sessions.some(s => s.protocolKey === 'max' && s.totalHangs > 0 && s.fullHangs === s.totalHangs) },
   { icon: '🙌', name: 'Ambidextrous', desc: 'Left and right within 5% in a one-arm session.', got: c => c.sessions.some(s => { const L = s.hangs.filter(h => h.hand === 'L').reduce((a, h) => a + h.held, 0), R = s.hangs.filter(h => h.hand === 'R').reduce((a, h) => a + h.held, 0); return L > 0 && R > 0 && Math.abs(L - R) / Math.max(L, R) <= 0.05; }) },
-  { icon: '⚡', name: 'Speedrun', desc: 'Finish a JUST LET ME HANG session.', got: c => c.sessions.some(s => s.protocolKey === 'jlmh') },
+  { icon: '⚡', name: 'Speedrun', desc: 'Finish a ⚡ QUICK SESH session.', got: c => c.sessions.some(s => s.protocolKey === 'jlmh') },
   { icon: '🏅', name: 'PB Machine', desc: 'Set 3 personal bests in one week.', got: c => { const pbs = c.sessions.filter(s => s.isPb).map(s => +new Date(s.createdAt)).sort((a, b) => a - b); return pbs.some((t, i) => pbs[i + 2] !== undefined && pbs[i + 2]! - t <= 7 * 864e5); } },
   { icon: '💬', name: 'Hype Squad', desc: "Comment on 10 other climbers' sessions.", got: c => c.commentsGiven >= 10 },
   { icon: '❤️', name: 'Heart Throb', desc: 'Get 50 hearts on your activity.', got: c => c.heartsReceived >= 50 },
@@ -99,6 +99,37 @@ export function diffUnlocks(before: Ctx, after: Ctx): { icon: string; text: stri
     if (n > b) out.push({ icon: a.icon, text: `${a.name} → ${TIER_NAMES[n - 1]}` });
   }
   for (const o of ONE_OFFS) if (!o.got(before) && o.got(after)) out.push({ icon: o.icon, text: `${o.secret ? 'Secret: ' : ''}${o.name}` });
+  return out;
+}
+
+/** Everything earned so far: `t:<name>` → tier reached for tiered badges, `o:<name>` → 1 for one-offs. */
+export function earned(c: Ctx): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const a of TIERED) { const n = tierOf(a.value(c), a.thresholds, a.lower); if (n) out[`t:${a.name}`] = n; }
+  for (const o of ONE_OFFS) if (o.got(c)) out[`o:${o.name}`] = 1;
+  return out;
+}
+export interface Unlock { icon: string; name: string; tier?: string; colour?: string; secret?: boolean }
+/** What `now` has beyond `seen` (both from earned()): one-offs and secrets first, then tier-ups.
+ *  A tier lost and earned again doesn't count twice. */
+export function newUnlocks(seen: Record<string, number>, now: Record<string, number>): Unlock[] {
+  const out: Unlock[] = [];
+  for (const o of ONE_OFFS) if (now[`o:${o.name}`] && !seen[`o:${o.name}`]) out.push({ icon: o.icon, name: o.name, secret: o.secret });
+  for (const a of TIERED) {
+    const n = now[`t:${a.name}`] ?? 0;
+    if (n > (seen[`t:${a.name}`] ?? 0)) out.push({ icon: a.icon, name: a.name, tier: TIER_NAMES[n - 1], colour: TIER_COLOURS[n - 1] });
+  }
+  return out;
+}
+/** The tier a badge shows: what your sessions say now, but never below one already earned (`seen` is
+ *  Settings.achSeen), so deleting a session, comment or custom protocol doesn't take a badge away. */
+export const shownTier = (a: Tiered, c: Ctx, seen: Record<string, number> = {}) => Math.max(tierOf(a.value(c), a.thresholds, a.lower), seen[`t:${a.name}`] ?? 0);
+/** Whether a one-off shows as unlocked: earned now, or earned before (see shownTier). */
+export const hasOneOff = (o: OneOff, c: Ctx, seen: Record<string, number> = {}) => o.got(c) || !!seen[`o:${o.name}`];
+/** The higher tier of each (what's been shown, merged across devices). */
+export function mergeSeen(a: Record<string, number> = {}, b: Record<string, number> = {}) {
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) out[k] = Math.max(out[k] ?? 0, v);
   return out;
 }
 

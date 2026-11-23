@@ -6,10 +6,11 @@ import { applyTheme, ACCENTS, refreshHeader, rerender } from '../main';
 import { bumpDaily } from '../lib/achievements';
 import { setSound } from '../lib/timer';
 import { resetTours } from './tour';
-import { addBoard, hangBusy, hangPending, getReady, preHang, drawLoadHint } from './hang';
+import { addBoard, drawBoards, hangBusy, hangPending, getReady, preHang, drawLoadHint } from './hang';
 import { openAdmin } from './admin';
 import { openReport } from './report';
 import { pushSupport, pushEnabled, enablePush, disablePush } from '../lib/push';
+import { checkUnlocks } from './unlocks';
 
 export function renderProfile(root: HTMLElement) {
   const S = state.settings, P = S.prefs, me = state.me!;
@@ -36,7 +37,7 @@ export function renderProfile(root: HTMLElement) {
   </div>
   <div class="card boards"><h3>${ic('board')} My hangboards</h3><p class="sub">${ic('star')} = default for new sessions</p>
     <div id="boardList"></div>
-    <div class="addrow"><input class="tx" id="newBoard" placeholder="e.g. Garage board" aria-label="New board name"><button id="addBoard" aria-label="Add board">+</button></div></div>
+    <div class="addrow"><input class="tx" id="newBoard" maxlength="60" placeholder="e.g. Garage board" aria-label="New board name"><button id="addBoard" aria-label="Add board">+</button></div></div>
   <div class="card"><h3>${ic('theme')} Theme</h3>
     <label class="f">Mode</label><div class="seg" id="mode"><button data-m="dark" class="${P.mode === 'dark' ? 'on' : ''}">Dark</button><button data-m="light" class="${P.mode === 'light' ? 'on' : ''}">Light</button></div><br>
     <label class="f">Icons</label><div class="seg" id="icons"><button data-i="emoji" class="${P.icons === 'emoji' ? 'on' : ''}">😀 Emoji</button><button data-i="flat" class="${P.icons === 'flat' ? 'on' : ''}">${ic('mountain', 'flat')} Flat</button></div><br>
@@ -48,7 +49,7 @@ export function renderProfile(root: HTMLElement) {
     <div class="tg"><span>${ic('rest')} Pre-hang countdown<small>Beeps for the last few seconds of each rest. Always ends before the rest does.</small></span><span class="numset"><input class="tx" id="setPre" type="number" inputmode="numeric" min="0" max="30" value="${preHang()}" aria-label="Pre-hang countdown in seconds"><small>s</small></span></div>
     ${toggle('warmup', 'Warm-up reminder', 'Suggest a warm-up before max-effort sessions', 'sprout')}
     ${toggle('nudges', 'Overtraining warnings', 'Warn about back-to-back hard days or too many max sessions in a week', 'help')}
-    <div class="tg hide" id="pushRow"><span>${ic('bell')} Phone notifications<small id="pushSub">When someone hearts or comments on your sessions</small></span><button class="sw2" id="pushTg" role="switch" aria-checked="false" aria-label="Phone notifications"></button></div>
+    <div class="tg hide" id="pushRow"><span>${ic('bell')} Phone notifications<small id="pushSub">When someone hearts or comments on your sessions, or takes your place in the top 3</small></span><button class="sw2" id="pushTg" role="switch" aria-checked="false" aria-label="Phone notifications"></button></div>
     ${toggle('pgrip', 'Show Grip section', 'Grip type, fingers and hands on the Hang screen', 'grip')}
     ${toggle('psetup', 'Show Setup section', 'Board, edge material and profile on the Hang screen', 'board')}
     <div class="tg"><span>${ic('help')} App tour<small>Show the intro and page tips again</small></span><button class="pill" id="replay">Replay</button></div></div>
@@ -90,8 +91,21 @@ export function renderProfile(root: HTMLElement) {
 
 function drawBoardList() {
   const B = state.settings.boards;
-  $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star')}</button><span class="nm">${esc(b)}</span><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet. Add one below.</p>';
+  $('#boardList').innerHTML = B.list.length ? B.list.map(b => `<div class="lrow"><button class="star ${b === B.def ? 'on' : ''}" data-b="${esc(b)}" aria-label="Make ${esc(b)} default">${ic('star')}</button><span class="nm">${esc(b)}</span><button class="ed" data-renb="${esc(b)}" aria-label="Rename ${esc(b)}">${ic('edit')}</button><button class="ed" data-delb="${esc(b)}" aria-label="Remove ${esc(b)}">${ic('trash')}</button></div>`).join('') : '<p class="sub">No boards yet. Add one below.</p>';
   hydrateIcons($('#boardList'));
+}
+
+/** Rename one of my boards everywhere it's picked. Sessions already logged keep the name they were saved with. */
+async function renameBoard(b: string) {
+  const n = (await promptSheet('Rename board', 'Sessions you’ve already logged on it keep the old name.', 'e.g. Garage board', 'Save', b))?.trim().slice(0, 60);
+  if (!n || n === b) return;
+  const S = state.settings, B = S.boards;
+  if (B.list.includes(n)) { toast(`You already have a board called ${n}`); return; }
+  const swap = (x: string) => (x === b ? n : x);
+  B.list = B.list.map(swap);
+  B.custom = B.custom.includes(b) ? B.custom.map(swap) : [...B.custom, n]; // a renamed built-in board is your own now
+  B.def = swap(B.def); if (S.board) S.board = swap(S.board);
+  saveSettings(); drawBoardList(); drawBoards(); toast(`Renamed to ${n}`); checkUnlocks();
 }
 
 function markCustom(on: boolean, colour?: string) {
@@ -101,7 +115,7 @@ function markCustom(on: boolean, colour?: string) {
 function setAccent(colour: string) {
   if (!/^#[0-9a-f]{6}$/i.test(colour)) return;
   const S = state.settings;
-  S.prefs.acc = colour; if (bumpDaily(S.flags, 'accent') >= 10) S.flags.spinCycle = true;
+  S.prefs.acc = colour; if (bumpDaily(S.flags, 'accent') >= 10) { S.flags.spinCycle = true; checkUnlocks(); }
   applyTheme(); saveSettings();
   $$('#sw i').forEach(x => x.classList.toggle('on', x.dataset.c === colour));
   markCustom(!ACCENTS.includes(colour), colour);
@@ -217,7 +231,7 @@ async function onPhoto(e: Event) {
     const blob = await shrink(f, 512);
     const url = await state.store.uploadAvatar(blob);
     state.me!.avatarUrl = url; state.profiles.get(state.me!.id)!.avatarUrl = url;
-    $('#upl .uplpic').outerHTML = avatar(state.me!, 'uplpic'); refreshHeader(); toast('Photo updated');
+    $('#upl .uplpic').outerHTML = avatar(state.me!, 'uplpic'); refreshHeader(); toast('Photo updated'); checkUnlocks();
   } catch (err: any) { toast(err.message ?? 'Upload failed'); }
   finally { (e.target as HTMLInputElement).value = ''; } // so picking the same photo again still works
 }
@@ -245,6 +259,8 @@ async function onClick(e: MouseEvent) {
   if (sw) { setAccent(sw.dataset.c!); return; }
   const star = t.closest('[data-b]') as HTMLElement | null;
   if (star) { S.boards.def = star.dataset.b!; S.board = S.boards.def; saveSettings(); drawBoardList(); return; }
+  const renb = t.closest('[data-renb]') as HTMLElement | null;
+  if (renb) { await renameBoard(renb.dataset.renb!); return; }
   const delb = t.closest('[data-delb]') as HTMLElement | null;
   if (delb) { const b = delb.dataset.delb!; S.boards.list = S.boards.list.filter(x => x !== b); if (S.boards.def === b) S.boards.def = S.boards.list[0] ?? ''; if (S.board === b) S.board = S.boards.def; saveSettings(); drawBoardList(); return; }
   if (t.closest('#addBoard')) { const i = $('#newBoard') as HTMLInputElement; if (i.value.trim()) { await addBoard(i.value); i.value = ''; drawBoardList(); } return; }

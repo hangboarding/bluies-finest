@@ -5,6 +5,8 @@ import type { ChallengeRow, Comment, FeedItem, InviteCode, Issue, IssueCategory,
 import { championsFrom } from './seasons';
 import { sessionPoints } from './scoring';
 import { PROTOCOLS } from './protocols';
+// the same rules the notify server function uses, so demo mode gets top-3 alerts too
+import { overtaken, sydneyDay } from '../../supabase/functions/notify/rank';
 
 interface DB {
   users: { id: string; email: string; password: string }[];
@@ -123,7 +125,18 @@ export class LocalStore implements Store {
     const given = (s as any).id as string | undefined, dup = given && this.db.sessions.find(x => x.id === given);
     if (dup) return structuredClone(dup);
     const full: Session = { ...s, id: given || uid(), userId: this.need(), createdAt: s.createdAt ?? new Date().toISOString() } as Session;
-    this.db.sessions.unshift(full); this.save(); return structuredClone(full);
+    this.db.sessions.unshift(full); this.rankAlert(full); this.save(); return structuredClone(full);
+  }
+  /** What the notify function does on the server: note who this session knocked down the top 3 (once a day per pair). */
+  private rankAlert(s: Session) {
+    if (Date.now() - +new Date(s.createdAt) > 2 * 864e5) return;
+    const row = (x: Session) => ({ id: x.id, user_id: x.userId, created_at: x.createdAt, points: x.points, tut_s: x.tutS });
+    const list = ((this.db as any).rankAlerts ??= []) as { id: string; userId: string; byUserId: string; sessionId: string; was: number; now: number; createdAt: string; key: string }[];
+    const day = sydneyDay(Date.now());
+    for (const h of overtaken(this.db.sessions.map(row), row(s))) {
+      const key = `${day}:${h.userId}:${s.userId}`;
+      if (!list.some(a => a.key === key)) list.unshift({ id: uid(), userId: h.userId, byUserId: s.userId, sessionId: s.id, was: h.was, now: h.now, createdAt: new Date().toISOString(), key });
+    }
   }
   async updateSession(id: string, patch: Partial<NewSession>) {
     const s = this.db.sessions.find(x => x.id === id && x.userId === this.need()); if (!s) throw new Error('Session not found');
@@ -162,6 +175,7 @@ export class LocalStore implements Store {
       ...this.db.likes.filter(l => mine.has(l.s) && l.u !== me).map(l => ({ kind: 'like' as const, sessionId: l.s, protocolName: mine.get(l.s)!.protocolName, fromUserId: l.u, createdAt: (l as any).at ?? mine.get(l.s)!.createdAt })),
       ...this.db.comments.filter(c => mine.has(c.sessionId) && c.userId !== me).map(c => ({ kind: 'comment' as const, sessionId: c.sessionId, protocolName: mine.get(c.sessionId)!.protocolName, fromUserId: c.userId, body: c.body, createdAt: c.createdAt })),
     ];
+    out.push(...(((this.db as any).rankAlerts ?? []) as any[]).filter(a => a.userId === me).map(a => ({ kind: 'rank' as const, sessionId: a.sessionId, protocolName: '', fromUserId: a.byUserId, was: a.was, now: a.now, createdAt: a.createdAt })));
     if (this.db.profiles.find(p => p.id === me)?.isAdmin)
       out.push(...this.issues().filter(i => i.status === 'open' && i.userId !== me).map(i => ({ kind: 'issue' as const, sessionId: i.id, protocolName: '', fromUserId: i.userId, body: i.body, createdAt: i.createdAt })));
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);

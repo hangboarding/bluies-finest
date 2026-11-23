@@ -7,6 +7,7 @@ import { bumpDaily } from '../lib/achievements';
 import { seasonOf, daysLeft, seasonNameFromStart } from '../lib/seasons';
 import { crownSvg, titlesOf } from '../lib/crown';
 import { myChampCard } from './champ-hero';
+import { checkUnlocks } from './unlocks';
 
 let cat = 'season', chartCat = 'season';
 
@@ -17,7 +18,7 @@ const catOptions = (sel: string) => GROUPS().map(g => `<optgroup label="${g}">${
 
 export function renderRanks(root: HTMLElement) {
   const F = state.settings.flags, peeks = bumpDaily(F, 'peek');
-  if (peeks >= 20 && !F.peepingTom) { F.peepingTom = true; saveSettings(); }
+  if (peeks >= 20 && !F.peepingTom) { F.peepingTom = true; saveSettings(); checkUnlocks(); }
   else if (peeks % 5 === 0) saveSettings(); // persist the counter occasionally, not on every visit
   root.innerHTML = `${myChampCard()}<div class="card">
     <label class="f">Category</label>

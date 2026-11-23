@@ -6,6 +6,7 @@ import { ic, hydrateIcons } from '../lib/icons';
 import { PROTOCOLS, FIELDS, LIMITS, GRIPS, FINGERS, personalVals, type FieldKey, type Protocol, type Values } from '../lib/protocols';
 import { state, saveSettings, allProtos } from '../lib/state';
 import { handsLabel } from '../lib/timer';
+import { checkUnlocks } from './unlocks';
 import {
   type Workout, type WorkoutBlock, type BlockVals, blockValues, blockLine, sanitizeVals, fmtRest, fmtLength, workoutTotals,
   moveItem, clamp, newId, makeBlock, cloneWorkout, MAX_BLOCKS, REST_LIMITS,
@@ -43,7 +44,7 @@ export function createCustomProto(name: string, v: BlockVals): string {
   state.settings.customProtos[k] = { n: name.slice(0, 60), by: `Custom, by ${state.me?.name ?? 'you'}`, use: 'Your own plan', d: 'Your saved protocol.', int: 'Your call', freq: 'Your call', custom: true,
     hang: v.hang, rest: v.rest, sets: v.sets, reps: v.reps, setRest: v.setRest, edge: v.edge, mode: v.mode, hands: v.hands, sw: v.sw, effort: v.effort };
   state.settings.vals[k] = { add: v.add, rem: v.rem, lift: v.lift };
-  saveSettings(); protosChanged();
+  saveSettings(); protosChanged(); checkUnlocks(); // Mad Scientist
   return k;
 }
 

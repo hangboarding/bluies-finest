@@ -12,23 +12,32 @@ export function toast(text: string, ms = 2200) {
 }
 
 let sheetSeq = 0;
-/** Bottom sheet. Resolves with the clicked button index, or -1 when dismissed (backdrop, Escape or closeSheet).
+const X_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+/** Bottom sheet. Resolves with the clicked button index, or -1 when dismissed (✕, backdrop, Escape or closeSheet).
+ *  Without `buttons` it has a ✕ in the top corner instead of a row of buttons.
  *  `title` and `body` are HTML: callers escape any user text they put in them. */
 export function sheet(opts: { title?: string; body?: string; buttons?: { label: string; kind?: 'primary' | 'danger' | 'ghost' }[]; onMount?: (el: HTMLElement) => void;
-  /** false: don't focus the first text field (a sheet full of number fields shouldn't open the phone keyboard). */
-  autofocus?: boolean }): Promise<number> {
+  /** false: don't focus the first text box. Date, number and slider fields are never focused by themselves. */
+  autofocus?: boolean;
+  /** Centred in the part of the screen the phone keyboard leaves visible, rather than at the bottom (for typing). */
+  mid?: boolean }): Promise<number> {
   return new Promise(res => {
-    const m = document.createElement('div'); m.className = 'modal';
-    const btns = opts.buttons ?? [{ label: 'Close', kind: 'ghost' }];
+    const m = document.createElement('div'); m.className = opts.mid ? 'modal mid' : 'modal';
+    const btns = opts.buttons;
     const tid = `sheet-t${++sheetSeq}`, opener = document.activeElement as HTMLElement | null;
-    m.innerHTML = `<div class="card sheet" role="dialog" aria-modal="true"${opts.title ? ` aria-labelledby="${tid}"` : ''} tabindex="-1">${opts.title ? `<h2 id="${tid}">${opts.title}</h2>` : ''}${opts.body ?? ''}
-      <div class="row">${btns.map((b, i) => `<button type="button" class="big ${b.kind === 'primary' ? '' : 'ghost'} ${b.kind === 'danger' ? 'danger' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div></div>`;
+    m.innerHTML = `<div class="card sheet${btns ? '' : ' has-x'}" role="dialog" aria-modal="true"${opts.title ? ` aria-labelledby="${tid}"` : ''} tabindex="-1">${btns ? '' : `<div class="sheet-xw"><button type="button" class="sheet-x" aria-label="Close">${X_SVG}</button></div>`}${opts.title ? `<h2 id="${tid}">${opts.title}</h2>` : ''}${opts.body ?? ''}
+      ${btns ? `<div class="row">${btns.map((b, i) => `<button type="button" class="big ${b.kind === 'primary' ? '' : 'ghost'} ${b.kind === 'danger' ? 'danger' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div>` : ''}</div>`;
     document.body.append(m);
     const card = m.querySelector('.sheet') as HTMLElement;
+    // keep a centred sheet in the visible part of the screen while the keyboard is open
+    const vv = opts.mid ? window.visualViewport : null;
+    const fit = () => { if (vv) Object.assign(m.style, { top: `${vv.offsetTop}px`, height: `${vv.height}px`, bottom: 'auto' }); };
+    vv?.addEventListener('resize', fit); vv?.addEventListener('scroll', fit); fit();
     let closed = false;
     const done = (i: number) => {
       if (closed) return; closed = true;
-      removeEventListener('keydown', onKey, true); m.remove(); res(i);
+      removeEventListener('keydown', onKey, true); vv?.removeEventListener('resize', fit); vv?.removeEventListener('scroll', fit);
+      m.remove(); res(i);
       if (opener?.isConnected && !document.querySelector('.modal')) opener.focus({ preventScroll: true });
     };
     // Escape closes the top-most sheet; Tab stays inside it
@@ -45,12 +54,15 @@ export function sheet(opts: { title?: string; body?: string; buttons?: { label: 
     addEventListener('keydown', onKey, true);
     m.addEventListener('sheet:close', () => done(-1));
     m.addEventListener('click', e => {
-      if (e.target === m) return done(-1);
+      if (e.target === m || (e.target as HTMLElement).closest('.sheet-x')) return done(-1);
       const b = (e.target as HTMLElement).closest('[data-i]') as HTMLElement | null;
       if (b && b.closest('.sheet > .row')) done(+b.dataset.i!);
     });
     opts.onMount?.(card);
-    const input = opts.autofocus === false ? null : m.querySelector('input,textarea') as HTMLElement | null;
+    // Only a box you type into gets focus: on a phone, focusing a date, number or slider field pops up its
+    // picker or keypad (iPhone opens the date wheel straight away), which is jarring when nothing was tapped.
+    const typing = 'textarea,input:not([type]),input[type="text"],input[type="search"],input[type="email"],input[type="password"]';
+    const input = opts.autofocus === false ? null : m.querySelector(typing) as HTMLElement | null;
     (input ?? card).focus({ preventScroll: true });
   });
 }
@@ -65,10 +77,39 @@ export async function promptSheet(title: string, body: string, placeholder: stri
   let input!: HTMLInputElement;
   const i = await sheet({
     title, body: `<p class="sub">${body}</p><input class="tx" style="margin-bottom:12px" placeholder="${esc(placeholder)}" value="${esc(value)}">`,
-    buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: yes, kind: 'primary' }],
+    buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: yes, kind: 'primary' }], mid: true,
     onMount: el => { input = el.querySelector('input')!; input.addEventListener('keydown', e => { if (e.key === 'Enter') (el.querySelectorAll('.row button')[1] as HTMLElement).click(); }); },
   });
   return i === 1 ? input.value.trim() : null;
+}
+
+/** A sideways swipe on `el` (a touch, or a mouse drag on the page itself). Mostly-vertical moves (scrolling), short ones,
+ *  ones held for ages, and ones that start on a text field, slider, number stepper or drag handle don't count. */
+export function onSwipe(el: HTMLElement, on: (dir: 'left' | 'right') => void) {
+  let x0 = 0, y0 = 0, t0 = 0, live = false;
+  const begin = (x: number, y: number, t: EventTarget | null) => {
+    live = !(t as HTMLElement)?.closest?.('input,textarea,select,.step,.wq-h,[data-noswipe]');
+    x0 = x; y0 = y; t0 = Date.now();
+  };
+  const end = (x: number, y: number) => {
+    if (!live) return false; live = false;
+    const dx = x - x0, dy = y - y0;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < 1.8 * Math.abs(dy) || Date.now() - t0 > 2500 || document.querySelector('.modal,.tour')) return false;
+    on(dx > 0 ? 'right' : 'left'); return true;
+  };
+  el.addEventListener('touchstart', e => { const p = e.touches[0]; if (e.touches.length === 1 && p) begin(p.clientX, p.clientY, e.target); else live = false; }, { passive: true });
+  el.addEventListener('touchend', e => { const p = e.changedTouches[0]; if (p) end(p.clientX, p.clientY); }, { passive: true });
+  el.addEventListener('touchcancel', () => { live = false; });
+  // a mouse drag counts only from the page itself, not from a button or a chip (that's a click). Dragging over
+  // text also selects it, so a drag that counts as a swipe clears that selection.
+  el.addEventListener('mousedown', e => { if (e.button === 0 && !(e.target as HTMLElement).closest('button,a,label,.chip,[role="button"]')) begin(e.clientX, e.clientY, e.target); else live = false; });
+  el.addEventListener('mouseup', e => { if (end(e.clientX, e.clientY)) getSelection()?.removeAllRanges(); });
+}
+/** Slide `el` in from the side it's coming from (after a swipe or a switch). */
+export function slideIn(el: HTMLElement, dir: 'left' | 'right') {
+  el.classList.remove('slide-l', 'slide-r'); void el.offsetWidth; // restart the animation
+  el.classList.add(dir === 'left' ? 'slide-l' : 'slide-r');
+  el.addEventListener('animationend', () => el.classList.remove('slide-l', 'slide-r'), { once: true });
 }
 
 /** A small floating explanation bubble used by the ⓘ tooltips. */

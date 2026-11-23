@@ -129,6 +129,8 @@ export class SessionTimer {
     this.advance(false); this.tick();
   }
   pause() { if (this.paused) return; this.remaining = this.endAt - performance.now(); this.paused = true; this.pausedAt = Date.now(); }
+  /** The longest pause so far, counting one still going on. */
+  longestPause() { return Math.max(this.maxPauseMs, this.paused ? Date.now() - this.pausedAt : 0); }
   resume() { if (!this.paused) return; const p = Date.now() - this.pausedAt; this.pausedMs += p; this.maxPauseMs = Math.max(this.maxPauseMs, p); this.endAt = performance.now() + this.remaining; this.paused = false; this.tick(); }
   stop() { clearInterval(this.h); document.removeEventListener('visibilitychange', this.vis); }
   /** Anything worth saving yet: a logged hang, or a hang in progress with time on it. */

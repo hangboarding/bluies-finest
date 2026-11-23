@@ -7,8 +7,12 @@ export interface Protocol {
   simple?: boolean; custom?: boolean;
 }
 
+/** Sessions keep the protocol name they were saved with; built-in protocols renamed since show their new name. */
+const RENAMED: Record<string, string> = { 'JUST LET ME HANG': 'QUICK SESH' };
+export const currentName = (name: string) => RENAMED[name] ?? name;
+
 export const PROTOCOLS: Record<string, Protocol> = {
-  jlmh: { n: 'JUST LET ME HANG', simple: true, by: 'No theory, no fuss', use: 'Quick hangs, minimal setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },
+  jlmh: { n: 'QUICK SESH', simple: true, by: 'No theory, no fuss', use: 'Quick hangs, minimal setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },
   warm: { n: 'Warm-up', by: 'Standard practice, progressive loading', use: 'Prepping fingers before hard hangs', hang: 10, rest: 20, sets: 6, reps: 1, edge: 25, int: 'Easy, ~40–60%, feet on or assisted', freq: 'Before every hard session', d: 'Easy hangs on a big edge, building gradually. Pair with arm circles and a few easy climbs if you can.' },
   max: { n: 'Max Hangs', by: 'Eva López (2012–14 studies) · popularised by Eric Hörst', use: 'Max finger strength', hang: 10, rest: 180, sets: 5, reps: 1, edge: 20, int: '~85–90%, 2–3s in reserve', freq: '2×/week', d: 'Near-max load on a medium edge with full recovery between hangs.' },
   abra: { n: 'Abrahangs', by: "Emil Abrahamsson · based on Keith Baar's tendon research", use: 'Tendon health, rehab, recovery', hang: 10, rest: 20, sets: 10, reps: 1, edge: 20, int: '40–60%, never to failure (use assist or feet)', freq: 'Daily is fine', d: 'Light, feet-assisted hangs or lifts, done often to load tendons gently.' },
@@ -94,5 +98,11 @@ export const MAX_EFFORT = new Set(['max', 'min', 's753', 'oneA', 'rec']);
 /** Grip names (as stored on sessions) with their icon keys. */
 export const GRIPS: [string, string][] = [['Open', 'open'], ['Drag', 'drag'], ['Half crimp', 'half'], ['Full crimp', 'full'], ['Pinch', 'pinch'], ['Sloper', 'sloper']];
 export const FINGERS = ['All 4', 'Front 3', 'Back 3', 'Front 2', 'Middle 2', 'Back 2', 'Mono', 'Custom'];
+export const MATERIALS = ['Wood', 'Resin', 'Metal', 'Other'];
+export const PROFILES = ['Flat', 'Rounded'];
+/** Pre-session feel, worst to best. */
+export const FEELS = ['😭', '🤕', '😫', '😴', '😐', '🙂', '💪', '🔥'];
+/** How hard a session felt (RPE 1–10). */
+export const RPE_WORDS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Hard', 'Hard', 'Very hard', 'Very hard', 'Max'];
 
 export const BUILTIN_BOARDS = ['Beastmaker 1000', 'Beastmaker 2000', 'Tension Block', 'Lattice Edge', 'Gym board'];

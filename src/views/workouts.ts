@@ -1,9 +1,9 @@
 // Workouts tab: the saved workouts (with a builder to make and change them), custom protocols,
 // starter workouts, and the history of every session logged.
-import { $, $$, esc, sheet, confirmSheet, promptSheet, toast, relTime } from '../lib/ui';
+import { $, $$, esc, sheet, confirmSheet, promptSheet, toast, relTime, onSwipe, slideIn } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, allProtos } from '../lib/state';
-import { personalVals } from '../lib/protocols';
+import { personalVals, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS } from '../lib/protocols';
 import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
 import type { Session } from '../lib/types';
 import { TEMPLATES, fromTemplate, cloneWorkout, newId, workoutTotals, fmtLength, protoValues, blockLine, type Workout } from '../lib/workouts';
@@ -11,6 +11,7 @@ import { drawQueue, addExercise, libWorkouts, findWorkout, upsertWorkout, remove
 import { sessRow } from './stats';
 import { beginWorkout, repeatSession } from './hang';
 import { go } from '../main';
+import { checkUnlocks } from './unlocks';
 
 let root: HTMLElement | null = null;
 /** The workout open in the builder (a copy until saved), or null for the list. */
@@ -20,8 +21,11 @@ let draft: Workout | null = null, isNew = false, baseline = '';
 let base: Workout | null = null;
 let histN = 10;
 
+const swipeable = new WeakSet<HTMLElement>();
 export function renderWorkouts(el: HTMLElement) {
   root = el;
+  // in the workout editor, swiping right goes back (like ‹ Go back)
+  if (!swipeable.has(el)) { swipeable.add(el); onSwipe(el, dir => { if (draft && dir === 'right') closeBuilder(); }); }
   if (draft && base && !dirty()) {
     // Nothing edited here yet: show the saved workout as it is now, since it may have changed since it was opened.
     const lib = findWorkout(draft.id);
@@ -125,43 +129,98 @@ async function deleteSession(s: Session) {
   } catch (err: any) { toast(err.message); }
 }
 
+/** Edit a logged session: its load and edge, how it was done (grip, fingers, board, edge, feel) and how it felt.
+ *  The timings and the hang-by-hang log come from the timer, so they're shown but can't be changed. */
 async function editSession(s: Session) {
   let el!: HTMLElement;
-  const f = (k: string, label: string, v: any, type = 'number', step = '0.5') => `<label class="f">${label}</label><input class="tx" data-f="${k}" type="${type}" step="${step}" value="${esc(v)}" style="margin-bottom:10px">`;
+  const B = state.settings.boards.list, boards = s.board && !B.includes(s.board) ? [s.board, ...B] : B;
+  const num = (k: string, label: string, v: number, step = '0.5') => `<div><label class="f">${label}</label><input class="tx" data-f="${k}" type="number" inputmode="decimal" step="${step}" value="${esc(v)}"></div>`;
+  const chips = (k: string, opts: string[], cur: string, cls: string, show: (v: string) => string = esc) =>
+    `<div class="chips g ${cls}" data-sk="${k}">${opts.map(v => `<span class="chip${v === cur ? ' on' : ''}" data-v="${esc(v)}" role="button" tabindex="0" aria-pressed="${v === cur}">${show(v)}</span>`).join('')}</div>`;
+  const when = new Date(s.createdAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const shape = s.mode === 'lift' ? `${s.hang}s lifts` : `${s.hang}s hangs`;
+  const sets = `${s.sets} set${s.sets === 1 ? '' : 's'}${s.reps > 1 ? ` × ${s.reps} reps` : ''}`;
   const i = await sheet({
-    title: 'Edit session', body: `<div style="text-align:left;max-height:55vh;overflow:auto">${f('edgeMm', 'Edge (mm)', s.edgeMm, 'number', '1')}${s.mode === 'lift' ? f('liftKg', 'Load lifted (kg)', s.liftKg) : f('addedKg', 'Added weight (kg)', s.addedKg) + f('assistKg', 'Assist (kg)', s.assistKg)}${f('rpe', 'RPE (1–10)', s.rpe ?? '', 'number', '1')}${f('note', 'Note', s.note, 'text')}</div>`,
-    buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Save', kind: 'primary' }], onMount: e => { el = e; },
+    title: 'Edit session', autofocus: false,
+    body: `<div class="bedit sedit">
+      <p class="sedit-sum"><b>${esc(s.protocolName)}</b> · ${esc(when)}<small>${esc([shape, `${s.rest}s rest`, sets, ({ both: 'both hands', L: 'left hand', R: 'right hand', LR: 'left then right' } as const)[s.hands], `${s.tutS}s under tension`, `${s.fullHangs}/${s.totalHangs} full`].join(' · '))}</small>
+        <small class="sedit-why">Times and hangs come from the timer, so they stay as they were.</small></p>
+      <h4>${ic('add')} Load</h4>
+      <div class="split">${num('edgeMm', 'Edge (mm)', s.edgeMm, '1')}${s.mode === 'lift' ? num('liftKg', 'Lifted (kg)', s.liftKg) : num('addedKg', 'Added (kg)', s.addedKg)}</div>
+      <div class="split">${s.mode === 'lift' ? num('effortPct', 'Target effort (%)', s.effortPct, '5') : num('assistKg', 'Assist (kg)', s.assistKg)}<div></div></div>
+      <h4>${ic('grip')} Grip</h4>
+      <label class="f">Grip type</label>${chips('grip', GRIPS.map(g => g[0]), s.grip, 'g6 tile', v => `<em>${ic(GRIPS.find(g => g[0] === v)![1])}</em>${esc(v)}`)}
+      <label class="f">Fingers</label>${chips('fingers', FINGERS, s.fingers, 'g4')}
+      <h4>${ic('board')} Setup</h4>
+      <label class="f">Board</label><select data-f="board"><option value=""${s.board ? '' : ' selected'}>Not set</option>${boards.map(b => `<option${b === s.board ? ' selected' : ''}>${esc(b)}</option>`).join('')}</select>
+      <label class="f">Edge material</label>${chips('edgeMaterial', MATERIALS, s.edgeMaterial, 'g4')}
+      <label class="f">Edge profile</label>${chips('edgeProfile', PROFILES, s.edgeProfile, 'g2')}
+      <h4>${ic('feel')} How it went</h4>
+      <label class="f">Pre-session feel</label>${chips('feel', FEELS, s.feel, 'g8 feel', v => ic(v))}
+      <div class="rpe-hd"><span>How hard was it?</span><span class="rpev" id="seRpeV"></span></div>
+      <input type="range" min="1" max="10" value="${s.rpe ?? 7}" class="rng" data-f="rpe" aria-label="Effort, 1 to 10"${s.rpe == null ? ' data-unset' : ''}>
+      <label class="f">Note</label><textarea class="tx" data-f="note" maxlength="2000" rows="3" placeholder="Add a note for the feed (optional)">${esc(s.note)}</textarea>
+    </div>`,
+    buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Save', kind: 'primary' }],
+    onMount: e => {
+      el = e; hydrateIcons(el);
+      const rpe = $<HTMLInputElement>('[data-f="rpe"]', el), out = $('#seRpeV', el);
+      const label = () => { out.innerHTML = rpe.dataset.unset != null ? '<small>Not rated</small>' : `<small>${RPE_WORDS[+rpe.value]}</small><b>${rpe.value}</b>`; };
+      rpe.addEventListener('input', () => { delete rpe.dataset.unset; label(); }); label();
+      // tap to pick, tap the picked one again to leave it blank
+      el.addEventListener('click', ev => {
+        const c = (ev.target as HTMLElement).closest('[data-sk] .chip') as HTMLElement | null; if (!c) return;
+        const on = !c.classList.contains('on');
+        $$('.chip', c.parentElement!).forEach(x => { x.classList.toggle('on', x === c && on); x.setAttribute('aria-pressed', String(x === c && on)); });
+      });
+    },
   });
   if (i !== 1) return;
-  const LIM: Record<string, [number, number]> = { edgeMm: [3, 60], liftKg: [0, 200], addedKg: [0, 150], assistKg: [0, 150], rpe: [1, 10] };
+  const LIM: Record<string, [number, number]> = { edgeMm: [3, 60], liftKg: [0, 200], addedKg: [0, 150], assistKg: [0, 150], effortPct: [0, 100] };
   const patch: Record<string, any> = {};
-  for (const inp of $$<HTMLInputElement>('[data-f]', el)) {
-    const k = inp.dataset.f!;
-    if (inp.type !== 'number') { patch[k] = inp.value.trim().slice(0, 2000); continue; }
-    if (inp.value.trim() === '') { if (k === 'rpe') patch.rpe = null; continue; } // leave other blanks unchanged
-    const n = +inp.value, [lo, hi] = LIM[k] ?? [0, 9999];
-    if (!isFinite(n) || n < lo || n > hi) return toast(`Check that value. It must be ${lo}–${hi}`);
-    patch[k] = n;
+  for (const inp of $$<HTMLInputElement>('input[type="number"][data-f]', el)) {
+    const k = inp.dataset.f!, raw = inp.value.trim().replace(',', '.');
+    if (raw === '') continue; // leave a cleared box as it was
+    const n = +raw, [lo, hi] = LIM[k]!;
+    if (!isFinite(n) || n < lo || n > hi) { toast(`Check that value. It must be ${lo}–${hi}`); return; }
+    if (n !== (s as any)[k]) patch[k] = n;
   }
+  for (const g of $$('[data-sk]', el)) { const v = ($('.chip.on', g) as HTMLElement | null)?.dataset.v ?? ''; if (v !== (s as any)[g.dataset.sk!]) patch[g.dataset.sk!] = v; }
+  const board = $<HTMLSelectElement>('select[data-f="board"]', el).value; if (board !== s.board) patch.board = board;
+  const rpe = $<HTMLInputElement>('[data-f="rpe"]', el); if (rpe.dataset.unset == null && +rpe.value !== s.rpe) patch.rpe = +rpe.value;
+  const note = $<HTMLTextAreaElement>('[data-f="note"]', el).value.trim().slice(0, 2000); if (note !== s.note) patch.note = note;
+  if (!Object.keys(patch).length) { toast('Nothing changed'); return; }
   // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have).
   const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;
   if (s.mode === 'hang' && bw && (next.addedKg !== s.addedKg || next.assistKg !== s.assistKg)) patch.loadPct = next.loadPct = loadPct(bw, next.addedKg, next.assistKg);
   if (s.mode === 'lift' && bw && next.liftKg !== s.liftKg) patch.loadPct = next.loadPct = liftPct(bw, next.liftKg);
   patch.points = next.points = sessionPoints(next, state.sessions.filter(x => x.userId === s.userId));
+  let skipped = false;
   try {
-    await state.store.updateSession(s.id, patch);
+    try { await state.store.updateSession(s.id, patch); }
+    catch (e: any) {
+      // A database that hasn't had the latest supabase/schema.sql only lets load, edge, effort rating and note change:
+      // save those, and say what's left.
+      if (e?.code !== '42501' || !DESCRIPTIVE.some(k => k in patch)) throw e;
+      for (const k of DESCRIPTIVE) delete patch[k];
+      skipped = true;
+      await state.store.updateSession(s.id, patch);
+    }
     Object.assign(s, patch); // apply locally only once the save succeeded
     rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); // later sessions that day change too (the server does the same)
-    toast('Session updated'); drawHistory();
+    toast(skipped ? 'Load and note saved. Grip, board, edge and feel can be changed once an admin runs the latest supabase/schema.sql.' : 'Session updated', skipped ? 6000 : 2200);
+    drawHistory(); checkUnlocks();
   } catch (e: any) { toast(e.message ?? 'Could not save'); }
 }
+/** Session fields that describe how it was done; editable since the November 2026 schema update. */
+const DESCRIPTIVE = ['grip', 'fingers', 'board', 'edgeMaterial', 'edgeProfile', 'feel', 'effortPct'];
 
 // ---------- the builder ----------
 const dirty = () => !!draft && JSON.stringify(draft) !== baseline;
 function drawBuilder() {
   const el = root!, w = draft!;
   el.innerHTML = `
-  <button type="button" class="backbtn" id="wbBack">‹ My workouts</button>
+  <button type="button" class="backbtn" id="wbBack">‹ Go back</button>
   <div class="card"><label class="f" for="wbName">Workout name</label>
     <input class="tx" id="wbName" maxlength="60" placeholder="e.g. Tuesday strength" value="${esc(w.name)}" autocomplete="off"></div>
   <div class="card"><div class="wq-hd"><h3>${ic('workouts')} Exercises</h3><small id="wbTot"></small></div>
@@ -243,7 +302,7 @@ async function closeBuilder() {
     if (i === -1) return;
     if (i === 1 && !(await saveDraft())) return;
   }
-  draft = base = null; drawLibrary(); scrollTo(0, 0);
+  draft = base = null; drawLibrary(); scrollTo(0, 0); slideIn(root!, 'right');
 }
 
 // A custom protocol was deleted or renamed (here or from the Hang page's picker): redraw the list it shows in.

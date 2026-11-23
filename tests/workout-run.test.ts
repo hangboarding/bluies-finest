@@ -620,11 +620,12 @@ describe('custom exercise from the single-session protocol list', () => {
     const hangHtml = hangFirst.outerHTML;
     expect(hangFirst.getAttribute('data-k')).toBe('__new');
     expect(document.querySelector('.modal .protolist')!.classList.contains('full')).toBe(true);
-    document.querySelector<HTMLElement>('.modal .sheet > .row button')!.click(); await flush(); // Close
+    expect(document.querySelector('.modal .sheet > .row')).toBeNull(); // no buttons at the bottom: a ✕ at the top
+    document.querySelector<HTMLElement>('.modal .sheet-x')!.click(); await flush();
     const adding = WP.addExercise(W.cloneWorkout(S.state.settings.workouts[0]!));
     await flush();
     expect(document.querySelector('.modal .protolist .protoopt')!.outerHTML).toBe(hangHtml);
-    document.querySelector<HTMLElement>('.modal .sheet > .row button')!.click(); await adding;
+    document.querySelector<HTMLElement>('.modal .sheet-x')!.click(); await adding;
   });
 
   it('names it, then sets its numbers starting from what’s on screen, and selects it', async () => {

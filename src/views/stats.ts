@@ -2,7 +2,7 @@ import { $, $$, esc, sheet, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
 import { weekStreak, bestDayRun, dayKey, weekStart, addDays, favouriteProtocol } from '../lib/scoring';
-import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
+import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, shownTier, hasOneOff } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { placeOf } from '../lib/leaderboard';
 
@@ -53,7 +53,7 @@ function heat() {
     const d = new Date(st.getFullYear(), st.getMonth(), st.getDate() + i), k = dayKey(d), fut = d > today, ss = days.get(k) ?? [];
     if (ss.length) { count += ss.length; inRange.add(k); }
     const lvl = Math.min(100, 45 + ss.reduce((a, s) => a + s.tutS, 0) / 3);
-    html += `<i ${fut ? '' : `data-day="${k}"`} aria-label="${d.toDateString()}: ${ss.length} sessions" style="${ss.length ? `background:color-mix(in srgb,var(--acc) ${lvl}%,var(--line));` : ''}${fut ? 'opacity:.35;' : ''}">${hs === 'w' ? DW[i] + '<br>' + d.getDate() : ''}</i>`;
+    html += `<i ${fut ? '' : `data-day="${k}"`} aria-label="${d.toDateString()}: ${ss.length} session${ss.length === 1 ? '' : 's'}" style="${ss.length ? `background:color-mix(in srgb,var(--acc) ${lvl}%,var(--line));` : ''}${fut ? 'opacity:.35;' : ''}">${hs === 'w' ? DW[i] + '<br>' + d.getDate() : ''}</i>`;
   }
   h.innerHTML = html; $('#hLbl').textContent = lbl; ($('#hNext') as HTMLButtonElement).disabled = ho >= 0;
   if (hs === 'y') {
@@ -135,10 +135,12 @@ function chart() {
 }
 
 // ---------- achievements ----------
+/** Badges earned so far (kept even if what earned them is deleted: see shownTier). */
+const seen = () => state.settings.achSeen ?? {};
 function drawAch() {
   const c = achievementCtx(); let got = 0;
   $('#ach').innerHTML = TIERED.map((a, k) => {
-    const v = a.value(c), lv = tierOf(v, a.thresholds, a.lower); got += lv;
+    const v = a.value(c), lv = shownTier(a, c, seen()); got += lv;
     const nx = a.thresholds[lv], prev = lv ? a.thresholds[lv - 1]! : (a.lower ? a.thresholds[0]! * 1.5 : 0);
     const prog = nx == null ? 1 : v == null ? 0 : Math.max(0, Math.min(1, (a.lower ? prev - v : v - prev) / Math.abs(nx - prev)));
     const col = TIER_COLOURS[Math.max(0, lv - 1)];
@@ -148,9 +150,9 @@ function drawAch() {
   }).join('');
   hydrateIcons($('#ach'));
   $('#achN').textContent = `${got}/${TIERED.length * 10} tiers`;
-  const og = ONE_OFFS.filter(o => !o.secret && o.got(c)).length, sg = ONE_OFFS.filter(o => o.secret && o.got(c)).length;
+  const og = ONE_OFFS.filter(o => !o.secret && hasOneOff(o, c, seen())).length, sg = ONE_OFFS.filter(o => o.secret && hasOneOff(o, c, seen())).length;
   $('#secN').textContent = `${og}/${ONE_OFFS.filter(o => !o.secret).length} one-offs · ${sg}/${ONE_OFFS.filter(o => o.secret).length} secrets`;
-  $('#ach1').innerHTML = ONE_OFFS.map((o, k) => { const g = o.got(c); return o.secret && !g
+  $('#ach1').innerHTML = ONE_OFFS.map((o, k) => { const g = hasOneOff(o, c, seen()); return o.secret && !g
     ? `<div class="a secret" data-o="${k}" role="button" tabindex="0"><b>${ic('❓')}</b>???<small>Hidden</small></div>`
     : `<div class="a ${g ? 'got' : 'lock'}" data-o="${k}" style="--tc:${o.secret ? 'var(--blue)' : 'var(--gold)'}" role="button" tabindex="0"><b>${ic(o.icon)}</b>${o.name}<small>${g ? '✓ Unlocked' : 'Locked'}</small></div>`; }).join('');
 }
@@ -173,7 +175,7 @@ async function onClick(e: MouseEvent) {
   }
   const a = t.closest('.a') as HTMLElement | null;
   if (a?.dataset.a) {
-    const x = TIERED[+a.dataset.a]!, c = achievementCtx(), v = x.value(c), lv = tierOf(v, x.thresholds, x.lower), nx = x.thresholds[lv];
+    const x = TIERED[+a.dataset.a]!, c = achievementCtx(), v = x.value(c), lv = shownTier(x, c, seen()), nx = x.thresholds[lv];
     info(`<div class="big-ic" style="color:${lv ? TIER_COLOURS[lv - 1] : 'var(--mute)'}">${ic(x.icon)}</div><h2>${x.name}</h2><p class="sub">${x.desc}</p>
       <div style="font-weight:800;color:${lv ? TIER_COLOURS[lv - 1] : 'var(--mute)'}">${lv ? TIER_NAMES[lv - 1] : 'Not started'}${v != null ? ` · you're at ${v}` : ''}</div>
       ${nx != null ? `<p class="sub" style="margin:4px 0 12px">Next: <b style="color:${TIER_COLOURS[lv]}">${TIER_NAMES[lv]}</b> at ${x.lower ? '≤ ' : ''}${nx}${v != null ? ` (${Math.round(Math.abs(nx - v) * 10) / 10} to go)` : ''}</p>` : '<p class="sub">👑 GOAT status. Nothing left to prove.</p>'}
@@ -182,7 +184,7 @@ async function onClick(e: MouseEvent) {
     return;
   }
   if (a?.dataset.o) {
-    const o = ONE_OFFS[+a.dataset.o]!, g = o.got(achievementCtx());
+    const o = ONE_OFFS[+a.dataset.o]!, g = hasOneOff(o, achievementCtx(), seen());
     info(o.secret && !g ? `<div class="big-ic">${ic('❓')}</div><h2>Secret achievement</h2><p class="sub">Hint: <i>${o.hint}</i></p>`
       : `<div class="big-ic" style="${g ? '' : 'filter:grayscale(1);opacity:.4'}">${ic(o.icon)}</div><h2>${o.name}</h2><p class="sub">${o.desc}</p><p style="font-weight:700">${g ? (o.secret ? '🤫 Secret found!' : '✓ Unlocked') : '🔒 Not yet'}</p>`);
     return;
@@ -191,6 +193,6 @@ async function onClick(e: MouseEvent) {
 // tier targets tooltip from inside the info sheet
 document.addEventListener('click', e => {
   const b = (e.target as HTMLElement).closest('[data-tiers]') as HTMLElement | null; if (!b) return;
-  const x = TIERED[+b.dataset.tiers!]!, v = x.value(achievementCtx()), lv = tierOf(v, x.thresholds, x.lower);
+  const x = TIERED[+b.dataset.tiers!]!, lv = shownTier(x, achievementCtx(), seen());
   bubble(`${x.name} tiers`, x.thresholds.map((th, j) => `<span class="tierchip ${j < lv ? 'done' : ''}" style="--tc:${TIER_COLOURS[j]}">${j < lv ? '✓ ' : ''}${TIER_NAMES[j]} · ${x.lower ? '≤' : ''}${th}</span>`).join(''));
 });

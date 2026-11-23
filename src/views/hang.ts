@@ -1,6 +1,6 @@
-import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, vibrate, closeSheet } from '../lib/ui';
+import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, vibrate, closeSheet, onSwipe, slideIn } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, LIMITS, GRIPS, FINGERS, personalVals, type Values, type Protocol } from '../lib/protocols';
+import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, LIMITS, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS as RW, personalVals, type Values, type Protocol } from '../lib/protocols';
 import { state, saveSettings, mySessions, achievementCtx, allProtos } from '../lib/state';
 import { SessionTimer, buildSteps, beep, fanfare, unlockAudio, keepAwake, handsLabel, type Step } from '../lib/timer';
 import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
@@ -14,13 +14,13 @@ import deceiveFace from '../assets/deceive.webp';
 import { type Workout, blockValues, readyFor, sanitizeVals, hangCount, loadAdjust, makeBlock, cloneWorkout, blockLine, protoValues, newId, MAX_BLOCKS } from '../lib/workouts';
 import { protoLabel, drawQueue, libWorkouts, findWorkout, upsertWorkout, totalsLine, customOption, newCustomExercise, deleteCustomProto, setSessionActiveCheck } from './workout-parts';
 import { openBuilder } from './workouts';
+import { checkUnlocks } from './unlocks';
 let cur = 'max';
 let val: Values;
 let timer: SessionTimer | null = null;
 let editing = false;
 let startedAt = 0;
 
-const FEELS = ['😭', '🤕', '😫', '😴', '😐', '🙂', '💪', '🔥'];
 
 export function renderHang(root: HTMLElement) {
   const S = state.settings;
@@ -58,9 +58,9 @@ export function renderHang(root: HTMLElement) {
     <details class="card panel ${S.prefs.psetup ? '' : 'hide'}" data-p="setup" open><summary>${ic('board')} Setup<small id="setupSum"></small></summary><br>
       <label class="f">${ic('board')} Board</label><select id="board"></select>
       <br><br><label class="f">${ic('material')} Edge material</label>
-      <div class="chips g g4" data-k="mat">${['Wood', 'Resin', 'Metal', 'Other'].map(m => `<span class="chip" data-v="${m}">${m}</span>`).join('')}</div>
+      <div class="chips g g4" data-k="mat">${MATERIALS.map(m => `<span class="chip" data-v="${m}">${m}</span>`).join('')}</div>
       <br><label class="f">${ic('profile')} Edge profile</label>
-      <div class="chips g g2" data-k="prof">${['Flat', 'Rounded'].map(m => `<span class="chip" data-v="${m}">${m}</span>`).join('')}</div>
+      <div class="chips g g2" data-k="prof">${PROFILES.map(m => `<span class="chip" data-v="${m}">${m}</span>`).join('')}</div>
     </details>
     <div class="feelrow"><label class="f">${ic('feel')} Pre-session feel</label>
       <div class="chips feel g g8" data-k="feel">${FEELS.map(f => `<span class="chip" data-v="${f}" aria-label="Feeling ${f}">${ic(f)}</span>`).join('')}</div></div>
@@ -209,7 +209,8 @@ function readInputs() {
 }
 
 function summaries() {
-  const b = ($('#board') as HTMLSelectElement).value;
+  const sel = $('#board') as HTMLSelectElement | null; if (!sel) return; // the Hang page hasn't been drawn yet (opened on another tab)
+  const b = sel.value;
   $('#gripSum').textContent = [chipVal('grip'), chipVal('fing'), val.hands !== 'both' ? handsLabel(val.hands) : ''].filter(Boolean).join(' · ');
   $('#setupSum').textContent = [b !== '__add' ? b : '', chipVal('mat'), chipVal('prof')].filter(Boolean).join(' · ');
 }
@@ -309,12 +310,12 @@ export function drawBoards() {
   sel.innerHTML = S.boards.list.map(b => `<option${b === chosen ? ' selected' : ''}>${esc(b)}</option>`).join('') + `<option value="__add">➕ Add board…</option>`;
 }
 export async function addBoard(name?: string | null) {
-  const n = (name ?? await promptSheet('Add a board', 'Name it and it becomes your default for new sessions.', 'e.g. Garage board'))?.trim();
+  const n = (name ?? await promptSheet('Add a board', 'Name it and it becomes your default for new sessions.', 'e.g. Garage board'))?.trim().slice(0, 60); // the database keeps up to 60
   if (!n) { drawBoards(); return; }
   const B = state.settings.boards;
   if (!B.list.includes(n)) B.list.unshift(n);
   if (!B.custom.includes(n)) B.custom.push(n);
-  B.def = n; state.settings.board = n; saveSettings(); drawBoards(); summaries(); toast(`${n} saved as your default`);
+  B.def = n; state.settings.board = n; saveSettings(); drawBoards(); summaries(); toast(`${n} saved as your default`); checkUnlocks();
 }
 
 function wireSetup(root: HTMLElement) {
@@ -429,7 +430,7 @@ function wireSetup(root: HTMLElement) {
     $('#start').innerHTML = `${ic('replay')} ${between ? 'Start this exercise' : 'Resume with changes'}`; hydrateIcons($('#start'));
     toast(between ? 'Tweak the next exercise, then start it' : 'Tweak and resume. Completed hangs are kept.');
   });
-  $('#setlbl').addEventListener('click', () => { if (timer?.step.p === 'ready' && bumpDaily(state.settings.flags, 'chalk') >= 10) { state.settings.flags.chalkBucket = true; saveSettings(); } });
+  $('#setlbl').addEventListener('click', () => { if (timer?.step.p === 'ready' && bumpDaily(state.settings.flags, 'chalk') >= 10) { state.settings.flags.chalkBucket = true; saveSettings(); checkUnlocks(); } });
   $('#rpe').addEventListener('input', rpeUpd);
   $('#saveSess').addEventListener('click', saveSession);
   root.querySelector('[data-skip]')!.addEventListener('click', async () => {
@@ -448,10 +449,16 @@ function wireSetup(root: HTMLElement) {
   });
 
   // ---- workouts ----
+  const setMode = (m: 'single' | 'workout') => {
+    if (run || (editing && timer) || hangMode() === m) return;
+    state.settings.hangMode = m; saveSettings(); layout(); drawWorkoutCard();
+    slideIn($('#v-setup'), m === 'workout' ? 'left' : 'right'); // Workout sits to the right of Single session
+  };
   $('#hangMode').addEventListener('click', e => {
-    const b = (e.target as HTMLElement).closest('[data-m]') as HTMLElement | null; if (!b || run || (editing && timer)) return;
-    state.settings.hangMode = b.dataset.m as 'single' | 'workout'; saveSettings(); layout(); drawWorkoutCard();
+    const b = (e.target as HTMLElement).closest('[data-m]') as HTMLElement | null; if (b) setMode(b.dataset.m as 'single' | 'workout');
   });
+  // swipe left for Workout, right for Single session
+  onSwipe($('#v-setup'), dir => { if (!$('#hangMode').classList.contains('hide')) setMode(dir === 'left' ? 'workout' : 'single'); });
   $('#wkBtn').addEventListener('click', pickWorkout);
   $('#wkEdit').addEventListener('click', () => openBuilder(selWorkout()));
   $('#wkFirst').addEventListener('click', () => openBuilder(null));
@@ -476,6 +483,8 @@ const COL: Record<Step['p'], string> = { ready: 'var(--gold)', hang: 'var(--acc)
 function start() {
   unlockAudio(); keepAwake(true); persist();
   const resuming = editing && !!timer;
+  if (resuming) slowBurn(timer!.longestPause()); // paused for Edit all this time
+  else if (!run) val.ready = getReady(); // the countdown may have been changed in Profile since this protocol loaded
   const prevLog = resuming ? timer!.log : [];
   // Every hang already done is in the log (even across several edits), so skip that many.
   const doneHangs = prevLog.length;
@@ -537,14 +546,24 @@ function render(s: Step, left: number) {
 function togglePause() {
   if (!timer) return;
   unlockAudio();
-  if (timer.paused) { timer.resume(); if (timer.maxPauseMs >= 30 * 60e3) { state.settings.flags.slowBurn = true; saveSettings(); } }
+  if (timer.paused) { slowBurn(timer.longestPause()); timer.resume(); }
   else timer.pause();
   $('#pause').innerHTML = timer.paused ? `${ic('play')} Resume` : `${ic('pause')} Pause`; hydrateIcons($('#pause'));
 }
+/** Secret Slow Burn: paused for 30 minutes or more mid-session, however the pause ends. */
+function slowBurn(pausedMs: number) {
+  if (pausedMs < 30 * 60e3 || state.settings.flags.slowBurn) return;
+  state.settings.flags.slowBurn = true; saveSettings(); checkUnlocks();
+}
+/** Secret Dramatic Exit: Cancel tapped within 10 seconds of starting, then Give up (however long the choice took). */
+function dramaticExit(tappedAt: number) {
+  if (tappedAt - startedAt >= 10_000) return;
+  state.settings.flags.dramaticExit = true; saveSettings(); checkUnlocks();
+}
 async function quit() {
   if (!timer) return;
-  const wasPaused = timer.paused; timer.pause(); togglePauseLabel();
-  if (run) return quitRun(wasPaused);
+  const tappedAt = Date.now(), wasPaused = timer.paused; timer.pause(); togglePauseLabel();
+  if (run) return quitRun(wasPaused, tappedAt);
   const n = timer.log.length + (timer.heldNow() > 0 ? 1 : 0), canSave = n > 0;
   const choice = await sheet({
     title: 'Cancel session?',
@@ -555,18 +574,18 @@ async function quit() {
   });
   const giveUp = canSave ? choice === 2 : choice === 1, endEarly = canSave && choice === 1;
   if (!timer) return;
+  slowBurn(timer.longestPause()); // the sheet kept it paused too
   if (endEarly) {
     const log = timer.endEarly(); keepAwake(false);
     done(log); toast('Ended early. Here’s what you did');
   } else if (giveUp) {
-    if (Date.now() - startedAt < 10_000) { state.settings.flags.dramaticExit = true; saveSettings(); }
+    dramaticExit(tappedAt);
     timer.stop(); timer = null; keepAwake(false); show('setup'); toast('Session cancelled');
   } else if (!wasPaused) { timer.resume(); togglePauseLabel(); }
 }
 function togglePauseLabel() { if (timer) { $('#pause').innerHTML = timer.paused ? `${ic('play')} Resume` : `${ic('pause')} Pause`; hydrateIcons($('#pause')); } }
 
 // ---------------- done ----------------
-const RW = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Hard', 'Hard', 'Very hard', 'Very hard', 'Max'];
 function rpeUpd() {
   const n = +($('#rpe') as HTMLInputElement).value;
   $('#rpeV').innerHTML = `<small>${RW[n]}</small><b>${n}</b>`;
@@ -644,6 +663,7 @@ function makeSession(log: HangResult[], mine: readonly Session[], at?: string): 
 }
 
 function done(log: HangResult[]) {
+  if (timer) slowBurn(timer.longestPause());
   timer = null;
   if (run) { blockDone(log); return; }
   keepAwake(false);
@@ -680,7 +700,7 @@ async function saveSession() {
     const saved = pending;
     const { session: s, queued } = await saveOrQueue(saved);
     addSaved(s, queued); pending = null;
-    applyLoadSuggestion(saved);
+    applyLoadSuggestion(saved); checkUnlocks();
     const back = state.settings.returnTo;
     if (saved.protocolKey === 'warm' && back && allProtos()[back]) { delete state.settings.returnTo; saveSettings(); loadProto(back); persist(); toast(`Warmed up. ${allProtos()[back]!.n} is ready`, 3500); show('setup'); scrollTo(0, 0); return; }
     toast(queued ? 'No signal, so it’s saved on this phone. It’ll upload automatically.' : 'Session saved', queued ? 4500 : 2200);
@@ -863,7 +883,7 @@ function blockRest() {
   drawProgress(true); show('timer'); timer.start();
 }
 
-async function quitRun(wasPaused: boolean) {
+async function quitRun(wasPaused: boolean, tappedAt: number) {
   const r = run!, t = timer!, between = !!t.step?.between;
   const here = !between && t.hasProgress(), n = r.done.length + (here ? 1 : 0), last = r.i >= r.w.blocks.length - 1;
   const opts: { label: string; kind: 'ghost' | 'primary' | 'danger'; a: string }[] = [{ label: 'Keep going 💪', kind: 'ghost', a: 'keep' }];
@@ -877,6 +897,7 @@ async function quitRun(wasPaused: boolean) {
   });
   const a = opts[i]?.a ?? 'keep';
   if (timer !== t) return;
+  slowBurn(t.longestPause()); // the sheet kept it paused too
   if (a === 'skip') { done(t.endEarly()); toast('On to the next exercise'); return; }
   if (a === 'end') { const log = t.endEarly(); timer = null; if (!between) recordBlock(log); workoutDone(); toast('Ended early. Here’s what you did'); return; }
   if (a === 'quit') {
@@ -886,7 +907,7 @@ async function quitRun(wasPaused: boolean) {
       return;
     }
     if (timer !== t) return;
-    if (Date.now() - startedAt < 10_000 && !n) { state.settings.flags.dramaticExit = true; saveSettings(); }
+    if (!n) dramaticExit(tappedAt);
     t.stop(); timer = null; keepAwake(false); clearBackup(); endRun(); show('setup'); toast('Workout cancelled'); return;
   }
   if (!wasPaused) { t.resume(); togglePauseLabel(); }
@@ -956,7 +977,7 @@ async function saveRun() {
       backupRun();
     }
     if (lib) { lib.lastRunAt = lib.updatedAt = Date.now(); }
-    saveSettings(); clearBackup();
+    saveSettings(); clearBackup(); checkUnlocks();
     const n = r.done.length - failed.length; endRun();
     if (failed.length) toast(`Couldn’t save ${failed.join(', ')}: ${why}${n ? `. The other ${n} ${n > 1 ? 'were' : 'was'} saved.` : ''}`, 7000);
     else toast(queuedAny ? 'No signal, so it’s saved on this phone. It’ll upload automatically.' : `Workout saved: ${n} session${n > 1 ? 's' : ''}${next.length ? `. Next time: ${next.join(', ')}` : ''}`, queuedAny || next.length ? 4500 : 2500);
