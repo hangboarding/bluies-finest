@@ -9,6 +9,7 @@ import type { HangResult, NewSession } from '../lib/types';
 import { confetti } from '../lib/confetti';
 import { saveOrQueue } from '../lib/outbox';
 import { go } from '../main';
+import { seasonOf } from '../lib/seasons';
 
 const allProtos = (): Record<string, Protocol> => ({ ...PROTOCOLS, ...state.settings.customProtos });
 let cur = 'max';
@@ -29,7 +30,7 @@ export function renderHang(root: HTMLElement) {
     <div class="card">
       <label class="f">Protocol</label>
       <select id="proto"></select>
-      <details class="panel inner" data-p="about" open><summary>${ic('about')} About this protocol<small id="aboutSum"></small></summary><div class="hint" id="protoHint"></div></details>
+      <details class="panel inner" data-p="about" open><summary>${ic('about')} About<small id="aboutSum"></small></summary><div class="hint" id="protoHint"></div></details>
       <div id="modeWrap"><br><label class="f lab">${ic('mode')} Load method<span class="tip" data-tip="mode">i</span></label>
         <div class="chips g g2" data-k="mode"><span class="chip" data-v="hang">Hang (on board)</span><span class="chip" data-v="lift">No-hang (lift)</span></div></div>
     </div>
@@ -454,10 +455,13 @@ function rpeUpd() {
 const localIso = (d: Date) => new Date(+d - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
 let backdate: string | null = null;
 async function backlog() {
+  // mid-session edit: the timer's hangs are still waiting to be resumed, so don't throw them away
+  if (editing && timer) return toast('Finish or cancel the current session first');
   readInputs(); persist();
   const hangs = val.sets * val.reps * (val.hands === 'LR' ? 2 : 1);
   if (hangs > 1500 || hangs * val.hang > 7200) return toast(`That's ${hangs.toLocaleString()} hangs. Cut the sets, reps or hang time to log it.`, 5000);
-  const now = new Date(), min = new Date(+now - 7 * 864e5 + 60e3); // the server accepts up to 7 days back
+  // The server accepts up to 7 days back. A finished season's results are final, so not before this season began either.
+  const now = new Date(), min = new Date(Math.max(+now - 7 * 864e5 + 60e3, +seasonOf(now).start));
   let when!: HTMLInputElement;
   const p = allProtos()[cur]!;
   const i = await sheet({
@@ -465,7 +469,7 @@ async function backlog() {
     body: `<p class="sub">Logs <b>${esc(p.n)}</b> with your current settings (${val.sets} × ${val.reps > 1 ? `${val.reps} × ` : ''}${val.hang}s${val.hands === 'LR' ? ', each hand' : ''}), every hang held full time.</p>
       <label class="f" style="text-align:left">When did you do it?</label>
       <input class="tx" type="datetime-local" id="blWhen" value="${localIso(now)}" min="${localIso(min)}" max="${localIso(now)}" style="margin-bottom:12px">
-      <p class="sub" style="font-size:12px">Up to 7 days back.</p>
+      <p class="sub" style="font-size:12px">Up to 7 days back, within this season.</p>
       <p class="promise">I promise that I did these hangs. Why would I deceive you?</p>`,
     buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'I promise', kind: 'primary' }],
     onMount: el => { when = el.querySelector('#blWhen')!; },
@@ -473,7 +477,7 @@ async function backlog() {
   if (i !== 1) return;
   const t = new Date(when.value);
   if (isNaN(+t)) return toast('Pick when you did it');
-  if (+t < +min || +t > Date.now() + 60e3) return toast('Past sessions can go back up to 7 days');
+  if (+t < +min || +t > Date.now() + 60e3) return toast('Past sessions can go back up to 7 days, within this season');
   const log: HangResult[] = buildSteps(val).filter(s => s.p === 'hang').map(s => ({ set: s.set!, rep: s.rep!, hand: s.hand!, target: s.t, held: s.t, full: true }));
   if (!log.length) return toast('Add at least one set');
   backdate = t.toISOString();

@@ -8,7 +8,7 @@ export interface Protocol {
 }
 
 export const PROTOCOLS: Record<string, Protocol> = {
-  jlmh: { n: 'JUST LET ME HANG', simple: true, by: 'No theory, no fuss', use: 'Quick hangs with zero setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },
+  jlmh: { n: 'JUST LET ME HANG', simple: true, by: 'No theory, no fuss', use: 'Quick hangs, minimal setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },
   warm: { n: 'Warm-up', by: 'Standard practice, progressive loading', use: 'Prepping fingers before hard hangs', hang: 10, rest: 20, sets: 6, reps: 1, edge: 25, int: 'Easy, ~40–60%, feet on or assisted', freq: 'Before every hard session', d: 'Easy hangs on a big edge, building gradually. Pair with arm circles and a few easy climbs if you can.' },
   max: { n: 'Max Hangs', by: 'Eva López (2012–14 studies) · popularised by Eric Hörst', use: 'Max finger strength', hang: 10, rest: 180, sets: 5, reps: 1, edge: 20, int: '~85–90%, 2–3s in reserve', freq: '2×/week', d: 'Near-max load on a medium edge with full recovery between hangs.' },
   abra: { n: 'Abrahangs', by: "Emil Abrahamsson · based on Keith Baar's tendon research", use: 'Tendon health, rehab, recovery', hang: 10, rest: 20, sets: 10, reps: 1, edge: 20, int: '40–60%, never to failure (use assist or feet)', freq: 'Daily is fine', d: 'Light, feet-assisted hangs or lifts, done often to load tendons gently.' },
