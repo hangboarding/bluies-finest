@@ -43,8 +43,7 @@ export async function openClimber(uid: string) {
   const el = body as HTMLElement, now = new Date();
 
   const rank = placeOf(uid); // same ranking as the Ranks page
-  // #1 on any board (sharing it counts) gets the gold treatment
-  const champ = isTopOverall(uid); // only whoever is #1 overall gets the gold treatment
+  const champ = isTopOverall(uid); // only whoever is #1 overall (a shared #1 counts) gets the gold treatment
 
   // personal bests (no bodyweight-derived numbers)
   const hangs = xs.filter(s => s.mode === 'hang' && s.fullHangs > 0);
