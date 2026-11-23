@@ -3,7 +3,7 @@ import { ic, hydrateIcons } from '../lib/icons';
 import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, type Values, type Protocol } from '../lib/protocols';
 import { state, saveSettings, mySessions, achievementCtx } from '../lib/state';
 import { SessionTimer, buildSteps, beep, fanfare, unlockAudio, keepAwake, handsLabel, type Step } from '../lib/timer';
-import { sessionPoints, loadPct, liftPct } from '../lib/scoring';
+import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
 import { diffUnlocks, bumpDaily } from '../lib/achievements';
 import type { HangResult, NewSession } from '../lib/types';
 import { confetti } from '../lib/confetti';
@@ -475,7 +475,7 @@ async function backlog() {
     onMount: el => { when = el.querySelector('#blWhen')!; },
   });
   if (i !== 1) return;
-  const t = new Date(when.value);
+  const t = new Date(+new Date(when.value) + Date.now() % 60e3); // the picker has no seconds: borrow the current ones so two back-logged sessions don't share a time
   if (isNaN(+t)) return toast('Pick when you did it');
   if (+t < +min || +t > Date.now() + 60e3) return toast('Past sessions can go back up to 7 days, within this season');
   const log: HangResult[] = buildSteps(val).filter(s => s.p === 'hang').map(s => ({ set: s.set!, rep: s.rep!, hand: s.hand!, target: s.t, held: s.t, full: true }));
@@ -515,13 +515,14 @@ function done(log: HangResult[]) {
     ...(backdate ? { createdAt: backdate } : {}),
   };
   const past = backdate; backdate = null;
-  pending.points = sessionPoints(pending);
+  pending.points = sessionPoints({ ...pending, createdAt: past ?? new Date().toISOString() }, mine);
   $('#cheer').textContent = q[0]; $('#cheer2').textContent = q[1];
   $('#sTime').textContent = tut + 's'; $('#sSets').textContent = `${full}/${log.length}`; $('#sPts').textContent = '+' + pending.points;
   const lr = (h: 'L' | 'R') => log.filter(x => x.hand === h).reduce((a, x) => a + x.held, 0);
   $('#res').textContent = (short.length ? `${short.length} cut short (${short.map(x => x.held + 's').join(', ')})` : '✓ Every hang held full time')
     + (val.hands === 'LR' ? ` · Left ${lr('L')}s / Right ${lr('R')}s` : '') + (isPb ? ' · 🏅 New personal best!' : '')
     + (bw == null && val.mode !== 'lift' ? ' · Add your bodyweight in Profile for fairer scoring' : '')
+    + (mine.some(s => scoringDay(s.createdAt) === scoringDay(past ?? new Date().toISOString())) ? ' · Points add to what you’ve already trained today' : '')
     + (past ? ` · Logged for ${new Date(past).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : '');
   const unlocked = diffUnlocks(achievementCtx(), achievementCtx([{ ...pending, id: 'x', userId: '', createdAt: past ?? new Date().toISOString() } as any, ...mine]));
   $('#unlocks').innerHTML = unlocked.length ? 'Unlocked: ' + unlocked.map(u => `<span class="unl">${ic(u.icon)} ${esc(u.text)}</span>`).join(' &nbsp;·&nbsp; ') : ''; hydrateIcons($('#unlocks'));
@@ -540,6 +541,7 @@ async function saveSession() {
     // a back-logged session goes in date order, not at the top
     const at = state.sessions.findIndex(x => x.createdAt <= s.createdAt);
     state.sessions.splice(at === -1 ? state.sessions.length : at, 0, s); pending = null;
+    if (!queued) rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); // a back-logged session changes later ones that day (the server does the same)
     applyLoadSuggestion(saved);
     const back = state.settings.returnTo;
     if (saved.protocolKey === 'warm' && back && allProtos()[back]) { delete state.settings.returnTo; saveSettings(); loadProto(back); persist(); toast(`Warmed up. ${allProtos()[back]!.n} is ready`, 3500); show('setup'); scrollTo(0, 0); return; }

@@ -2,6 +2,7 @@
 // Admins set them from Admin tools; if none is running, an automatic monthly one is used.
 import type { Session } from './types';
 import { tzParts, tzMidnight } from './seasons';
+import { qualifies } from './scoring';
 
 export type Metric = 'hangs' | 'sessions' | 'minutes' | 'pbs' | 'climbers';
 export interface Challenge { id: string; title: string; metric: Metric; target: number; startsOn: string; endsOn: string; auto?: boolean; }
@@ -33,8 +34,8 @@ export function progress(c: Challenge, sessions: Session[]) {
   const per = new Map<string, number>();
   const add = (u: string, v: number) => per.set(u, (per.get(u) ?? 0) + v);
   for (const s of xs) {
-    if (c.metric === 'hangs') add(s.userId, s.totalHangs);
-    else if (c.metric === 'sessions') add(s.userId, 1);
+    if (c.metric === 'hangs') add(s.userId, s.fullHangs);          // hangs held full time
+    else if (c.metric === 'sessions') { if (qualifies(s)) add(s.userId, 1); } // 15s+ under tension
     else if (c.metric === 'minutes') add(s.userId, s.tutS / 60);
     else if (c.metric === 'pbs') { if (s.isPb) add(s.userId, 1); }
     else if (c.metric === 'climbers') per.set(s.userId, 1);

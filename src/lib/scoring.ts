@@ -1,37 +1,69 @@
 // Points + leaderboard maths. Kept deliberately simple and explainable.
+// The database (supabase/points-v3.sql) uses exactly the same rules; this copy is for the
+// done screen, the edit sheet and demo mode.
 //
-// Intensity  = load as a fraction of bodyweight, on two arms. Bodyweight on two arms = 1.0;
-//              +20% added = 1.2; one-arm hangs count double (each arm takes it all);
-//              no-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Clamped 0.4–3.
-// Work       = time under tension × intensity² × edge factor
-//              (squared, so heavier hangs earn clearly more: +10% load ≈ +21% work)
-// Session points = 5 for showing up
-//               + 40 × ln(1 + work ÷ 40)   (more work always scores more, but each extra
-//                                           minute counts a little less, so long, easy
-//                                           volume can't outscore heavy quality work)
-//               + up to 10 for holding every hang its full time (share of hangs held)
-//               + 10 if the session set a personal best
+// Intensity  = two-arm-equivalent load as a fraction of bodyweight, always worked out from
+//              the kg entered: bodyweight on two arms = 1.0, +20% added = 1.2, one arm = ×2.
+//              No-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Clamped 0.4–3.
+//              With no bodyweight set, a 70kg climber is assumed (target effort % never counts).
+// Work       = time under tension × intensity² × edge factor, per arm: a one-arm hang's time
+//              counts half, so left + right at bodyweight = one two-arm hang at +100% (the
+//              same load on each arm), and one hand only is half of that.
 // Edge factor = 20mm ÷ edge size, clamped 0.6–1.6 (smaller edges score more)
+// Points are scored per day (Sydney time), so splitting training into lots of little
+// sessions never earns more than doing it in one:
+//   day work points = 40 × ln(1 + day's total work ÷ 40)   (more work always scores more,
+//                     with diminishing returns, so long easy volume can't beat heavy work)
+//   each session gets the work points it adds to its day, × (1 + 0.25 × share of hangs held
+//   full time), + 5 for the day's first real session (15s+ under tension),
+//   + 10 for the day's first personal best.
 // Overall rank = points over the last 28 days + 15 per week of current weekly streak.
 import type { Session } from './types';
-import { seasonOf, inSeason } from './seasons';
+import { seasonOf, inSeason, tzParts } from './seasons';
 
-type Scored = Pick<Session, 'tutS' | 'fullHangs' | 'totalHangs' | 'isPb' | 'mode' | 'loadPct' | 'effortPct' | 'edgeMm' | 'hands'>;
+/** Assumed bodyweight when a climber hasn't set theirs. */
+export const DEFAULT_BW = 70;
+/** A session needs this much time under tension to count as a session (streaks, show-up points). */
+export const MIN_TUT = 15;
 
-export function intensity(s: Pick<Session, 'mode' | 'loadPct' | 'effortPct' | 'hands'>) {
-  const raw = s.mode === 'lift'
-    ? (s.loadPct != null ? s.loadPct / 100 : (s.effortPct || 60) / 100) // lifts store per-hand kg × 2 ÷ bodyweight
-    : ((s.loadPct ?? 100) / 100) * (s.hands === 'both' ? 1 : 2);
+type Load = Pick<Session, 'mode' | 'loadPct' | 'hands' | 'addedKg' | 'assistKg' | 'liftKg'>;
+type Scored = Load & Pick<Session, 'tutS' | 'fullHangs' | 'totalHangs' | 'isPb' | 'edgeMm' | 'createdAt'> & { id?: string };
+
+/** Two-arm-equivalent load ÷ bodyweight. */
+export function intensity(s: Load) {
+  const pct = s.loadPct ?? (s.mode === 'lift' ? liftPct(DEFAULT_BW, s.liftKg) : loadPct(DEFAULT_BW, s.addedKg, s.assistKg))!;
+  const raw = (pct / 100) * (s.mode === 'hang' && s.hands !== 'both' ? 2 : 1); // lifts are already per hand × 2
   return Math.min(3, Math.max(0.4, raw));
 }
-/** @deprecated name kept for older callers: the intensity used for points. */
-export const loadFactor = intensity;
 export const edgeFactor = (mm: number) => Math.min(1.6, Math.max(0.6, 20 / Math.max(1, mm)));
+/** Training work in one session (see the top of this file). */
+export function sessionWork(s: Load & Pick<Session, 'tutS' | 'edgeMm'>) {
+  const i = intensity(s);
+  return Math.max(0, s.tutS) * (s.hands === 'both' ? 1 : 0.5) * i * i * edgeFactor(s.edgeMm);
+}
+const curve = (w: number) => 40 * Math.log(1 + w / 40);
+export const qualifies = (s: Pick<Session, 'tutS'>) => s.tutS >= MIN_TUT;
 
-export function sessionPoints(s: Scored) {
-  const i = intensity(s), work = Math.max(0, s.tutS) * i * i * edgeFactor(s.edgeMm);
-  const held = s.totalHangs > 0 ? (10 * s.fullHangs) / s.totalHangs : 0;
-  return Math.round(5 + 40 * Math.log(1 + work / 40) + held + (s.isPb ? 10 : 0));
+/** The scoring day (YYYY-MM-DD in Sydney time, same as the database). */
+export function scoringDay(iso: string) { const p = tzParts(new Date(iso)); return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`; }
+// same order as the database: by time, then id. A session not saved yet (no id) comes after a saved one at the same time.
+const before = (a: Scored, b: Scored) => a.createdAt < b.createdAt || (a.createdAt === b.createdAt && (b.id == null || (a.id != null && a.id < b.id)));
+
+/** Points for `s`, given the same climber's other sessions (any day; only ones earlier the same day count). */
+export function sessionPoints(s: Scored, others: readonly Scored[] = []) {
+  const day = scoringDay(s.createdAt);
+  const earlier = others.filter(o => o !== s && (o.id == null || o.id !== s.id) && before(o, s) && scoringDay(o.createdAt) === day);
+  const w0 = earlier.reduce((a, o) => a + sessionWork(o), 0);
+  const gain = curve(w0 + sessionWork(s)) - curve(w0);
+  const held = s.totalHangs > 0 ? s.fullHangs / s.totalHangs : 0;
+  const showUp = qualifies(s) && !earlier.some(qualifies) ? 5 : 0;
+  const pb = s.isPb && !earlier.some(o => o.isPb) ? 10 : 0;
+  return Math.round(showUp + gain * (1 + 0.25 * held) + pb);
+}
+/** Re-score every session of `userId` on `day` in place (after a save, edit or delete). */
+export function rescoreDay(sessions: Session[], userId: string, day: string) {
+  const mine = sessions.filter(s => s.userId === userId && scoringDay(s.createdAt) === day);
+  for (const s of mine) s.points = sessionPoints(s, mine);
 }
 
 /** Whole % only (finer values would reveal bodyweight), kept inside the 10–400% the database accepts
@@ -49,10 +81,15 @@ export function addDays(d: Date | number, n: number) { const x = new Date(d); x.
 /** Parse a "YYYY-MM-DD" day key as local midnight (new Date('YYYY-MM-DD') would be UTC). */
 export function parseDayKey(k: string) { const [y, m, d] = k.split('-').map(Number); return new Date(y!, m! - 1, d!); }
 
-/** Consecutive weeks (ending this week or last) with at least 2 sessions. */
-export function weekStreak(sessions: Session[], now = new Date()) {
-  const counts = new Map<number, number>();
-  for (const s of sessions) { const w = +weekStart(new Date(s.createdAt)); counts.set(w, (counts.get(w) ?? 0) + 1); }
+/** Consecutive weeks (ending this week or last) with real sessions on at least 2 different days. */
+export function weekStreak(sessions: Pick<Session, 'createdAt' | 'tutS'>[], now = new Date()) {
+  const days = new Map<number, Set<string>>();
+  for (const s of sessions) {
+    if (!qualifies(s)) continue;
+    const d = new Date(s.createdAt), w = +weekStart(d);
+    (days.get(w) ?? days.set(w, new Set()).get(w)!).add(dayKey(d));
+  }
+  const counts = new Map([...days].map(([w, ds]) => [w, ds.size]));
   let w = weekStart(now), n = 0;
   if ((counts.get(+w) ?? 0) < 2) w = addDays(w, -7); // this week isn't over yet — don't break the streak
   while ((counts.get(+w) ?? 0) >= 2) { n++; w = addDays(w, -7); }
@@ -81,19 +118,26 @@ export interface Category { id: string; icon: string; name: string; desc: string
   value: (mine: Session[], all: Session[], now: Date) => number | null; }
 const days = (n: number, now: Date) => +now - n * 864e5;
 const recent = (xs: Session[], n: number, now: Date) => xs.filter(s => +new Date(s.createdAt) >= days(n, now));
-const maxHang = (xs: Session[]) => xs.filter(s => s.mode === 'hang' && s.hang <= 15 && s.fullHangs > 0);
+// strength boards compare two-arm hangs (one-arm hangs have their own board)
+const maxHang = (xs: Session[]) => xs.filter(s => s.mode === 'hang' && s.hands === 'both' && s.hang <= 15 && s.fullHangs > 0);
+/** Sets where every hang (both hands, every rep) was held full time. */
+export function completedSets(s: Pick<Session, 'hangs'>) {
+  const ok = new Map<number, boolean>();
+  for (const h of s.hangs) ok.set(h.set, (ok.get(h.set) ?? true) && h.full);
+  return [...ok.values()].filter(Boolean).length;
+}
 
 export const CATEGORIES: Category[] = [
   { id: 'overall', icon: 'award', name: 'Overall', group: 'Overall', unit: 'pts', desc: 'Points over the last 28 days + streak bonus',
     value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.points, 0) + 15 * weekStreak(m, now) },
-  { id: 'loadpct', icon: 'bolt', name: '% Bodyweight', group: 'Strength', unit: '%', desc: 'Best load on a ≤15s hang, as % of bodyweight',
+  { id: 'loadpct', icon: 'bolt', name: '% Bodyweight', group: 'Strength', unit: '%', desc: 'Best load on a two-arm ≤15s hang, as % of bodyweight',
     value: m => { const v = maxBy(maxHang(m).filter(s => s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; } },
-  { id: 'added', icon: 'add', name: 'Added weight', group: 'Strength', unit: 'kg', desc: 'Heaviest added weight on a ≤15s hang, 18–22mm edge',
+  { id: 'added', icon: 'add', name: 'Added weight', group: 'Strength', unit: 'kg', desc: 'Heaviest added weight on a two-arm ≤15s hang, 18–22mm edge',
     value: m => { const v = maxBy(maxHang(m).filter(s => s.edgeMm >= 18 && s.edgeMm <= 22), s => s.addedKg - s.assistKg); return isFinite(v) ? v : null; } },
-  { id: 'edge', icon: 'edge', name: 'Smallest edge', group: 'Strength', unit: 'mm', lower: true, desc: 'Smallest edge held full time at bodyweight or more',
-    value: m => { const xs = m.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0); return xs.length ? Math.min(...xs.map(s => s.edgeMm)) : null; } },
-  { id: 'onearm', icon: 'fingers', name: 'One-arm', group: 'Strength', unit: 's', desc: 'Longest single one-arm hang',
-    value: m => { const v = maxBy(m.flatMap(s => s.hangs.filter(h => h.hand !== 'both')), h => h.held); return isFinite(v) ? v : null; } },
+  { id: 'edge', icon: 'edge', name: 'Smallest edge', group: 'Strength', unit: 'mm', lower: true, desc: 'Smallest edge held full time for 5s or more, at bodyweight or more',
+    value: m => { const xs = m.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0 && s.hang >= 5); return xs.length ? Math.min(...xs.map(s => s.edgeMm)) : null; } },
+  { id: 'onearm', icon: 'fingers', name: 'One-arm', group: 'Strength', unit: 's', desc: 'Longest single one-arm hang at bodyweight or more (no assist)',
+    value: m => { const v = maxBy(m.filter(s => s.mode === 'hang' && s.assistKg === 0).flatMap(s => s.hangs.filter(h => h.hand !== 'both')), h => h.held); return isFinite(v) ? v : null; } },
   { id: 'lift', icon: 'lift', name: 'No-hang lift', group: 'Strength', unit: 'kg', desc: 'Heaviest no-hang lift',
     value: m => { const v = maxBy(m.filter(s => s.mode === 'lift'), s => s.liftKg); return isFinite(v) ? v : null; } },
   { id: 'half', icon: 'half', name: 'Half crimp', group: 'Grip type', unit: '%', desc: 'Best half-crimp load as % of bodyweight',
@@ -104,14 +148,14 @@ export const CATEGORIES: Category[] = [
     value: m => { const v = maxBy(maxHang(m).filter(s => s.grip === 'Open' && s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; } },
   { id: 'tut', icon: 'hang', name: 'Hang time', group: 'Volume', unit: 's', desc: 'Time under tension, last 28 days',
     value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.tutS, 0) },
-  { id: 'sets', icon: 'sets', name: 'Sets', group: 'Volume', unit: '', desc: 'Sets completed, last 28 days',
-    value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.sets, 0) },
-  { id: 'hangs', icon: 'mountain', name: 'Total hangs', group: 'Volume', unit: '', desc: 'Hangs logged in the last 90 days',
-    value: m => m.reduce((a, s) => a + s.totalHangs, 0) },
-  { id: 'streak', icon: 'streak', name: 'Weekly streak', group: 'Consistency', unit: 'wks', desc: 'Consecutive weeks with 2+ sessions',
+  { id: 'sets', icon: 'sets', name: 'Sets', group: 'Volume', unit: '', desc: 'Sets with every hang held full time, last 28 days',
+    value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + completedSets(s), 0) },
+  { id: 'hangs', icon: 'mountain', name: 'Total hangs', group: 'Volume', unit: '', desc: 'Hangs held full time in the last 90 days',
+    value: (m, _a, now) => recent(m, 90, now).reduce((a, s) => a + s.fullHangs, 0) },
+  { id: 'streak', icon: 'streak', name: 'Weekly streak', group: 'Consistency', unit: 'wks', desc: 'Consecutive weeks training on 2+ days',
     value: (m, _a, now) => weekStreak(m, now) },
-  { id: 'consist', icon: 'calendar', name: 'Consistency', group: 'Consistency', unit: '', desc: 'Sessions in the last 30 days',
-    value: (m, _a, now) => recent(m, 30, now).length },
+  { id: 'consist', icon: 'calendar', name: 'Consistency', group: 'Consistency', unit: '', desc: 'Days trained in the last 30 days',
+    value: (m, _a, now) => new Set(recent(m, 30, now).filter(qualifies).map(s => dayKey(new Date(s.createdAt)))).size },
   { id: 'improved', icon: 'chart', name: 'Most improved', group: 'Consistency', unit: '%', desc: 'Best load %BW this month vs the month before',
     value: (m, _a, now) => {
       const a = maxBy(maxHang(recent(m, 30, now)).filter(s => s.loadPct != null), s => s.loadPct!);

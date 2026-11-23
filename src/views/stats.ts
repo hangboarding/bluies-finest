@@ -1,7 +1,7 @@
 import { $, $$, esc, sheet, confirmSheet, toast, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
-import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, CATEGORIES, liftPct } from '../lib/scoring';
+import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, CATEGORIES, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { placeOf } from '../lib/leaderboard';
@@ -133,10 +133,11 @@ async function editSession(s: Session) {
   const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;
   if (s.mode === 'hang' && bw && (next.addedKg !== s.addedKg || next.assistKg !== s.assistKg)) patch.loadPct = next.loadPct = loadPct(bw, next.addedKg, next.assistKg);
   if (s.mode === 'lift' && bw && next.liftKg !== s.liftKg) patch.loadPct = next.loadPct = liftPct(bw, next.liftKg);
-  patch.points = next.points = sessionPoints(next);
+  patch.points = next.points = sessionPoints(next, state.sessions.filter(x => x.userId === s.userId));
   try {
     await state.store.updateSession(s.id, patch);
     Object.assign(s, patch); // apply locally only once the save succeeded
+    rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); // later sessions that day change too (the server does the same)
     toast('Session updated'); renderStats($('#view-stats'));
   } catch (e: any) { toast(e.message ?? 'Could not save'); }
 }
@@ -227,7 +228,7 @@ async function onClick(e: MouseEvent) {
     const s = mySessions().find(x => x.id === row.dataset.sid)!;
     if (t.closest('[data-del]')) {
       if (!await confirmSheet('Delete session?', 'Its points and stats will be removed. This can’t be undone.', 'Delete')) return;
-      try { await state.store.deleteSession(s.id); state.sessions = state.sessions.filter(x => x.id !== s.id); toast('Session deleted'); renderStats($('#view-stats')); } catch (err: any) { toast(err.message); }
+      try { await state.store.deleteSession(s.id); state.sessions = state.sessions.filter(x => x.id !== s.id); rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); toast('Session deleted'); renderStats($('#view-stats')); } catch (err: any) { toast(err.message); }
     } else if (t.closest('[data-ed]')) editSession(s);
   }
 }

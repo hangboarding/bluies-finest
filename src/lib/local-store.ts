@@ -45,9 +45,10 @@ function seed(): DB {
       feel: '🙂', rpe: 6 + Math.floor(rnd(d * i + 1) * 4), tutS: hangs.reduce((a, h) => a + h.held, 0), fullHangs: hangs.filter(h => h.full).length,
       totalHangs: hangs.length, hangs, loadPct: p.mode === 'lift' ? null : lp, isPb: rnd(i * 11 + d) > 0.93, note: '',
     } as Omit<Session, 'id' | 'userId' | 'createdAt' | 'points'>;
-    sessions.push({ ...base, id: uid(), userId: 'demo' + i, createdAt: t.toISOString(), points: sessionPoints(base as any) } as Session);
+    sessions.push({ ...base, id: uid(), userId: 'demo' + i, createdAt: t.toISOString(), points: 0 } as Session);
   }
   sessions.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  for (const s of sessions) s.points = sessionPoints(s, sessions.filter(x => x.userId === s.userId));
   const notes = ['New PB!! 💀', 'Forearms are toast 🍞', 'First time on this edge!', 'Week done ✅', 'Felt strong today', ''];
   sessions.slice(0, 12).forEach((s, i) => { s.note = notes[i % notes.length]!; });
   const likes = sessions.slice(0, 15).flatMap((s, i) => profiles.filter((_, j) => rnd(i * 13 + j) > 0.5 && 'demo' + j !== s.userId).map(p => ({ s: s.id, u: p.id })));

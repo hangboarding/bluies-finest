@@ -56,7 +56,7 @@ describe('crew challenges', () => {
   });
   it('counts each metric', () => {
     const xs = [
-      at('2026-11-05T00:00:00Z', { userId: 'a', totalHangs: 6, tutS: 120, isPb: true }),
+      at('2026-11-05T00:00:00Z', { userId: 'a', totalHangs: 6, fullHangs: 6, tutS: 120, isPb: true }),
       at('2026-11-06T00:00:00Z', { userId: 'b', totalHangs: 5, tutS: 60 }),
       at('2026-10-30T00:00:00Z', { userId: 'b', totalHangs: 99 }),                      // before start
       at('2026-11-07T00:00:00Z', { userId: 'b', totalHangs: 50, pendingUpload: true }), // not uploaded yet
@@ -77,7 +77,7 @@ describe('crew challenges', () => {
     expect(auto.startsOn).toBe('2026-11-01'); expect(auto.endsOn).toBe('2026-11-30');
     expect(auto.target).toBe(100); // minimum
     // 10% more than last month's hangs, rounded to 50
-    const oct = Array.from({ length: 10 }, (_, i) => at(`2026-10-${String(i + 5).padStart(2, '0')}T00:00:00Z`, { totalHangs: 50 }));
+    const oct = Array.from({ length: 10 }, (_, i) => at(`2026-10-${String(i + 5).padStart(2, '0')}T00:00:00Z`, { totalHangs: 50, fullHangs: 50 }));
     expect(activeChallenge([], oct, now).target).toBe(550);
     expect(todayISO(now)).toBe('2026-11-22'); // already Sunday in the Blue Mountains
   });

@@ -29,7 +29,7 @@ const hr = (s: Session) => new Date(s.createdAt).getHours();
 
 export const TIERED: Tiered[] = [
   { icon: '🧗', name: 'Sessions', desc: 'Complete hangboard sessions.', thresholds: [1, 5, 10, 25, 50, 100, 200, 365, 500, 1000], value: c => c.sessions.length },
-  { icon: '🔥', name: 'Week streak', desc: 'Consecutive weeks with at least 2 sessions.', thresholds: [1, 2, 4, 8, 12, 20, 26, 40, 52, 104], value: c => weekStreak(c.sessions) },
+  { icon: '🔥', name: 'Week streak', desc: 'Consecutive weeks training on at least 2 different days.', thresholds: [1, 2, 4, 8, 12, 20, 26, 40, 52, 104], value: c => weekStreak(c.sessions) },
   { icon: '🏔️', name: 'Total hangs', desc: "Every hang you've logged, all time.", thresholds: [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000], value: c => c.sessions.reduce((a, s) => a + s.totalHangs, 0) },
   { icon: '🏋️', name: 'Added weight', desc: 'Added weight held full time on a ≤15s hang, in 3 different sessions (kg).', thresholds: [2.5, 5, 10, 15, 20, 25, 30, 40, 50, 60], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.hang <= 15 && s.fullHangs > 0 && s.addedKg > 0).map(s => s.addedKg)) },
   { icon: '📏', name: 'Smallest edge', desc: 'Smallest edge held full time at bodyweight, in 3 different sessions (mm).', lower: true, thresholds: [25, 20, 18, 15, 14, 12, 10, 8, 6, 5], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0).map(s => s.edgeMm), true) },

@@ -42,11 +42,17 @@ Every push to `main` runs the tests, then builds and deploys to GitHub Pages via
 
 ## How scoring works
 
-- **Session points** = 5, plus time under tension × load factor × edge factor ÷ 2, plus 2 per full hang, plus 20 for a personal best.
-  - **Load factor:** % of bodyweight (or target effort for no-hang lifts), capped between 0.4 and 2.
+Harder training earns more, and there's nothing to gain from gaming it.
+
+- **Work** = time under tension × intensity² × edge factor.
+  - **Intensity:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2. Capped between 0.4 and 3. Squared, so heavier hangs earn clearly more.
+  - **One-arm hangs** count each arm's time at half, so left + right at bodyweight equals a two-arm hang at +100%: the same load on each arm.
   - **Edge factor:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
-- Points are recalculated on the server, so they can't be faked.
-- **Overall rank** = points from the last 28 days, plus 15 for each week of your current streak (a streak week means 2 or more sessions).
+- **Points are scored per day.** A day's work is worth 40 × ln(1 + work ÷ 40): more always scores more, with diminishing returns, so long easy volume can't beat heavy work. Each session gets what it adds to its day, so splitting training into lots of little sessions earns nothing extra.
+  - Holding every hang its full time adds up to 25% to a session's work points.
+  - +5 for the day's first session with 15s or more under tension, and +10 for the day's first personal best (checked on the server).
+- Points are calculated on the server, so they can't be faked, and a finished season's points never change.
+- **Overall rank** = points from the last 28 days, plus 15 for each week of your current streak (a streak week means training on 2 or more different days).
 
 ## Project layout
 

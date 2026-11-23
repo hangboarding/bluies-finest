@@ -7,6 +7,7 @@ import type { ChallengeRow, Comment, InviteCode, Issue } from '../lib/types';
 import { ISSUE_CATS } from './report';
 import { forgetClimber } from './climber';
 import { METRICS, todayISO, type Metric } from '../lib/challenges';
+import { rescoreDay, scoringDay } from '../lib/scoring';
 
 let root: HTMLElement | null = null;
 
@@ -186,7 +187,7 @@ async function onClick(e: MouseEvent) {
       case 'delsess': {
         const s = state.sessions.find(x => x.id === row!.dataset.sid);
         if (!await confirmSheet('Remove session?', `This permanently removes ${esc(state.profiles.get(s?.userId ?? '')?.name ?? 'this climber')}’s ${esc(s?.protocolName ?? '')} session, with its hearts and comments.`, 'Remove')) return;
-        await state.store.deleteSession(row!.dataset.sid!); state.sessions = state.sessions.filter(x => x.id !== row!.dataset.sid); forgetClimber(s?.userId); toast('Session removed'); break;
+        await state.store.deleteSession(row!.dataset.sid!); state.sessions = state.sessions.filter(x => x.id !== row!.dataset.sid); if (s) rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); forgetClimber(s?.userId); toast('Session removed'); break;
       }
       case 'delcm':
         if (!await confirmSheet('Remove comment?', 'This permanently removes the comment.', 'Remove')) return;
