@@ -6,7 +6,7 @@ import { ic, hydrateIcons, setIconMode } from './lib/icons';
 import { state, initStore, loadUserData } from './lib/state';
 import { setSound } from './lib/timer';
 import { renderAuth } from './views/auth';
-import { renderHang, hangBusy, hangPending } from './views/hang';
+import { renderHang, hangBusy, hangPending, drawLoadHint } from './views/hang';
 import { renderRanks } from './views/ranks';
 import { renderStats } from './views/stats';
 import { renderProfile } from './views/profile';
@@ -67,6 +67,7 @@ export async function go(page: Page): Promise<boolean> {
   }
   scrollTo(0, 0);
   if (page !== 'hang' || !$('#view-hang').childElementCount) await PAGES.find(p => p.id === page)!.render($(`#view-${page}`));
+  else drawLoadHint(); // the Hang page is kept between tabs; bodyweight may have changed in Profile
   if (current === page) pageTour(page); // user may have switched tabs while this page loaded
   return true;
 }

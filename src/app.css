@@ -397,3 +397,13 @@ html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
 .installbtn{margin:4px 0 6px;background:color-mix(in srgb,var(--acc) 16%,var(--card2))!important;color:var(--ink)!important;border:1px solid color-mix(in srgb,var(--acc) 45%,var(--line))!important}
 .installsteps{text-align:left;margin:6px 0 10px;padding-left:22px;line-height:1.5}.installsteps li{margin:6px 0}
 .shareic{width:18px;height:18px;vertical-align:-3px;color:var(--acc)}
+
+/* ---------- Hang setup: target intensity under the load settings ---------- */
+.loadhint{display:flex;gap:8px;align-items:flex-start;margin:12px 2px 0;font-size:13px;line-height:1.4;color:var(--ink)}
+.loadhint .lic,.loadhint .emo{flex:none;width:18px;height:18px;margin-top:1px;color:var(--acc)}
+.loadhint small{display:block;color:var(--mute);font-size:12px;margin-top:2px}
+
+/* ---------- Profile: auto-save status (replaces the Save button) ---------- */
+.savestat{margin:12px 0 0;font-size:13px;color:var(--mute);min-height:1.4em}
+.savestat.ok{color:var(--ink);font-weight:600}
+.savestat.err{color:var(--red);font-weight:600}

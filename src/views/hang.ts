@@ -36,7 +36,7 @@ export function renderHang(root: HTMLElement) {
       <div id="modeWrap"><br><label class="f lab">${ic('mode')} Load method<span class="tip" data-tip="mode">i</span></label>
         <div class="chips g g2" data-k="mode"><span class="chip" data-v="hang">Hang (on board)</span><span class="chip" data-v="lift">No-hang (lift)</span></div></div>
     </div>
-    <div class="card"><div class="sugg hide" id="sugg"></div><div class="params" id="params"></div></div>
+    <div class="card"><div class="sugg hide" id="sugg"></div><div class="params" id="params"></div><p class="loadhint" id="loadHint"></p></div>
     <div class="feelrow"><label class="f">${ic('feel')} Pre-session feel</label>
       <div class="chips feel g g8" data-k="feel">${FEELS.map(f => `<span class="chip" data-v="${f}" aria-label="Feeling ${f}">${ic(f)}</span>`).join('')}</div></div>
     <details class="card panel ${S.prefs.pgrip ? '' : 'hide'}" data-p="grip" open><summary>${ic('grip')} Grip<small id="gripSum"></small></summary><br>
@@ -148,6 +148,20 @@ function drawParams() {
   }).join('');
   $('#modeWrap').classList.toggle('hide', !!val.simple);
   hydrateIcons($('#params'));
+  drawLoadHint();
+}
+
+/** The protocol's recommended intensity, kept beside the load settings (About can be hidden),
+ *  plus what the current load works out to as % of bodyweight when we know it. */
+export function drawLoadHint() {
+  const p = allProtos()[cur], el = $('#loadHint'); if (!p || !el) return;
+  const bw = state.priv.bodyweightKg;
+  const pct = val.mode === 'lift' ? liftPct(bw, val.lift) : loadPct(bw, val.add, val.rem);
+  const load = pct == null ? (bw == null ? 'Set your bodyweight in Profile to see your load as % of bodyweight.' : '')
+    : val.mode === 'lift' ? `Lifting ${val.lift}kg per hand ≈ ${pct}% of bodyweight.`
+    : `Your load: ${pct}% of bodyweight${val.hands !== 'both' ? ', on one arm' : ''}.`;
+  el.innerHTML = `${ic('effort')}<span><b>Target intensity:</b> ${esc(p.int)}${load ? `<small>${esc(load)}</small>` : ''}</span>`;
+  hydrateIcons(el);
 }
 
 const chipVal = (k: string) => ($(`[data-k="${k}"] .chip.on`) as HTMLElement | null)?.dataset.v ?? '';

@@ -6,7 +6,7 @@ import { applyTheme, ACCENTS, refreshHeader, rerender } from '../main';
 import { bumpDaily } from '../lib/achievements';
 import { setSound } from '../lib/timer';
 import { resetTours } from './tour';
-import { addBoard, hangBusy, hangPending, getReady, preHang } from './hang';
+import { addBoard, hangBusy, hangPending, getReady, preHang, drawLoadHint } from './hang';
 import { openAdmin } from './admin';
 import { openReport } from './report';
 import { pushSupport, pushEnabled, enablePush, disablePush } from '../lib/push';
@@ -31,7 +31,7 @@ export function renderProfile(root: HTMLElement) {
         <label class="showloc"><input type="checkbox" id="pLocShow" ${S.about?.showLocation ? 'checked' : ''}> Show my location on my profile</label></div>
       <p class="sub" style="margin:0">${ic('lock')} Age and height are private, and so is your location unless you tick the box above. Your bodyweight is never shown. Others only see a rounded % on your sessions.</p>
     </div>
-    <button class="big" id="saveName">Save</button>
+    <p class="savestat" id="saveStat" aria-live="polite">Changes save automatically</p>
     ${state.store.kind === 'local' ? '<p class="sub" style="margin-top:10px">Demo mode: data is stored in this browser only.</p>' : ''}
   </div>
   <div class="card boards"><h3>${ic('board')} My hangboards</h3><p class="sub">${ic('star')} = default for new sessions</p>
@@ -73,6 +73,14 @@ export function renderProfile(root: HTMLElement) {
   numPref('setReady', 'ready', 60, 'Get-ready countdown');
   numPref('setPre', 'pre', 30, 'Pre-hang countdown');
   $('#file').addEventListener('change', onPhoto);
+  // About you: saves itself. While typing, about a second after you stop (and only if the value
+  // makes sense); when you leave a field, straight away (with a message if it doesn't).
+  for (const id of ['pName', 'bw', 'pAge', 'pHeight', 'pLoc']) {
+    const i = $(`#${id}`) as HTMLInputElement;
+    i.addEventListener('input', () => scheduleAbout(1100));
+    i.addEventListener('change', () => saveAboutNow(true));
+  }
+  $('#pLocShow').addEventListener('change', () => saveAboutNow(true));
   // custom colour: live preview while dragging, saved when the picker closes
   const pick = $('#accPick') as HTMLInputElement;
   pick.addEventListener('input', () => { S.prefs.acc = pick.value; applyTheme(); markCustom(true, pick.value); });
@@ -150,24 +158,47 @@ function num(id: string, min: number, max: number): number | null | undefined {
   return isFinite(n) && n >= min && n <= max ? Math.round(n * 10) / 10 : undefined;
 }
 
+// ---------- About you: auto-save ----------
+let aboutTimer: number | undefined, saving: Promise<void> | null = null, again = false;
+function status(text: string, kind: '' | 'ok' | 'err' = '') {
+  const el = $('#saveStat'); if (!el) return;
+  el.textContent = text; el.className = `savestat ${kind}`;
+}
+function scheduleAbout(ms: number) { clearTimeout(aboutTimer); aboutTimer = window.setTimeout(() => saveAboutNow(false), ms); }
+/** Save now if anything is waiting (used before the page re-renders or the app is hidden). */
+export function flushAbout() { if (aboutTimer !== undefined) { clearTimeout(aboutTimer); aboutTimer = undefined; return saveAboutNow(false); } }
+addEventListener('pagehide', () => { flushAbout(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushAbout(); });
+
+/** Save if the values are valid. `loud`: say what's wrong (on leaving a field); otherwise wait quietly. */
+async function saveAboutNow(loud: boolean): Promise<void> {
+  clearTimeout(aboutTimer); aboutTimer = undefined;
+  if (!$('#pName')) return;
+  if (saving) { again = true; return saving; } // one save at a time; run once more afterwards
+  saving = saveAbout(loud).finally(() => { saving = null; if (again) { again = false; saveAboutNow(loud); } });
+  return saving;
+}
+
 /** Save name, bodyweight and the optional private details in one go. */
-async function saveAbout() {
+async function saveAbout(loud: boolean) {
   const name = ($('#pName') as HTMLInputElement).value.trim();
-  if (!name) return toast('Name can’t be empty');
   const bw = num('bw', 20, 250), age = num('pAge', 10, 100), heightCm = num('pHeight', 100, 230);
-  if (bw === undefined) return toast('Bodyweight should be between 20 and 250 kg');
-  if (age === undefined) return toast('Age should be between 10 and 100');
-  if (heightCm === undefined) return toast('Height should be between 100 and 230 cm');
+  const problem = !name ? 'Name can’t be empty' : bw === undefined ? 'Bodyweight should be between 20 and 250 kg'
+    : age === undefined ? 'Age should be between 10 and 100' : heightCm === undefined ? 'Height should be between 100 and 230 cm' : '';
+  if (problem || bw === undefined || age === undefined || heightCm === undefined) { if (loud) status(`${problem}. Not saved yet.`, 'err'); return; }
   const location = ($('#pLoc') as HTMLInputElement).value.trim().slice(0, 60);
   const showLocation = ($('#pLocShow') as HTMLInputElement).checked;
-  const btn = $('#saveName') as HTMLButtonElement; btn.disabled = true;
+  const A = state.settings.about, mine = state.profiles.get(state.me!.id), shown = showLocation && location ? location : null;
+  const changed = name !== state.me!.name || bw !== (state.priv.bodyweightKg ?? null) || (mine?.location ?? null) !== shown
+    || age !== (A?.age ?? null) || heightCm !== (A?.heightCm ?? null) || location !== (A?.location ?? '') || showLocation !== !!A?.showLocation;
+  if (!changed) { if ($('#saveStat')?.classList.contains('err')) status('✓ Saved', 'ok'); return; }
+  status('Saving…');
   try {
     if (name !== state.me!.name) {
       await state.store.updateProfile({ name });
       state.me!.name = name; state.profiles.get(state.me!.id)!.name = name; refreshHeader();
     }
     // the public copy of the location only exists while "show" is ticked
-    const shown = showLocation && location ? location : null, mine = state.profiles.get(state.me!.id);
     if ((mine?.location ?? null) !== shown) { await state.store.updateProfile({ location: shown }); if (mine) mine.location = shown; }
     state.settings.about = { age, heightCm, location, showLocation };
     state.settings.savedAt = Date.now();
@@ -175,9 +206,9 @@ async function saveAbout() {
     // bodyweight + private details go up together in one private write
     await state.store.savePrivate({ bodyweightKg: bw, settings: state.settings as any });
     saveSettings();
-    toast('Saved');
-  } catch (e: any) { toast(e.message ?? 'Could not save'); }
-  finally { btn.disabled = false; }
+    drawLoadHint(); // the Hang screen's "% of bodyweight" line
+    status('✓ Saved', 'ok');
+  } catch (e: any) { status(`${e.message ?? 'Could not save'}. Try again.`, 'err'); }
 }
 
 async function onPhoto(e: Event) {
@@ -202,14 +233,14 @@ async function onClick(e: MouseEvent) {
   const t = e.target as HTMLElement, S = state.settings;
   const tip = t.closest('.tip') as HTMLElement | null; if (tip) { const [h, b] = TIPS[tip.dataset.tip!]!; bubble(h, b); return; }
   const bwb = t.closest('[data-bw]') as HTMLElement | null;
-  if (bwb) { const i = $('#bw') as HTMLInputElement; i.value = String(Math.max(20, (+i.value || 70) + +bwb.dataset.bw!)); return; }
+  if (bwb) { const i = $('#bw') as HTMLInputElement; i.value = String(Math.max(20, (+i.value || 70) + +bwb.dataset.bw!)); scheduleAbout(900); return; }
   const tg = t.closest('[data-set]') as HTMLElement | null;
   if (tg) { const k = tg.dataset.set as 'sound'; (S.prefs as any)[k] = !S.prefs[k]; tg.classList.toggle('on', !!S.prefs[k]); tg.setAttribute('aria-checked', String(!!S.prefs[k])); setSound(S.prefs.sound); (window as any).__prefs = S.prefs; saveSettings(); return; }
   const m = t.closest('#mode [data-m]') as HTMLElement | null;
   if (m) { S.prefs.mode = m.dataset.m as any; applyTheme(); $$('#mode button').forEach(b => b.classList.toggle('on', b === m)); saveSettings(); return; }
   const ii = t.closest('#icons [data-i]') as HTMLElement | null;
   if (ii && (hangBusy() || hangPending())) { toast('Save or finish your session first'); return; }
-  if (ii) { S.prefs.icons = ii.dataset.i as any; saveSettings(); applyTheme(); await rerender(); toast(S.prefs.icons === 'flat' ? 'Flat icons on' : 'Emoji icons on'); return; }
+  if (ii) { S.prefs.icons = ii.dataset.i as any; saveSettings(); applyTheme(); await flushAbout(); await rerender(); toast(S.prefs.icons === 'flat' ? 'Flat icons on' : 'Emoji icons on'); return; }
   const sw = t.closest('#sw [data-c]') as HTMLElement | null;
   if (sw) { setAccent(sw.dataset.c!); return; }
   const star = t.closest('[data-b]') as HTMLElement | null;
@@ -217,7 +248,6 @@ async function onClick(e: MouseEvent) {
   const delb = t.closest('[data-delb]') as HTMLElement | null;
   if (delb) { const b = delb.dataset.delb!; S.boards.list = S.boards.list.filter(x => x !== b); if (S.boards.def === b) S.boards.def = S.boards.list[0] ?? ''; if (S.board === b) S.board = S.boards.def; saveSettings(); drawBoardList(); return; }
   if (t.closest('#addBoard')) { const i = $('#newBoard') as HTMLInputElement; if (i.value.trim()) { await addBoard(i.value); i.value = ''; drawBoardList(); } return; }
-  if (t.closest('#saveName')) { await saveAbout(); return; }
   if (t.closest('#chgPw')) { await changePassword(); return; }
   if (t.closest('#adminBtn')) { openAdmin(); return; }
   if (t.closest('#reportBtn')) { await openReport(); return; }
