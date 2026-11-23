@@ -2,6 +2,7 @@
 // time each page is opened. Progress is remembered in the user's settings.
 import { $ } from '../lib/ui';
 import { state, saveSettings } from '../lib/state';
+import { installButton, install } from '../lib/install';
 
 interface Tip { sel: string; title: string; body: string; }
 const PAGE_TIPS: Record<string, Tip[]> = {
@@ -40,29 +41,38 @@ const WELCOME = [
 
 export const resetTours = () => { state.settings.toursSeen = {}; saveSettings(); };
 
-export async function maybeWelcome() {
-  if (state.settings.toursSeen.welcome) return;
+/** Shows the welcome carousel the first time. Resolves true if it was shown. */
+export async function maybeWelcome(): Promise<boolean> {
+  if (state.settings.toursSeen.welcome) return false;
   await new Promise<void>(res => {
     let i = 0; const m = document.createElement('div'); m.className = 'modal welcome';
     const draw = () => {
       const [icon, h, b] = WELCOME[i]!;
       m.innerHTML = `<div class="card sheet center"><div class="big-ic">${icon}</div><h2>${h}</h2><p class="sub">${b}</p>
+        ${i === 0 ? installButton() : ''}
         <div class="tdots">${WELCOME.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
         <div class="row"><button class="big ghost" data-a="skip">Skip</button><button class="big" data-a="next">${i === WELCOME.length - 1 ? 'Let’s hang' : 'Next'}</button></div></div>`;
     };
     m.onclick = e => {
       const a = (e.target as HTMLElement).closest('[data-a]') as HTMLElement | null; if (!a) return;
+      if (a.dataset.a === 'install') { install().then(draw); return; }
       if (a.dataset.a === 'next' && i < WELCOME.length - 1) { i++; draw(); return; }
+      document.removeEventListener('bf:installable', redraw);
       m.remove(); state.settings.toursSeen.welcome = true; saveSettings(); res();
     };
+    // Chrome/Edge say they can install a moment after load: add the button then
+    const redraw = () => { if (i === 0) draw(); };
+    document.addEventListener('bf:installable', redraw);
     draw(); document.body.append(m);
   });
+  return true;
 }
 
 let running = false;
 export function pageTour(page: string) {
   if (running || state.settings.toursSeen[page] || !state.settings.toursSeen.welcome) return;
-  const tips = (PAGE_TIPS[page] ?? []).filter(t => $(t.sel)?.getClientRects().length); // skip sections the user has hidden if (!tips.length) return;
+  const tips = (PAGE_TIPS[page] ?? []).filter(t => $(t.sel)?.getClientRects().length); // skip sections the user has hidden
+  if (!tips.length) return;
   running = true;
   let i = 0; const ov = document.createElement('div'); ov.className = 'tour';
   const HEADER = 64, TABS = 80; // fixed bars at the top and bottom of the screen

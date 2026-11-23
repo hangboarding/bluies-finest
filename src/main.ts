@@ -17,6 +17,7 @@ import { bellHtml, wireBell } from './views/notifs';
 import { syncPush, disablePush } from './lib/push';
 import { renderFeed, focusPost } from './views/feed';
 import { registerSW } from 'virtual:pwa-register';
+import { maybeInstallNudge } from './lib/install'; // imported early so it catches the browser's install prompt
 
 export const ACCENTS = ['#8fb3d1', '#3ddc84', '#2bb5a0', '#5aa9e6', '#b48cff', '#ff9f43', '#ff5a4e', '#f78fb3', '#f2c14e'];
 type Page = 'hang' | 'feed' | 'ranks' | 'stats' | 'profile';
@@ -124,12 +125,13 @@ async function boot() {
   applyTheme();
   if (location.hash === '#reset') { $('#app').innerHTML = '<main id="auth"></main>'; renderAuth($('#auth'), 'reset'); return; }
   shell();
-  await maybeWelcome();
+  const welcomed = await maybeWelcome();
   // opened from a phone notification: ?post=<id>#feed
   const post = new URLSearchParams(location.search).get('post');
   if (post) history.replaceState(null, '', location.pathname);
   if (post && UUID.test(post)) { focusPost(post); await go('feed'); }
   else await go('hang');
+  if (!welcomed) setTimeout(maybeInstallNudge, 1500); // once per device, for people who've been here before
 }
 
 // App updates: download quietly, then switch to the new version only when the user isn't mid-session.
