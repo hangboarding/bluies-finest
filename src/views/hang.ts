@@ -52,6 +52,7 @@ export function renderHang(root: HTMLElement) {
       <div class="chips g g2" data-k="prof">${['Flat', 'Rounded'].map(m => `<span class="chip" data-v="${m}">${m}</span>`).join('')}</div>
     </details>
     <button class="big" id="start">${ic('play')} Start session</button>
+    <button class="big ghost" id="backlog" style="margin-top:10px">${ic('calendar')} Log a past session</button>
     <p class="sub center" style="margin-top:8px">Your settings are remembered for next time</p>
   </section>
 
@@ -345,6 +346,7 @@ function wireSetup(root: HTMLElement) {
     if (!(editing && timer) && !(await preStartCheck())) return;
     start();
   });
+  $('#backlog').addEventListener('click', backlog);
   $('#sugg').addEventListener('click', e => { if ((e.target as HTMLElement).closest('#suggUndo')) undoSuggestion(); });
   $('#pause').addEventListener('click', togglePause);
   $('#skip').addEventListener('click', () => { unlockAudio(); timer?.skip(); });
@@ -447,6 +449,37 @@ function rpeUpd() {
   $('#rpeTip').textContent = n <= 5 ? "Felt easy, so we'll suggest +2.5kg next time." : n <= 8 ? 'Right in the zone. Same load next time.' : "Very hard, so we'll suggest backing off 2.5kg.";
 }
 
+// ---------------- back-log a session done without the timer ----------------
+/** datetime-local value (local time, no seconds) */
+const localIso = (d: Date) => new Date(+d - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
+let backdate: string | null = null;
+async function backlog() {
+  readInputs(); persist();
+  const hangs = val.sets * val.reps * (val.hands === 'LR' ? 2 : 1);
+  if (hangs > 1500 || hangs * val.hang > 7200) return toast(`That's ${hangs.toLocaleString()} hangs. Cut the sets, reps or hang time to log it.`, 5000);
+  const now = new Date(), min = new Date(+now - 7 * 864e5 + 60e3); // the server accepts up to 7 days back
+  let when!: HTMLInputElement;
+  const p = allProtos()[cur]!;
+  const i = await sheet({
+    title: 'Log a past session',
+    body: `<p class="sub">Logs <b>${esc(p.n)}</b> with your current settings (${val.sets} × ${val.reps > 1 ? `${val.reps} × ` : ''}${val.hang}s${val.hands === 'LR' ? ', each hand' : ''}), every hang held full time.</p>
+      <label class="f" style="text-align:left">When did you do it?</label>
+      <input class="tx" type="datetime-local" id="blWhen" value="${localIso(now)}" min="${localIso(min)}" max="${localIso(now)}" style="margin-bottom:12px">
+      <p class="sub" style="font-size:12px">Up to 7 days back.</p>
+      <p class="promise">I promise that I did these hangs. Why would I deceive you?</p>`,
+    buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'I promise', kind: 'primary' }],
+    onMount: el => { when = el.querySelector('#blWhen')!; },
+  });
+  if (i !== 1) return;
+  const t = new Date(when.value);
+  if (isNaN(+t)) return toast('Pick when you did it');
+  if (+t < +min || +t > Date.now() + 60e3) return toast('Past sessions can go back up to 7 days');
+  const log: HangResult[] = buildSteps(val).filter(s => s.p === 'hang').map(s => ({ set: s.set!, rep: s.rep!, hand: s.hand!, target: s.t, held: s.t, full: true }));
+  if (!log.length) return toast('Add at least one set');
+  backdate = t.toISOString();
+  done(log);
+}
+
 let pending: NewSession | null = null;
 function done(log: HangResult[]) {
   timer = null; keepAwake(false); lastLog = log;
@@ -475,18 +508,21 @@ function done(log: HangResult[]) {
     edgeMm: val.edge, addedKg: val.mode === 'lift' ? 0 : val.add, assistKg: val.mode === 'lift' ? 0 : val.rem, liftKg: val.mode === 'lift' ? val.lift : 0, effortPct: val.effort,
     hands: val.hands, grip: chipVal('grip'), fingers: chipVal('fing'), board: ($('#board') as HTMLSelectElement).value, edgeMaterial: chipVal('mat'), edgeProfile: chipVal('prof'),
     feel: chipVal('feel'), rpe: 7, tutS: tut, fullHangs: full, totalHangs: log.length, hangs: log, loadPct: lp, isPb, note: '', points: 0,
+    ...(backdate ? { createdAt: backdate } : {}),
   };
+  const past = backdate; backdate = null;
   pending.points = sessionPoints(pending);
   $('#cheer').textContent = q[0]; $('#cheer2').textContent = q[1];
   $('#sTime').textContent = tut + 's'; $('#sSets').textContent = `${full}/${log.length}`; $('#sPts').textContent = '+' + pending.points;
   const lr = (h: 'L' | 'R') => log.filter(x => x.hand === h).reduce((a, x) => a + x.held, 0);
   $('#res').textContent = (short.length ? `${short.length} cut short (${short.map(x => x.held + 's').join(', ')})` : '✓ Every hang held full time')
     + (val.hands === 'LR' ? ` · Left ${lr('L')}s / Right ${lr('R')}s` : '') + (isPb ? ' · 🏅 New personal best!' : '')
-    + (bw == null && val.mode !== 'lift' ? ' · Add your bodyweight in Profile for fairer scoring' : '');
-  const unlocked = diffUnlocks(achievementCtx(), achievementCtx([{ ...pending, id: 'x', userId: '', createdAt: new Date().toISOString() } as any, ...mine]));
+    + (bw == null && val.mode !== 'lift' ? ' · Add your bodyweight in Profile for fairer scoring' : '')
+    + (past ? ` · Logged for ${new Date(past).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : '');
+  const unlocked = diffUnlocks(achievementCtx(), achievementCtx([{ ...pending, id: 'x', userId: '', createdAt: past ?? new Date().toISOString() } as any, ...mine]));
   $('#unlocks').innerHTML = unlocked.length ? 'Unlocked: ' + unlocked.map(u => `<span class="unl">${ic(u.icon)} ${esc(u.text)}</span>`).join(' &nbsp;·&nbsp; ') : ''; hydrateIcons($('#unlocks'));
   ($('#rpe') as HTMLInputElement).value = '7'; rpeUpd(); ($('#note') as HTMLInputElement).value = '';
-  show('done'); fanfare(); vibrate([100, 50, 100, 50, 300]); confetti();
+  show('done'); if (!past) { fanfare(); vibrate([100, 50, 100, 50, 300]); } confetti();
 }
 
 async function saveSession() {
@@ -497,7 +533,9 @@ async function saveSession() {
     pending.note = ($('#note') as HTMLInputElement).value.trim();
     const saved = pending;
     const { session: s, queued } = await saveOrQueue(saved);
-    state.sessions.unshift(s); pending = null;
+    // a back-logged session goes in date order, not at the top
+    const at = state.sessions.findIndex(x => x.createdAt <= s.createdAt);
+    state.sessions.splice(at === -1 ? state.sessions.length : at, 0, s); pending = null;
     applyLoadSuggestion(saved);
     const back = state.settings.returnTo;
     if (saved.protocolKey === 'warm' && back && allProtos()[back]) { delete state.settings.returnTo; saveSettings(); loadProto(back); persist(); toast(`Warmed up. ${allProtos()[back]!.n} is ready`, 3500); show('setup'); scrollTo(0, 0); return; }

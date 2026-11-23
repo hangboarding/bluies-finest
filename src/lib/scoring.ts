@@ -92,7 +92,7 @@ export const CATEGORIES: Category[] = [
     value: m => { const v = maxBy(maxHang(m).filter(s => s.edgeMm >= 18 && s.edgeMm <= 22), s => s.addedKg - s.assistKg); return isFinite(v) ? v : null; } },
   { id: 'edge', icon: 'edge', name: 'Smallest edge', group: 'Strength', unit: 'mm', lower: true, desc: 'Smallest edge held full time at bodyweight or more',
     value: m => { const xs = m.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0); return xs.length ? Math.min(...xs.map(s => s.edgeMm)) : null; } },
-  { id: 'onearm', icon: 'pointer', name: 'One-arm', group: 'Strength', unit: 's', desc: 'Longest single one-arm hang',
+  { id: 'onearm', icon: 'fingers', name: 'One-arm', group: 'Strength', unit: 's', desc: 'Longest single one-arm hang',
     value: m => { const v = maxBy(m.flatMap(s => s.hangs.filter(h => h.hand !== 'both')), h => h.held); return isFinite(v) ? v : null; } },
   { id: 'lift', icon: 'lift', name: 'No-hang lift', group: 'Strength', unit: 'kg', desc: 'Heaviest no-hang lift',
     value: m => { const v = maxBy(m.filter(s => s.mode === 'lift'), s => s.liftKg); return isFinite(v) ? v : null; } },

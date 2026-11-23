@@ -1,11 +1,11 @@
-export function confetti() {
+export function confetti(colours?: string[]) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   let c = document.getElementById('fx') as HTMLCanvasElement | null;
   if (!c) { c = document.createElement('canvas'); c.id = 'fx'; document.body.append(c); }
   const x = c.getContext('2d')!; c.width = innerWidth; c.height = innerHeight;
   const acc = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#8fb3d1';
-  const cols = [acc, '#f2c14e', '#ffffff', '#ff5a4e', '#5aa9e6', '#b48cff'];
-  const ps = Array.from({ length: 200 }, () => ({ x: innerWidth / 2, y: innerHeight * 0.4, vx: (Math.random() - 0.5) * 16, vy: Math.random() * -16 - 4, r: Math.random() * 6 + 3, c: cols[Math.floor(Math.random() * 6)]!, a: Math.random() * 6, h: Math.random() < 0.3 }));
+  const cols = colours?.length ? colours : [acc, '#f2c14e', '#ffffff', '#ff5a4e', '#5aa9e6', '#b48cff'];
+  const ps = Array.from({ length: 200 }, () => ({ x: innerWidth / 2, y: innerHeight * 0.4, vx: (Math.random() - 0.5) * 16, vy: Math.random() * -16 - 4, r: Math.random() * 6 + 3, c: cols[Math.floor(Math.random() * cols.length)]!, a: Math.random() * 6, h: Math.random() < 0.3 }));
   let n = 0;
   (function f() {
     x.clearRect(0, 0, c!.width, c!.height);

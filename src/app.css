@@ -9,6 +9,7 @@ header h1{font-size:19px;letter-spacing:.2px}
 .small-btn{height:44px!important;font-size:15px!important;margin-top:10px}
 .sheet{text-align:center}.sheet h2{margin-bottom:8px}
 .sheet .row{margin-top:6px}
+.sheet .promise{font-style:italic;font-weight:600;margin:4px 0 12px;padding:10px 12px;border-radius:12px;background:var(--line)}
 .emo{font-style:normal}
 .lic{width:1.15em;height:1.15em;vertical-align:-.2em;display:inline-block}
 svg.lic{stroke:currentColor}
@@ -261,3 +262,58 @@ html:has(.modal),body:has(.modal){overflow:hidden}
 @keyframes ptrspin{to{transform:rotate(360deg)}}
 /* our own pull gesture replaces the browser's pull-to-reload on Activity */
 html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
+/* climber profile: the #1 on the leaderboard gets the gold treatment */
+@property --champ-ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+.sheet.champion{border:2px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,conic-gradient(from var(--champ-ang),#a9822c,#f2c14e,#fff4c2,#f2c14e,#a9822c,#f2c14e,#fff4c2,#a9822c) border-box;box-shadow:0 -10px 60px #f2c14e40;animation:champ-spin 6s linear infinite}
+@keyframes champ-spin{to{--champ-ang:360deg}}
+.champ-hero{position:relative;isolation:isolate;padding:10px 0 6px;margin:-8px -6px 0;border-radius:18px;overflow:hidden;background:radial-gradient(ellipse 70% 60% at 50% 38%,#f2c14e38,transparent 70%)}
+.champ-rays{position:absolute;left:50%;top:40%;width:560px;height:560px;margin:-280px 0 0 -280px;z-index:-1;background:repeating-conic-gradient(from 0deg,#f2c14e2e 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 10%,transparent 62%);mask:radial-gradient(circle,#000 10%,transparent 62%);animation:champ-rays 26s linear infinite}
+@keyframes champ-rays{to{transform:rotate(360deg)}}
+.champ-sparks{position:absolute;inset:0;z-index:-1;pointer-events:none}
+.champ-sparks i{position:absolute;left:var(--x);bottom:-10px;width:8px;height:8px;transform:scale(var(--s));background:radial-gradient(circle,#fff8dc 0 20%,#f2c14e 45%,transparent 70%);border-radius:50%;opacity:0;animation:champ-float 4s ease-in var(--d) infinite}
+.champ-sparks i:nth-child(3n){width:5px;height:5px}
+.champ-sparks i:nth-child(4n)::after{content:'';position:absolute;inset:-6px;background:linear-gradient(#fff4c2,#fff4c2) center/2px 100% no-repeat,linear-gradient(#fff4c2,#fff4c2) center/100% 2px no-repeat;opacity:.8}
+@keyframes champ-float{0%{opacity:0;translate:0 0}15%{opacity:1}70%{opacity:.9}100%{opacity:0;translate:14px -220px}}
+.champ-crown{position:relative;display:block;margin-bottom:-8px;animation:champ-bob 2.8s ease-in-out infinite;filter:drop-shadow(0 0 10px #f2c14eaa)}
+@keyframes champ-bob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-5px) rotate(6deg)}}
+.champ-av{position:relative;display:inline-grid;place-items:center;padding:5px;border-radius:50%;margin-top:6px}
+.champ-av::before{content:'';position:absolute;inset:0;border-radius:50%;background:conic-gradient(#a9822c,#f2c14e,#fff4c2,#f2c14e,#a9822c,#f2c14e,#fff4c2,#a9822c);animation:champ-rays 4s linear infinite;z-index:-1}
+.champ-av::after{content:'';position:absolute;inset:-10px;border-radius:50%;z-index:-2;box-shadow:0 0 30px 6px #f2c14e88;animation:champ-pulse 2.4s ease-in-out infinite}
+@keyframes champ-pulse{0%,100%{opacity:.55;transform:scale(.96)}50%{opacity:1;transform:scale(1.06)}}
+.champ-av .cav{width:96px;height:96px;font-size:32px;border:3px solid var(--card)}
+.champ-name{font-size:28px;font-weight:900;background:linear-gradient(100deg,#a9822c 0%,#f2c14e 25%,#fff4c2 40%,#f2c14e 55%,#a9822c 75%,#f2c14e 100%) 0 0/250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 10px #f2c14e55);animation:champ-shimmer 3.5s linear infinite}
+@keyframes champ-shimmer{to{background-position:-250% 0}}
+.champ-ribbon{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:6px;margin:6px 0 8px;padding:5px 16px;border-radius:999px;font-weight:900;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#2a1d00;background:linear-gradient(180deg,#ffe08a,#f2c14e 55%,#c9962e);box-shadow:0 2px 12px #f2c14e66,inset 0 1px 0 #fff8}
+.champ-ribbon .lic{width:15px;height:15px;color:#2a1d00}
+.champ-ribbon::after{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,#fffc 50%,transparent 70%);translate:-120% 0;animation:champ-sweep 3s ease-in-out 1s infinite}
+@keyframes champ-sweep{0%{translate:-120% 0}45%,100%{translate:120% 0}}
+.champion .stat{background:linear-gradient(160deg,color-mix(in srgb,#f2c14e 16%,var(--card2)),var(--card2));box-shadow:inset 0 0 0 1px color-mix(in srgb,#f2c14e 40%,transparent)}
+.champion .stat b{color:var(--gold)}
+.champion .stat:last-child b{font-size:26px;text-shadow:0 0 14px #f2c14e88}
+.champion .cpb{position:relative;overflow:hidden;background:linear-gradient(160deg,color-mix(in srgb,#f2c14e 14%,var(--card2)),var(--card2));box-shadow:inset 0 0 0 1px color-mix(in srgb,#f2c14e 35%,transparent)}
+.champion .cpb .lic,.champion .climber h3 .lic{color:var(--gold)}
+.champion .cpb::after{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 35%,#fff4c255 50%,transparent 65%);translate:-120% 0;animation:champ-sweep 4.5s ease-in-out infinite}
+.champion .cpb:nth-child(2)::after{animation-delay:.3s}.champion .cpb:nth-child(3)::after{animation-delay:.6s}.champion .cpb:nth-child(4)::after{animation-delay:.9s}
+.champion .cgrid i.on{background:linear-gradient(160deg,#ffe08a,#c9962e);box-shadow:0 0 6px #f2c14e66}
+.champion .climber > *:not(.champ-hero){animation:champ-rise .6s cubic-bezier(.2,.8,.2,1) both}
+.champion .climber > :nth-child(2){animation-delay:.1s}.champion .climber > :nth-child(3){animation-delay:.18s}.champion .climber > :nth-child(4){animation-delay:.26s}.champion .climber > :nth-child(5){animation-delay:.34s}.champion .climber > :nth-child(n+6){animation-delay:.42s}
+@keyframes champ-rise{from{opacity:0;transform:translateY(14px)}}
+[data-mode=light] .champ-name{background-image:linear-gradient(100deg,#7a5a12 0%,#b8891f 25%,#e0a92a 40%,#b8891f 55%,#7a5a12 75%,#b8891f 100%);filter:drop-shadow(0 1px 6px #f2c14e66)}
+[data-mode=light] .champion .stat b{color:#a9781a}
+[data-mode=light] .champ-hero{background:radial-gradient(ellipse 70% 60% at 50% 38%,#f2c14e55,transparent 70%)}
+/* champion crowns (see lib/crown.ts): size grows with titles via --cs */
+.crown-svg{display:inline-block;vertical-align:middle;width:calc(var(--cb,34px) * var(--cs,1));height:auto;overflow:visible;filter:drop-shadow(0 1px 2px #0005)}
+.crown-svg.won{filter:drop-shadow(0 0 6px #f2c14e88) drop-shadow(0 1px 2px #0005)}
+.crown-svg.prism{animation:crown-prism 6s linear infinite}
+@keyframes crown-prism{to{filter:hue-rotate(360deg) drop-shadow(0 0 8px #fff8)}}
+.crown .crown-svg{--cb:40px;margin-bottom:-4px}
+.hof .hof-ic{width:auto;min-width:36px;padding:0 4px;border-radius:18px;gap:2px;display:flex}.hof .hof-ic .crown-svg{--cb:26px}
+.titles .crown-svg.mini{--cb:20px;--cs:1!important}
+.champ-crown .crown-svg{--cb:52px}
+/* Ranks page: the gold #1 overall card only the leader sees */
+.champ-home{display:block;width:100%;font:inherit;color:inherit;text-align:center;cursor:pointer;padding:8px;border:2px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,conic-gradient(from var(--champ-ang),#a9822c,#f2c14e,#fff4c2,#f2c14e,#a9822c,#f2c14e,#fff4c2,#a9822c) border-box;box-shadow:0 6px 40px #f2c14e33;animation:champ-spin 6s linear infinite}
+.champ-home .champ-hero{margin:0;padding:4px 0 6px}
+.champ-home .champ-av .cav{width:72px;height:72px;font-size:26px}
+.champ-home .champ-crown .crown-svg{--cb:44px}
+.champ-home .champ-name{margin:8px 0 2px}
+.champ-home:active{transform:scale(.99)}

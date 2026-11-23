@@ -9,6 +9,9 @@ import { TIERED, TIER_NAMES, TIER_COLOURS, tierOf, type Ctx } from '../lib/achie
 import type { Session } from '../lib/types';
 import { sessRow } from './stats';
 import { placeOf } from '../lib/leaderboard';
+import { crownSvg, crownName } from '../lib/crown';
+import { isTopOverall, sparks } from './champ-hero';
+import { confetti } from '../lib/confetti';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // other climbers' full history, kept for a few minutes so reopening a profile is instant but stays fresh
@@ -40,6 +43,8 @@ export async function openClimber(uid: string) {
   const el = body as HTMLElement, now = new Date();
 
   const rank = placeOf(uid); // same ranking as the Ranks page
+  // #1 on any board (sharing it counts) gets the gold treatment
+  const champ = isTopOverall(uid); // only whoever is #1 overall gets the gold treatment
 
   // personal bests (no bodyweight-derived numbers)
   const hangs = xs.filter(s => s.mode === 'hang' && s.fullHangs > 0);
@@ -60,13 +65,13 @@ export async function openClimber(uid: string) {
     return `<i title="${d.getDate()} ${MON[d.getMonth()]}" class="${on ? 'on' : ''}" style="${fut ? 'opacity:.3' : ''}"></i>`; }).join('');
 
   // badges — only ones that can be worked out from public session data
-  const titles = seasonsWon(uid);
+  const titles = seasonsWon(uid), crown = crownSvg(uid, titles);
   const ctx: Ctx = { sessions: xs, flags: {}, hasAvatar: !!p.avatarUrl, customBoards: 0, customProtocols: 0, heartsReceived: 0, commentsGiven: 0, pointsTotal: xs.reduce((a, s) => a + s.points, 0), seasonsWon: titles };
   const badges = TIERED.map(a => ({ a, lv: tierOf(a.value(ctx), a.thresholds, a.lower) })).filter(x => x.lv > 0).sort((x, y) => y.lv - x.lv);
 
   const since = new Date(p.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
   el.innerHTML = `
-    <div class="center">${avatar(p, 'cav')}<h2 style="margin:10px 0 2px">${esc(p.name)}</h2>${p.location ? `<p class="cloc">${ic('pin')} ${esc(p.location)}</p>` : ''}<p class="sub" style="margin:0">Member since ${since}</p>${titles ? `<p class="titles">${ic('crown')} ${titles > 1 ? `${titles}× season champion` : 'Season champion'}</p>` : ''}</div>
+    <div class="center${champ ? ' champ-hero' : ''}">${champ ? `<div class="champ-rays" aria-hidden="true"></div>${sparks()}<div class="champ-crown">${crown}</div><div class="champ-av">${avatar(p, 'cav')}</div>` : avatar(p, 'cav')}<h2 style="margin:10px 0 2px"${champ ? ' class="champ-name"' : ''}>${esc(p.name)}</h2>${champ ? `<p class="champ-ribbon">${ic('tabRanks')} #1 overall</p>` : ''}${p.location ? `<p class="cloc">${ic('pin')} ${esc(p.location)}</p>` : ''}<p class="sub" style="margin:0">Member since ${since}</p>${titles ? `<p class="titles" title="${crownName(titles)}">${crownSvg(uid, titles, 'mini')} ${titles > 1 ? `${titles}× season champion` : 'Season champion'}</p>` : ''}</div>
     <div class="stats" style="margin:14px 0"><div class="stat"><b>${xs.length}</b>sessions</div><div class="stat"><b>${weekStreak(xs, now)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank}</b>overall</div></div>
     ${(() => { const f = favouriteProtocol(xs); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}
     ${pbs ? `<h3>${ic('medal')} Personal bests</h3><div class="cpbs">${pbs}</div>` : ''}
@@ -74,6 +79,7 @@ export async function openClimber(uid: string) {
     ${badges.length ? `<h3 style="margin-top:14px">${ic('award')} Badges</h3><div class="cbadges">${badges.map(({ a, lv }) => `<button type="button" class="cbadge" data-badge="${TIERED.indexOf(a)}" style="--tc:${TIER_COLOURS[lv - 1]}" aria-label="${a.name}: ${TIER_NAMES[lv - 1]}">${ic(a.icon)}<small>${TIER_NAMES[lv - 1]}</small></button>`).join('')}</div><p class="sub" style="font-size:12px;margin:6px 0 0">Tap a badge to see what it’s for.</p>` : ''}
     <h3 style="margin-top:14px">${ic('calendar')} Recent sessions</h3><div class="daysess">${xs.slice(0, 5).map(s => sessRow(s, false)).join('') || '<p class="sub">No sessions yet.</p>'}</div>`;
   hydrateIcons(el);
+  if (champ) { el.closest('.sheet')?.classList.add('champion'); confetti(['#f2c14e', '#ffd978', '#fff4c2', '#c9962e', '#ffffff']); }
 
   // tapping a badge explains it, inside the profile so it doesn't close the sheet
   el.addEventListener('click', e => {
