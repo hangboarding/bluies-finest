@@ -891,7 +891,7 @@ $$;
 -- Intensity = two-arm-equivalent load ÷ bodyweight (one-arm hang ×2; lifts are per hand × 2 ÷ bw),
 -- clamped 0.4–3. With no load_pct (no bodyweight set), a 70kg climber is assumed.
 -- Abrahangs and Warm-up are light by design (feet on or assisted, rarely entered as assist), so
--- they count at most 0.8. Same rules as src/lib/scoring.ts intensity().
+-- they count at most 0.6. Same rules as src/lib/scoring.ts intensity().
 drop function if exists public.session_work(text, text, double precision, double precision, double precision, double precision, double precision, double precision);
 create or replace function public.session_work(p_protocol text, p_mode text, p_hands text, p_load_pct double precision,
   p_added double precision, p_assist double precision, p_lift double precision, p_tut double precision, p_edge double precision)
@@ -901,7 +901,7 @@ set search_path = public
 as $$
   select greatest(0, p_tut)
        * case when p_hands = 'both' then 1 else 0.5 end
-       * power(least(case when p_protocol in ('abra', 'warm') then 0.8 else 3 end, greatest(0.4,
+       * power(least(case when p_protocol in ('abra', 'warm') then 0.6 else 3 end, greatest(0.4,
            coalesce(p_load_pct,
              least(400, greatest(10, round((case when p_mode = 'lift' then 2 * p_lift / 70.0 * 100
                                                  else (70 + p_added - p_assist) / 70.0 * 100 end)::numeric)))::double precision)

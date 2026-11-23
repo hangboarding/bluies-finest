@@ -7,7 +7,7 @@
 //              No-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Clamped 0.4–3.
 //              With no bodyweight set, a 70kg climber is assumed (target effort % never counts).
 //              Abrahangs and Warm-up are light by design (feet on or assisted, which people rarely
-//              enter as assist), so they count at most 80%.
+//              enter as assist), so they count at most 60%.
 // Work       = time under tension × intensity² × edge factor, per arm: a one-arm hang's time
 //              counts half, so left + right at bodyweight = one two-arm hang at +100% (the
 //              same load on each arm), and one hand only is half of that.
@@ -15,7 +15,7 @@
 // Points are scored per day (Sydney time), so splitting training into lots of little
 // sessions never earns more than doing it in one:
 //   day work points = 40 × ln(1 + day's total work ÷ 40)   (more work always scores more,
-//                     with diminishing returns, so long easy volume can't beat heavy work)
+//                     with diminishing returns, so piling on easy volume pays less and less)
 //   each session gets the work points it adds to its day, × (1 + 0.25 × share of hangs held
 //   full time), + 5 for the day's first real session (15s+ under tension),
 //   + 10 for the day's first personal best.
@@ -31,7 +31,7 @@ export const MIN_TUT = 15;
 
 type Load = Pick<Session, 'mode' | 'loadPct' | 'hands' | 'addedKg' | 'assistKg' | 'liftKg'> & { protocolKey?: string };
 /** Protocols done light by design, and the most they can count for. */
-export const LIGHT_PROTOCOLS = new Set(['abra', 'warm']), LIGHT_CAP = 0.8;
+export const LIGHT_PROTOCOLS = new Set(['abra', 'warm']), LIGHT_CAP = 0.6;
 type Scored = Load & Pick<Session, 'tutS' | 'fullHangs' | 'totalHangs' | 'isPb' | 'edgeMm' | 'createdAt'> & { id?: string };
 
 /** Two-arm-equivalent load ÷ bodyweight. */

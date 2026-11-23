@@ -49,7 +49,7 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
   const at = (h: number) => new Date(Date.now() - h * 3600e3).toISOString();
   await db.query(`insert into public.sessions (created_at, mode, hands, hang, rest, sets, reps, set_rest, effort_pct, edge_mm, added_kg, hangs, load_pct, is_pb, points) values ($1,'hang','both',10,180,5,1,180,60,20,0,$2,400,true,9999)`, [at(2), hangs(5, 10)]);
   await db.query(`insert into public.sessions (created_at, mode, hands, hang, rest, sets, reps, set_rest, effort_pct, edge_mm, added_kg, hangs, load_pct, points) values ($1,'hang','both',10,180,3,1,180,60,20,14,$2,400,9999)`, [at(1), hangs(3, 10)]);
-  // Abrahangs at bodyweight: counted at most 80%, same as the app
+  // Abrahangs at bodyweight: counted at most 60%, same as the app
   await db.query(`insert into public.sessions (created_at, protocol_key, mode, hands, hang, rest, sets, reps, set_rest, effort_pct, edge_mm, hangs, points) values ($1,'abra','hang','both',10,20,10,1,180,60,20,$2,9999)`, [at(0.5), hangs(10, 10)]);
 
   const rows = (await db.query<any>(`select * from public.sessions order by created_at`)).rows;

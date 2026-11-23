@@ -48,8 +48,8 @@ Harder training earns more, and there's nothing to gain from gaming it.
   - **Intensity:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2. Capped between 0.4 and 3. Squared, so heavier hangs earn clearly more.
   - **One-arm hangs** count each arm's time at half, so left + right at bodyweight equals a two-arm hang at +100%: the same load on each arm.
   - **Edge factor:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
-  - **Abrahangs and Warm-up** are done light (feet on or assisted), which people rarely enter as assist, so they count at most 80% of bodyweight.
-- **Points are scored per day.** A day's work is worth 40 × ln(1 + work ÷ 40): more always scores more, with diminishing returns, so long easy volume can't beat heavy work. Each session gets what it adds to its day, so splitting training into lots of little sessions earns nothing extra.
+  - **Abrahangs and Warm-up** are done light (feet on or assisted), which people rarely enter as assist, so they count at most 60% of bodyweight.
+- **Points are scored per day.** A day's work is worth 40 × ln(1 + work ÷ 40): more always scores more, with diminishing returns, so piling on easy volume pays less and less. Each session gets what it adds to its day, so splitting training into lots of little sessions earns nothing extra.
   - Holding every hang its full time adds up to 25% to a session's work points.
   - +5 for the day's first session with 15s or more under tension, and +10 for the day's first personal best (checked on the server).
 - Points are calculated on the server, so they can't be faked, and a finished season's points never change.
