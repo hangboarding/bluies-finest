@@ -3,12 +3,13 @@
 import type { ChallengeRow, PrivateData, Profile, SeasonChampion, Session, Store } from './types';
 import { seasonOf, championsFrom } from './seasons';
 import { LocalStore } from './local-store';
-import { BUILTIN_BOARDS, type Protocol } from './protocols';
+import { BUILTIN_BOARDS, PROTOCOLS, type Protocol } from './protocols';
+import { mergeWorkouts, mergeDeleted, readWorkouts, type Deleted, type Workout } from './workouts';
 import type { Ctx } from './achievements';
 
 export interface Settings {
   proto: string;
-  vals: Record<string, Record<string, any>>;       // per-protocol overrides
+  vals: Record<string, Record<string, any>>;       // per protocol: your load, plus tweaks to the one in use (see personalVals)
   chips: Record<string, string>;                    // grip, fing, mat, prof, feel
   board?: string;
   boards: { list: string[]; def: string; custom: string[] };
@@ -27,12 +28,20 @@ export interface Settings {
   suggest?: Record<string, { text: string; prev: { add: number; rem: number; lift: number; edge?: number } }>;
   /** Protocol to switch back to after a warm-up. */
   returnTo?: string;
+  /** Saved workouts (queues of protocols), newest first. */
+  workouts: Workout[];
+  /** Hang page: a single protocol, or a saved workout. */
+  hangMode?: 'single' | 'workout';
+  /** Hang page: the workout picked in workout mode. */
+  workoutSel?: string;
+  /** Workouts and custom protocols deleted recently (id → ms), so the deletion syncs to other devices. */
+  deleted?: Deleted;
 }
 
 export const DEFAULT_SETTINGS = (): Settings => ({
   proto: 'max', vals: {}, chips: {},
   boards: { list: [...BUILTIN_BOARDS], def: BUILTIN_BOARDS[0]!, custom: [] },
-  customProtos: {},
+  customProtos: {}, workouts: [],
   prefs: { sound: true, vib: true, icons: 'flat', pgrip: true, psetup: true, mode: 'dark', acc: '#8fb3d1', nudges: true, warmup: true },
   panels: { extras: false }, toursSeen: {}, flags: {},
 });
@@ -98,6 +107,15 @@ export async function loadUserData() {
   // a flag earned on one phone isn't lost because another phone saved something later.
   merged.flags = { ...(older.flags ?? {}), ...(newer.flags ?? {}) };
   merged.toursSeen = { ...(older.toursSeen ?? {}), ...(newer.toursSeen ?? {}) };
+  // Workouts and custom protocols merge one by one (see mergeWorkouts), so a device that hadn't seen
+  // a new one can't wipe it just by saving its settings later.
+  merged.deleted = mergeDeleted(older.deleted, newer.deleted);
+  merged.workouts = mergeWorkouts(older.workouts, newer.workouts, merged.deleted);
+  merged.customProtos = Object.fromEntries(Object.entries({ ...(older.customProtos ?? {}), ...(newer.customProtos ?? {}) }).filter(([k]) => merged.deleted![k] == null));
+  merged.vals = { ...(older.vals ?? {}), ...(newer.vals ?? {}) };
+  // the merge brought back something the newest copy was missing: upload the merged copy
+  const restored = JSON.stringify(merged.workouts) !== JSON.stringify(readWorkouts(newer.workouts))
+    || Object.keys(merged.customProtos).length !== Object.keys(newer.customProtos ?? {}).length;
   // One-time migration: flat icons became the default; earlier accounts saved "emoji".
   const migrate = (merged.iconsV ?? 0) < 1;
   if (migrate) { merged.prefs.icons = 'flat'; merged.iconsV = 1; }
@@ -109,7 +127,7 @@ export async function loadUserData() {
   state.champions = champions ?? championsFrom(sessions).filter(c => c.seasonStart >= since.slice(0, 10));
   state.challenges = challenges;
   state.loaded = true;
-  if (localNewer || migrate) saveSettings();
+  if (localNewer || migrate || restored) saveSettings();
 }
 
 /** Re-fetch what other people change (profiles, recent sessions, challenges) without touching my
@@ -147,6 +165,9 @@ export async function flushSettings() {
 }
 addEventListener('pagehide', () => { if (saveTimer) flushSettings(); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flushSettings(); });
+
+/** Built-in protocols plus the user's own. */
+export const allProtos = (): Record<string, Protocol> => ({ ...PROTOCOLS, ...state.settings.customProtos });
 
 export const mySessions = () => state.sessions.filter(s => s.userId === state.me?.id);
 export const profileOf = (id: string) => state.profiles.get(id);

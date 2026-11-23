@@ -14,7 +14,9 @@ export function toast(text: string, ms = 2200) {
 let sheetSeq = 0;
 /** Bottom sheet. Resolves with the clicked button index, or -1 when dismissed (backdrop, Escape or closeSheet).
  *  `title` and `body` are HTML: callers escape any user text they put in them. */
-export function sheet(opts: { title?: string; body?: string; buttons?: { label: string; kind?: 'primary' | 'danger' | 'ghost' }[]; onMount?: (el: HTMLElement) => void }): Promise<number> {
+export function sheet(opts: { title?: string; body?: string; buttons?: { label: string; kind?: 'primary' | 'danger' | 'ghost' }[]; onMount?: (el: HTMLElement) => void;
+  /** false: don't focus the first text field (a sheet full of number fields shouldn't open the phone keyboard). */
+  autofocus?: boolean }): Promise<number> {
   return new Promise(res => {
     const m = document.createElement('div'); m.className = 'modal';
     const btns = opts.buttons ?? [{ label: 'Close', kind: 'ghost' }];
@@ -48,7 +50,7 @@ export function sheet(opts: { title?: string; body?: string; buttons?: { label: 
       if (b && b.closest('.sheet > .row')) done(+b.dataset.i!);
     });
     opts.onMount?.(card);
-    const input = m.querySelector('input,textarea') as HTMLElement | null;
+    const input = opts.autofocus === false ? null : m.querySelector('input,textarea') as HTMLElement | null;
     (input ?? card).focus({ preventScroll: true });
   });
 }

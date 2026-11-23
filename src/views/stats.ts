@@ -1,7 +1,7 @@
-import { $, $$, esc, sheet, confirmSheet, toast, bubble } from '../lib/ui';
+import { $, $$, esc, sheet, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
-import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
+import { weekStreak, bestDayRun, dayKey, weekStart, addDays, favouriteProtocol } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { placeOf } from '../lib/leaderboard';
@@ -21,14 +21,13 @@ export function renderStats(root: HTMLElement) {
     <div class="hsum" id="hsum"></div>
     <p class="sub center" style="margin:8px 0 0;font-size:11px">Tap a day to see what you did · ← → keys change period</p></div>
   <div class="card pbs"><h3>${ic('medal')} Personal bests</h3><div id="pbs"></div></div>
-  <div class="card"><h3>${ic('calendar')} Recent sessions</h3><div id="recent"></div></div>
   <div class="card"><div class="chart-hd">${ic('chart')}<select id="chartSel" aria-label="Chart"></select></div><div class="chart" id="chart" style="margin-top:22px"></div><br><p class="sub" id="chartNote" style="margin:4px 0 0"></p></div>
   <div class="card"><h3 class="lab">${ic('award')} Achievements · <span id="achN"></span><span class="tip" data-tip="tiers">i</span></h3><div class="ach" id="ach"></div></div>
   <details class="card panel" data-p="extras"><summary>${ic('star')} One-offs &amp; secrets<small id="secN"></small></summary><br><div class="ach" id="ach1"></div></details>`;
   const d = $<HTMLDetailsElement>('details[data-p="extras"]', root);
   d.open = !!state.settings.panels.extras;
   d.addEventListener('toggle', () => { state.settings.panels.extras = d.open; saveSettings(); });
-  drawPBs(mine); drawRecent(mine); drawChartSel(); drawAch(); heat();
+  drawPBs(mine); drawChartSel(); drawAch(); heat();
   hydrateIcons(root);
   root.onclick = onClick;
 }
@@ -80,7 +79,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' && ho < 0) { ho++; heat(); }
 });
 
-// ---------- PBs, recent ----------
+// ---------- PBs ----------
 function drawPBs(mine: Session[]) {
   const best = <T,>(xs: T[], f: (x: T) => number) => xs.reduce<T | null>((m, x) => (m == null || f(x) > f(m) ? x : m), null);
   const hangs = mine.filter(s => s.mode === 'hang' && s.fullHangs > 0);
@@ -100,48 +99,13 @@ function drawPBs(mine: Session[]) {
   $('#pbs').innerHTML = rows.join('') || '<p class="sub">Your bests will show up here after your first session.</p>';
 }
 
+/** One session as a list row. `actions`: Do again, Edit and Delete buttons (for my own History). */
 export function sessRow(s: Session, actions = true) {
   const load = s.mode === 'lift' ? `lift ${s.liftKg}kg` : s.addedKg ? `+${s.addedKg}kg` : s.assistKg ? `−${s.assistKg}kg` : 'BW';
   const when = new Date(s.createdAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   return `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(s.protocolName)} · ${s.edgeMm}mm · ${load}${s.pendingUpload ? '<span class="pending-tag">⏳ waiting to upload</span>' : ''}<small>${when} · ${s.fullHangs}/${s.totalHangs} full · ${s.tutS}s · ${esc(s.grip)}${s.rpe ? ' · RPE ' + s.rpe : ''} · ${s.points} pts</small></span>
-    ${actions && !s.pendingUpload ? `<button class="ed" data-ed aria-label="Edit session">${ic('edit')}</button><button class="ed" data-del aria-label="Delete session">${ic('trash')}</button>` : ''}</div>`;
+    ${actions ? `<button class="ed" data-again aria-label="Do this again">${ic('replay')}</button>` : ''}${actions && !s.pendingUpload ? `<button class="ed" data-ed aria-label="Edit session">${ic('edit')}</button><button class="ed" data-del aria-label="Delete session">${ic('trash')}</button>` : ''}</div>`;
 }
-function drawRecent(mine: Session[]) {
-  $('#recent').innerHTML = mine.slice(0, 8).map(s => sessRow(s)).join('') || '<p class="sub">No sessions yet. Head to Hang to log your first.</p>';
-  hydrateIcons($('#recent'));
-}
-
-async function editSession(s: Session) {
-  let el!: HTMLElement;
-  const f = (k: string, label: string, v: any, type = 'number', step = '0.5') => `<label class="f">${label}</label><input class="tx" data-f="${k}" type="${type}" step="${step}" value="${esc(v)}" style="margin-bottom:10px">`;
-  const i = await sheet({
-    title: 'Edit session', body: `<div style="text-align:left;max-height:55vh;overflow:auto">${f('edgeMm', 'Edge (mm)', s.edgeMm, 'number', '1')}${s.mode === 'lift' ? f('liftKg', 'Load lifted (kg)', s.liftKg) : f('addedKg', 'Added weight (kg)', s.addedKg) + f('assistKg', 'Assist (kg)', s.assistKg)}${f('rpe', 'RPE (1–10)', s.rpe ?? '', 'number', '1')}${f('note', 'Note', s.note, 'text')}</div>`,
-    buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Save', kind: 'primary' }], onMount: e => { el = e; },
-  });
-  if (i !== 1) return;
-  const LIM: Record<string, [number, number]> = { edgeMm: [3, 60], liftKg: [0, 200], addedKg: [0, 150], assistKg: [0, 150], rpe: [1, 10] };
-  const patch: Record<string, any> = {};
-  for (const inp of $$<HTMLInputElement>('[data-f]', el)) {
-    const k = inp.dataset.f!;
-    if (inp.type !== 'number') { patch[k] = inp.value.trim().slice(0, 2000); continue; }
-    if (inp.value.trim() === '') { if (k === 'rpe') patch.rpe = null; continue; } // leave other blanks unchanged
-    const n = +inp.value, [lo, hi] = LIM[k] ?? [0, 9999];
-    if (!isFinite(n) || n < lo || n > hi) return toast(`Check that value. It must be ${lo}–${hi}`);
-    patch[k] = n;
-  }
-  // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have).
-  const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;
-  if (s.mode === 'hang' && bw && (next.addedKg !== s.addedKg || next.assistKg !== s.assistKg)) patch.loadPct = next.loadPct = loadPct(bw, next.addedKg, next.assistKg);
-  if (s.mode === 'lift' && bw && next.liftKg !== s.liftKg) patch.loadPct = next.loadPct = liftPct(bw, next.liftKg);
-  patch.points = next.points = sessionPoints(next, state.sessions.filter(x => x.userId === s.userId));
-  try {
-    await state.store.updateSession(s.id, patch);
-    Object.assign(s, patch); // apply locally only once the save succeeded
-    rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); // later sessions that day change too (the server does the same)
-    toast('Session updated'); renderStats($('#view-stats'));
-  } catch (e: any) { toast(e.message ?? 'Could not save'); }
-}
-
 // ---------- chart ----------
 const CHARTS: Record<string, [string, string, (xs: Session[]) => number | null]> = {
   load: ['Best load (% bodyweight)', '%', xs => { const v = xs.filter(s => s.loadPct != null && s.fullHangs > 0).map(s => s.loadPct!); return v.length ? Math.max(...v) : null; }],
@@ -222,14 +186,6 @@ async function onClick(e: MouseEvent) {
     info(o.secret && !g ? `<div class="big-ic">${ic('❓')}</div><h2>Secret achievement</h2><p class="sub">Hint: <i>${o.hint}</i></p>`
       : `<div class="big-ic" style="${g ? '' : 'filter:grayscale(1);opacity:.4'}">${ic(o.icon)}</div><h2>${o.name}</h2><p class="sub">${o.desc}</p><p style="font-weight:700">${g ? (o.secret ? '🤫 Secret found!' : '✓ Unlocked') : '🔒 Not yet'}</p>`);
     return;
-  }
-  const row = t.closest('#recent .lrow') as HTMLElement | null;
-  if (row) {
-    const s = mySessions().find(x => x.id === row.dataset.sid)!;
-    if (t.closest('[data-del]')) {
-      if (!await confirmSheet('Delete session?', 'Its points and stats will be removed. This can’t be undone.', 'Delete')) return;
-      try { await state.store.deleteSession(s.id); state.sessions = state.sessions.filter(x => x.id !== s.id); rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); toast('Session deleted'); renderStats($('#view-stats')); } catch (err: any) { toast(err.message); }
-    } else if (t.closest('[data-ed]')) editSession(s);
   }
 }
 // tier targets tooltip from inside the info sheet

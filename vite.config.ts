@@ -1,10 +1,30 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+/** With real backend keys the app loads the Supabase chunk as soon as it starts (src/lib/state.ts imports it
+ *  dynamically only so demo builds can leave it out). Tell the browser to fetch it alongside the main bundle
+ *  instead of after it, saving a round trip on a cold load. Demo builds have no such chunk, so nothing is added. */
+function preloadBackend(): Plugin {
+  let base = '/';
+  return {
+    name: 'preload-backend',
+    apply: 'build',
+    configResolved(c) { base = c.base; },
+    transformIndexHtml: {
+      order: 'post',
+      handler(_html, ctx) {
+        const chunk = Object.values(ctx.bundle ?? {}).find(c => c.type === 'chunk' && c.name === 'supabase-store');
+        return chunk ? [{ tag: 'link', attrs: { rel: 'modulepreload', crossorigin: true, href: base + chunk.fileName }, injectTo: 'head' }] : [];
+      },
+    },
+  };
+}
 
 // BASE_PATH is set by the GitHub Pages workflow to "/<repo-name>/".
 export default defineConfig({
   base: process.env.BASE_PATH || '/',
   plugins: [
+    preloadBackend(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg'],

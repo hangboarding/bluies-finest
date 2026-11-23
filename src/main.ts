@@ -6,7 +6,8 @@ import { ic, hydrateIcons, setIconMode } from './lib/icons';
 import { state, initStore, loadUserData } from './lib/state';
 import { setSound } from './lib/timer';
 import { renderAuth } from './views/auth';
-import { renderHang, hangBusy, hangPending, drawLoadHint } from './views/hang';
+import { renderHang, hangBusy, hangPending, refreshHang } from './views/hang';
+import { renderWorkouts } from './views/workouts';
 import { renderRanks } from './views/ranks';
 import { renderStats } from './views/stats';
 import { renderProfile } from './views/profile';
@@ -20,9 +21,10 @@ import { registerSW } from 'virtual:pwa-register';
 import { maybeInstallNudge } from './lib/install'; // imported early so it catches the browser's install prompt
 
 export const ACCENTS = ['#8fb3d1', '#3ddc84', '#2bb5a0', '#5aa9e6', '#b48cff', '#ff9f43', '#ff5a4e', '#f78fb3', '#f2c14e'];
-type Page = 'hang' | 'feed' | 'ranks' | 'stats' | 'profile';
+type Page = 'hang' | 'workouts' | 'feed' | 'ranks' | 'stats' | 'profile';
 const PAGES: { id: Page; label: string; icon: string; render: (el: HTMLElement) => void | Promise<void> }[] = [
   { id: 'hang', label: 'Hang', icon: 'tabHang', render: renderHang },
+  { id: 'workouts', label: 'Workouts', icon: 'tabWorkouts', render: renderWorkouts },
   { id: 'feed', label: 'Activity', icon: 'tabFeed', render: renderFeed },
   { id: 'ranks', label: 'Ranks', icon: 'tabRanks', render: renderRanks },
   { id: 'stats', label: 'Stats', icon: 'tabStats', render: renderStats },
@@ -67,7 +69,7 @@ export async function go(page: Page): Promise<boolean> {
   }
   scrollTo(0, 0);
   if (page !== 'hang' || !$('#view-hang').childElementCount) await PAGES.find(p => p.id === page)!.render($(`#view-${page}`));
-  else drawLoadHint(); // the Hang page is kept between tabs; bodyweight may have changed in Profile
+  else refreshHang(); // the Hang page is kept between tabs; bodyweight, workouts or settings may have changed elsewhere
   if (current === page) pageTour(page); // user may have switched tabs while this page loaded
   return true;
 }
@@ -154,8 +156,8 @@ navigator.serviceWorker?.addEventListener('message', e => {
   const id = new URL(e.data.url, location.href).searchParams.get('post') ?? '';
   if (UUID.test(id)) { if (!(current === 'hang' && hangBusy())) { focusPost(id); go('feed'); } else toast('Finish or cancel your session first'); }
 });
-// Re-draw Stats when offline sessions finish uploading.
-document.addEventListener('bf:sessions-changed', () => { if (current === 'stats') renderStats($('#view-stats')); });
+// Re-draw Stats and History when offline sessions finish uploading.
+document.addEventListener('bf:sessions-changed', () => { if (current === 'stats') renderStats($('#view-stats')); if (current === 'workouts') renderWorkouts($('#view-workouts')); });
 // Tap any climber's name or photo to open their profile.
 document.addEventListener('click', e => {
   const el = (e.target as HTMLElement).closest('[data-uid]') as HTMLElement | null;

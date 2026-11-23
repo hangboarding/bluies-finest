@@ -406,6 +406,25 @@ describe('CATEGORIES', () => {
     expect(cat('streak').value(ss, ss, now)).toBe(6);
   });
 
+  it('each grip board only counts its own grip', () => {
+    const ss = [
+      session({ grip: 'Open', loadPct: 130 }),
+      session({ grip: 'Drag', loadPct: 115 }),
+      session({ grip: 'Drag', loadPct: 125, hands: 'L' }),   // one-arm: not on the two-arm boards
+      session({ grip: 'Half crimp', loadPct: 140 }),
+      session({ grip: 'Pinch', loadPct: 95 }),
+      session({ grip: 'Sloper', loadPct: 105 }),
+      session({ grip: 'Sloper', loadPct: 150, mode: 'lift' }), // no-hang lifts aren't on the hang boards
+    ];
+    expect(cat('drag').value(ss, ss, now)).toBe(115);
+    expect(cat('pinch').value(ss, ss, now)).toBe(95);
+    expect(cat('sloper').value(ss, ss, now)).toBe(105);
+    expect(cat('openh').value(ss, ss, now)).toBe(130);
+    expect(cat('half').value(ss, ss, now)).toBe(140);
+    expect(cat('drag').value([session({ grip: 'Open' })], [], now)).toBeNull();
+    expect(CATEGORIES.filter(c => c.group === 'Grip type').map(c => c.id)).toEqual(['half', 'fullc', 'openh', 'drag', 'pinch', 'sloper']);
+  });
+
   it('every category has a unique id', () => {
     const ids = CATEGORIES.map(c => c.id);
     expect(new Set(ids).size).toBe(ids.length);

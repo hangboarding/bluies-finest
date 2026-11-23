@@ -28,13 +28,15 @@ export function dropUploaded(serverIds: Set<string>) {
   const q = read(), keep = q.filter(x => !serverIds.has(x.tempId));
   if (keep.length !== q.length) write(keep);
 }
-const newId = () => (crypto as any).randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
+/** A new session id (a UUID, so the server accepts it as the row's id). */
+export const newSessionId = () => (crypto as any).randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
 
 /** Save a session; falls back to the outbox when offline. Returns the session either way. */
 export async function saveOrQueue(s: NewSession): Promise<{ session: Session; queued: boolean }> {
-  // The id is chosen here, so if a save reaches the server but the reply is lost, the retry
-  // recognises it instead of creating a duplicate.
-  const withTime = { ...s, id: newId(), createdAt: s.createdAt ?? new Date().toISOString() } as NewSession & { id: string };
+  // The id is chosen before the first try (here, or earlier by the caller so it survives retries and reloads),
+  // so if a save reaches the server but the reply is lost, the retry recognises it instead of creating a duplicate.
+  const given = (s as { id?: unknown }).id;
+  const withTime = { ...s, id: typeof given === 'string' && given ? given : newSessionId(), createdAt: s.createdAt ?? new Date().toISOString() } as NewSession & { id: string };
   try {
     return { session: await state.store.addSession(withTime), queued: false };
   } catch (e) {

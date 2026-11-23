@@ -83,6 +83,12 @@ describe('diffUnlocks', () => {
     ]);
   });
 
+  it('each grip type has its own session count', () => {
+    const ss = ['Open', 'Drag', 'Drag', 'Pinch', 'Pinch', 'Pinch', 'Sloper', 'Half crimp', 'Full crimp'].map(grip => session({ grip }));
+    const n = (name: string) => tiered(name).value(ctx({ sessions: ss }));
+    expect([n('Open-hand sessions'), n('Drag sessions'), n('Pinch sessions'), n('Sloper sessions'), n('Crimp sessions')]).toEqual([1, 2, 3, 1, 2]);
+  });
+
   it('prefixes secret one-offs', () => {
     const before = ctx({ sessions: [session()] });
     const after = ctx({ sessions: [...before.sessions] , flags: { dramaticExit: true } });

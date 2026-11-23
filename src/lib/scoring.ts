@@ -127,6 +127,8 @@ const recent = (xs: Session[], n: number, now: Date) => xs.filter(s => +new Date
 const pointsSince = (xs: Session[], from: number) => { const ys = xs.filter(s => +new Date(s.createdAt) >= from); return ys.length ? ys.reduce((a, s) => a + s.points, 0) : null; };
 // strength boards compare two-arm hangs (one-arm hangs have their own board)
 const maxHang = (xs: Session[]) => xs.filter(s => s.mode === 'hang' && s.hands === 'both' && s.hang <= 15 && s.fullHangs > 0);
+/** Best load (% bodyweight) on a two-arm ≤15s hang with one grip type. */
+const gripBest = (xs: Session[], grip: string) => { const v = maxBy(maxHang(xs).filter(s => s.grip === grip && s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; };
 /** Sets where every hang (both hands, every rep) was held full time. */
 export function completedSets(s: Pick<Session, 'hangs'>) {
   const ok = new Map<number, boolean>();
@@ -148,12 +150,12 @@ export const CATEGORIES: Category[] = [
     value: m => { const v = maxBy(m.filter(s => s.mode === 'hang' && s.assistKg === 0).flatMap(s => s.hangs.filter(h => h.hand !== 'both')), h => h.held); return isFinite(v) ? v : null; } },
   { id: 'lift', icon: 'lift', name: 'No-hang lift', group: 'Strength', unit: 'kg', desc: 'Heaviest no-hang lift',
     value: m => { const v = maxBy(m.filter(s => s.mode === 'lift'), s => s.liftKg); return isFinite(v) ? v : null; } },
-  { id: 'half', icon: 'half', name: 'Half crimp', group: 'Grip type', unit: '%', desc: 'Best half-crimp load as % of bodyweight',
-    value: m => { const v = maxBy(maxHang(m).filter(s => s.grip === 'Half crimp' && s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; } },
-  { id: 'fullc', icon: 'full', name: 'Full crimp', group: 'Grip type', unit: '%', desc: 'Best full-crimp load as % of bodyweight',
-    value: m => { const v = maxBy(maxHang(m).filter(s => s.grip === 'Full crimp' && s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; } },
-  { id: 'openh', icon: 'open', name: 'Open hand', group: 'Grip type', unit: '%', desc: 'Best open-hand load as % of bodyweight',
-    value: m => { const v = maxBy(maxHang(m).filter(s => s.grip === 'Open' && s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; } },
+  { id: 'half', icon: 'half', name: 'Half crimp', group: 'Grip type', unit: '%', desc: 'Best half-crimp load as % of bodyweight', value: m => gripBest(m, 'Half crimp') },
+  { id: 'fullc', icon: 'full', name: 'Full crimp', group: 'Grip type', unit: '%', desc: 'Best full-crimp load as % of bodyweight', value: m => gripBest(m, 'Full crimp') },
+  { id: 'openh', icon: 'open', name: 'Open hand', group: 'Grip type', unit: '%', desc: 'Best open-hand load as % of bodyweight', value: m => gripBest(m, 'Open') },
+  { id: 'drag', icon: 'drag', name: 'Drag', group: 'Grip type', unit: '%', desc: 'Best drag load as % of bodyweight', value: m => gripBest(m, 'Drag') },
+  { id: 'pinch', icon: 'pinch', name: 'Pinch', group: 'Grip type', unit: '%', desc: 'Best pinch load as % of bodyweight', value: m => gripBest(m, 'Pinch') },
+  { id: 'sloper', icon: 'sloper', name: 'Sloper', group: 'Grip type', unit: '%', desc: 'Best sloper load as % of bodyweight', value: m => gripBest(m, 'Sloper') },
   { id: 'tut', icon: 'hang', name: 'Hang time', group: 'Volume', unit: 's', desc: 'Time under tension, last 28 days',
     value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.tutS, 0) },
   { id: 'sets', icon: 'sets', name: 'Sets', group: 'Volume', unit: '', desc: 'Sets with every hang held full time, last 28 days',

@@ -4,7 +4,8 @@ import type { HangResult, Hands } from './types';
 import type { Values } from './protocols';
 
 export type Phase = 'ready' | 'hang' | 'rest' | 'sw';
-export interface Step { p: Phase; t: number; set?: number; rep?: number; hand?: 'L' | 'R' | 'both'; bigRest?: boolean; logged?: boolean; }
+/** `between`: the rest between two exercises of a workout. */
+export interface Step { p: Phase; t: number; set?: number; rep?: number; hand?: 'L' | 'R' | 'both'; bigRest?: boolean; between?: boolean; logged?: boolean; }
 
 export function buildSteps(v: Values): Step[] {
   const q: Step[] = v.ready > 0 ? [{ p: 'ready', t: v.ready }] : [];

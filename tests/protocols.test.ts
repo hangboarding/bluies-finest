@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PROTOCOLS, DEFAULTS, FIELDS, type Values } from '../src/lib/protocols';
+import { PROTOCOLS, DEFAULTS, FIELDS, personalVals, type Values } from '../src/lib/protocols';
 import { buildSteps } from '../src/lib/timer';
 
 const valuesFor = (key: string): Values => {
@@ -32,3 +32,19 @@ describe('built-in protocols', () => {
     for (const f of FIELDS) expect(v, f.k).toHaveProperty(f.k);
   });
 });
+
+describe('personalVals', () => {
+  it('keeps only the load (and how it’s applied) from saved tweaks', () => {
+    expect(personalVals('max', { hang: 12, sets: 3, add: 10, rem: 0, mode: 'lift', lift: 30, edge: 18, ready: 5 })).toEqual({ add: 10, rem: 0, mode: 'lift', lift: 30 });
+  });
+  it('Min Edge also keeps the edge', () => {
+    expect(personalVals('min', { edge: 12, sets: 8, add: 0 })).toEqual({ edge: 12, add: 0 });
+  });
+  it('your own protocols keep everything', () => {
+    expect(personalVals('c_abc123', { sets: 9, hang: 15, add: 5 })).toEqual({ sets: 9, hang: 15, add: 5 });
+  });
+  it('copes with nothing saved', () => {
+    expect(personalVals('max', undefined)).toEqual({});
+  });
+});
+

@@ -8,9 +8,10 @@ import {
   CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench,
   MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar,
   Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper, Bug, MapPin, ChartBarDecreasing,
+  ListChecks, History, GripVertical, ArrowUp, ArrowDown,
 } from 'lucide';
 
-const LUCIDE = { Timer, Wind, Repeat, Repeat1, Sofa, Ruler, Dumbbell, Anchor, Weight, Target, ArrowLeftRight, TrafficCone, Mountain, Trophy, ChartColumn, MessageCircle, User, Heart, Flame, Medal, CalendarDays, Download, Trash2, Pencil, Star, Volume2, Vibrate, Palette, Settings, LogOut, Plus, Play, Pause, SkipForward, X, Camera, BookOpen, Crown, Sparkles, Lock, CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench, MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar, Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper, Bug, MapPin, ChartBarDecreasing };
+const LUCIDE = { Timer, Wind, Repeat, Repeat1, Sofa, Ruler, Dumbbell, Anchor, Weight, Target, ArrowLeftRight, TrafficCone, Mountain, Trophy, ChartColumn, MessageCircle, User, Heart, Flame, Medal, CalendarDays, Download, Trash2, Pencil, Star, Volume2, Vibrate, Palette, Settings, LogOut, Plus, Play, Pause, SkipForward, X, Camera, BookOpen, Crown, Sparkles, Lock, CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench, MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar, Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper, Bug, MapPin, ChartBarDecreasing, ListChecks, History, GripVertical, ArrowUp, ArrowDown };
 
 // ---- custom 24×24 line icons (same stroke style as Lucide) ----
 // Grips are drawn side-on: a finger on an edge (the block top-right).
@@ -19,6 +20,8 @@ const FACE = '<circle cx="12" cy="12" r="9"/>';
 const CUSTOM: Record<string, string> = {
   // open: finger drapes over the edge in one smooth curve
   gOpen: `${EDGE}<path d="M3 22c.8-6 3.4-10.8 8-12.6 1.9-.7 4.3-1 7.5-1" stroke-width="2.6"/>`,
+  // drag: fingers nearly straight, the hand hanging low under the edge, pads dragged over the lip
+  gDrag: `${EDGE}<path d="M8.5 22c.2-4.2 1.3-8.6 3.7-11.3 1-1.1 2.6-1.8 5.8-2.3" stroke-width="2.6"/>`,
   // half crimp: 90° bend at the middle joint, fingertip flat on top
   gHalf: `${EDGE}<path d="M3 22 5.8 15.2l5.6-1.7V7.8H19" stroke-width="2.6"/>`,
   // full crimp: middle joint pushed high above the edge, thumb locked over the top
@@ -41,10 +44,10 @@ const MAP: Record<string, [string, string]> = {
   hang: ['⏱', 'timer'], rest: ['😮‍💨', 'wind'], sets: ['🔁', 'repeat'], reps: ['🔂', 'repeat-1'], setRest: ['🛋️', 'sofa'],
   edge: ['📏', 'ruler'], add: ['🏋️', 'dumbbell'], rem: ['🪢', 'anchor'], lift: ['🪨', 'weight'], effort: ['🎯', 'target'],
   switch: ['🔄', 'arrow-left-right'], ready: ['🚦', 'traffic-cone'],
-  open: ['✋', 'gOpen'], half: ['🤏', 'gHalf'], full: ['✊', 'gFull'], pinch: ['🤌', 'gPinch'], sloper: ['🫳', 'gSloper'],
+  open: ['✋', 'gOpen'], drag: ['🤚', 'gDrag'], half: ['🤏', 'gHalf'], full: ['✊', 'gFull'], pinch: ['🤌', 'gPinch'], sloper: ['🫳', 'gSloper'],
   grip: ['✊', 'gHalf'], fingers: ['☝️', 'pointer'], hands: ['🙌', 'arrow-left-right'], board: ['🪵', 'layers'], material: ['🧱', 'boxes'], profile: ['◜', 'square'],
   mode: ['🧲', 'zap'], about: ['📖', 'book-open'], feel: ['💭', 'brain'],
-  tabHang: ['🧗', 'mountain'], tabFeed: ['💬', 'message-circle'], tabRanks: ['🏆', 'trophy'], tabStats: ['📊', 'chart-column'], tabProfile: ['👤', 'user'],
+  tabHang: ['🧗', 'mountain'], tabWorkouts: ['📋', 'list-checks'], tabFeed: ['💬', 'message-circle'], tabRanks: ['🏆', 'trophy'], tabStats: ['📊', 'chart-column'], tabProfile: ['👤', 'user'],
   heart: ['🤍', 'heart'], hearted: ['❤️', 'heart'], comment: ['💬', 'messages-square'], streak: ['🔥', 'flame'], medal: ['🏅', 'medal'],
   calendar: ['📅', 'calendar-days'], chart: ['📈', 'trending-up'], top10: ['📊', 'chart-bar-decreasing'], download: ['⬇', 'download'], trash: ['🗑', 'trash-2'], edit: ['✎', 'pencil'],
   star: ['⭐', 'star'], sound: ['🔊', 'volume-2'], vib: ['📳', 'vibrate'], theme: ['🎨', 'palette'], settings: ['⚙️', 'settings'],
@@ -53,12 +56,13 @@ const MAP: Record<string, [string, string]> = {
   bolt: ['⚡', 'zap'], sprout: ['🌱', 'sprout'], gem: ['💎', 'gem'], clock: ['⏱', 'clock'], moon: ['🌙', 'moon'], sunrise: ['🌅', 'sunrise'],
   award: ['🏆', 'award'], muscle: ['💪', 'biceps-flexed'], hourglass: ['⏳', 'hourglass'], baby: ['👶', 'baby'], wrench: ['🛠️', 'wrench'],
   eye: ['👀', 'eye'], bug: ['🐞', 'bug'], pin: ['📍', 'map-pin'], '⏳': ['⏳', 'hourglass'], '📅': ['📅', 'calendar-days'], replay: ['↺', 'rotate-ccw'], check: ['✓', 'check'], globe: ['🌍', 'globe'], users: ['🙋', 'users'], mountain: ['🏔️', 'mountain'],
+  workouts: ['📋', 'list-checks'], history: ['🕘', 'history'], handle: ['⠿', 'grip-vertical'], up: ['↑', 'arrow-up'], down: ['↓', 'arrow-down'],
   user: ['👤', 'user'], bell: ['🔔', 'bell'], admin: ['🛡️', 'shield-check'], copy: ['📋', 'copy'], ticket: ['🎟️', 'ticket'], party: ['🎉', 'party-popper'],
   // moods (stored values are the emoji)
   '😭': ['😭', 'fCry'], '🤕': ['🤕', 'fHurt'], '😫': ['😫', 'fTired'], '😴': ['😴', 'fSleepy'], '😐': ['😐', 'fMeh'], '🙂': ['🙂', 'fHappy'], '💪': ['💪', 'biceps-flexed'], '🔥': ['🔥', 'flame'],
   // achievements
   '🧗': ['🧗', 'mountain'], '🏔️': ['🏔️', 'layers'], '🏋️': ['🏋️', 'dumbbell'], '📏': ['📏', 'ruler'], '⏱': ['⏱', 'timer'], '🌱': ['🌱', 'sprout'],
-  '🤏': ['🤏', 'gHalf'], '✋': ['✋', 'gOpen'], '☝️': ['☝️', 'pointer'], '🪨': ['🪨', 'weight'], '💎': ['💎', 'gem'],
+  '🤏': ['🤏', 'gHalf'], '✋': ['✋', 'gOpen'], '🤚': ['🤚', 'gDrag'], '🤌': ['🤌', 'gPinch'], '🫳': ['🫳', 'gSloper'], '☝️': ['☝️', 'pointer'], '🪨': ['🪨', 'weight'], '💎': ['💎', 'gem'],
   '👶': ['👶', 'baby'], '📸': ['📸', 'camera'], '🪵': ['🪵', 'layers'], '🛠️': ['🛠️', 'flask-conical'], '🌅': ['🌅', 'sunrise'], '🦉': ['🦉', 'moon'],
   '💯': ['💯', 'badge-check'], '🙌': ['🙌', 'arrow-left-right'], '⚡': ['⚡', 'zap'], '🏅': ['🏅', 'medal'], '💬': ['💬', 'messages-square'], '❤️': ['❤️', 'heart'],
   '🫠': ['🫠', 'gOpen'], '🏳️': ['🏳️', 'flag'], '🎄': ['🎄', 'tree-pine'], '🐸': ['🐸', 'calendar-plus'], '🌚': ['🌚', 'moon-star'],

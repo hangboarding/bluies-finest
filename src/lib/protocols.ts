@@ -45,6 +45,24 @@ export const FIELDS: Field[] = [
   { k: 'sw', label: 'Hand switch rest', unit: 's', step: 1, icon: 'switch', colour: '#c9d1d9', show: v => v.hands === 'LR' && !v.simple },
 ];
 
+/** Settings that belong to the climber rather than the protocol: the load and how it's applied (hang or
+ *  no-hang lift), plus, for Min Edge (which gets harder by shrinking the edge), the edge. For your own
+ *  (custom) protocols that's everything. These carry over when a
+ *  protocol is picked; everything else (hang, rest, sets, reps, edge…) comes back to the protocol's
+ *  recommended values. Keeping the load is also what lets "felt easy, +2.5kg next time" work. */
+const PERSONAL = ['add', 'rem', 'lift', 'mode'], PERSONAL_MIN = [...PERSONAL, 'edge'];
+export function personalVals(k: string, saved: Record<string, any> | undefined): Record<string, any> {
+  if (k.startsWith('c_')) return { ...(saved ?? {}) }; // your own protocol: everything you set is the protocol
+  const keep = k === 'min' ? PERSONAL_MIN : PERSONAL;
+  return Object.fromEntries(Object.entries(saved ?? {}).filter(([x]) => keep.includes(x)));
+}
+
+/** Sensible limits per setting — stops typos (and gaming) like 0s hangs or 10,000 sets. */
+export const LIMITS: Record<string, [number, number]> = {
+  hang: [1, 300], rest: [0, 900], sets: [1, 50], reps: [1, 30], setRest: [0, 1800], edge: [3, 60],
+  add: [0, 150], rem: [0, 150], lift: [0, 200], effort: [5, 100], sw: [0, 120], ready: [0, 60],
+};
+
 export const TIPS: Record<string, [string, string]> = {
   add: ['Added weight', 'Extra weight on a harness or belt. Can’t be combined with Assist.'],
   rem: ['Assist (removed)', 'Weight taken off you, like a pulley counterweight or feet on a chair. Can’t be combined with Added weight.'],
@@ -72,5 +90,9 @@ export const QUOTES: [string, string][] = [
 
 /** Near-maximal protocols: warm up first, and don't overdo them. */
 export const MAX_EFFORT = new Set(['max', 'min', 's753', 'oneA', 'rec']);
+
+/** Grip names (as stored on sessions) with their icon keys. */
+export const GRIPS: [string, string][] = [['Open', 'open'], ['Drag', 'drag'], ['Half crimp', 'half'], ['Full crimp', 'full'], ['Pinch', 'pinch'], ['Sloper', 'sloper']];
+export const FINGERS = ['All 4', 'Front 3', 'Back 3', 'Front 2', 'Middle 2', 'Back 2', 'Mono', 'Custom'];
 
 export const BUILTIN_BOARDS = ['Beastmaker 1000', 'Beastmaker 2000', 'Tension Block', 'Lattice Edge', 'Gym board'];

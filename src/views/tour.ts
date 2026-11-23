@@ -7,11 +7,17 @@ import { installButton, install } from '../lib/install';
 interface Tip { sel: string; title: string; body: string; }
 const PAGE_TIPS: Record<string, Tip[]> = {
   hang: [
+    { sel: '#hangMode', title: 'One protocol or a workout', body: 'Single session runs one protocol. Workout runs a list of them back to back, with rest in between. Build workouts in the Workouts tab.' },
     { sel: '#protoBtn', title: 'Pick a protocol', body: 'Each one is a proven training plan with sensible defaults. ⚡ JUST LET ME HANG skips the theory. Pick “Custom protocol…” to save your own.' },
     { sel: '[data-p="about"]', title: 'Read the protocol', body: 'Every protocol comes with who designed it, what it’s for, its hang and rest times, recommended sets, intensity and how often to do it. Tap Hide to tuck it away once you know it.' },
-    { sel: '#params', title: 'Tweak the numbers', body: 'Tap − and + to adjust. Tap any ⓘ to learn what a setting does. Everything is remembered for next time.' },
+    { sel: '#params', title: 'Tweak the numbers', body: 'Tap − and + to adjust. Tap any ⓘ to learn what a setting does. Picking a protocol loads its recommended settings (pick it again to reset them); your load is remembered for each one.' },
     { sel: '[data-p="grip"] summary', title: 'Hide what you don’t need', body: 'Sections can be hidden or shown with one tap, and they stay that way.' },
     { sel: '#start', title: 'Start hanging', body: 'You get a get-ready countdown, beeps for the last few seconds, and a “Let go” button if you drop early.' },
+  ],
+  workouts: [
+    { sel: '#wkNew', title: 'Build a workout', body: 'Queue up protocols, set the rest between them and save the list, or just start it. Each exercise is saved as its own session.' },
+    { sel: '[data-p="tpl"] summary', title: 'Starter workouts', body: 'Ready-made workouts that use your own loads. Tap Use to tweak one and save it.' },
+    { sel: '#recent', title: 'Your history', body: 'Every session you’ve logged. Tap ↺ to do one again with the same settings, or edit and delete them.' },
   ],
   feed: [{ sel: '#feedF', title: 'Everyone’s activity', body: 'Every saved session shows up here. Heart it ❤️ or leave a comment to hype each other up.' }],
   ranks: [
