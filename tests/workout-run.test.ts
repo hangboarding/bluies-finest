@@ -574,3 +574,42 @@ describe('fixes from the pre-release review', () => {
   });
 });
 
+describe('page tours', () => {
+  // jsdom has no layout: treat anything not inside a hidden section as on screen
+  const realRects = Element.prototype.getClientRects;
+  beforeEach(() => { Element.prototype.getClientRects = function (this: Element) { return (this.closest('.hide') ? [] : [{}]) as any; }; });
+  afterEach(() => { Element.prototype.getClientRects = realRects; });
+  const titles = async (page: string) => {
+    const tour = await import('../src/views/tour');
+    tour.pageTour(page);
+    const out: string[] = [];
+    for (let i = 0; i < 20 && document.querySelector('.tour'); i++) {
+      out.push(document.querySelector('.tour-card b')!.textContent!);
+      document.querySelector<HTMLElement>('.tour [data-t="next"]')!.click();
+    }
+    return out;
+  };
+
+  it('someone who saw the Hang tour before gets just the new tips, once', async () => {
+    S.state.settings.toursSeen = { welcome: true, hang: true };
+    expect(await titles('hang')).toEqual(['One protocol or a workout', 'Tweak the numbers']);
+    expect(await titles('hang')).toEqual([]);
+  });
+
+  it('a new tip waits until its section is showing', async () => {
+    S.state.settings.toursSeen = { welcome: true, hang: true, 'hang.workouts': true, 'hang.presets': true };
+    expect(await titles('hang')).toEqual([]); // single session: the workout card isn't showing
+    $('#hangMode [data-m="workout"]').click();
+    expect(await titles('hang')).toEqual(['Your workout']);
+  });
+
+  it('a first visit gets the whole tour, and it isn’t repeated', async () => {
+    S.state.settings.toursSeen = { welcome: true };
+    const first = await titles('hang');
+    expect(first[0]).toBe('One protocol or a workout');
+    expect(first).toContain('Tweak the numbers');
+    expect(first).toContain('Start hanging');
+    expect(await titles('hang')).toEqual([]);
+  });
+});
+

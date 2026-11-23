@@ -1,21 +1,24 @@
 // First-run tour: a short welcome carousel, then a few spotlight tips the first
 // time each page is opened. Progress is remembered in the user's settings.
+// Tips added later have an `id`: people who'd already seen that page's tour get just those, once.
 import { $ } from '../lib/ui';
 import { state, saveSettings } from '../lib/state';
 import { installButton, install } from '../lib/install';
 
-interface Tip { sel: string; title: string; body: string; }
+interface Tip { sel: string; title: string; body: string; id?: string; }
 const PAGE_TIPS: Record<string, Tip[]> = {
   hang: [
-    { sel: '#hangMode', title: 'One protocol or a workout', body: 'Single session runs one protocol. Workout runs a list of them back to back, with rest in between. Build workouts in the Workouts tab.' },
+    { sel: '#hangMode', title: 'One protocol or a workout', body: 'Single session runs one protocol. Workout runs a list of them back to back, with a rest between each. Build workouts in the Workouts tab.', id: 'workouts' },
+    { sel: '#wkQ', title: 'Your workout', body: 'Tap an exercise to change its numbers or grip, or a rest to change how long it is. Start runs them all, and each one is saved as its own session.', id: 'workout-card' },
     { sel: '#protoBtn', title: 'Pick a protocol', body: 'Each one is a proven training plan with sensible defaults. ⚡ JUST LET ME HANG skips the theory. Pick “Custom protocol…” to save your own.' },
     { sel: '[data-p="about"]', title: 'Read the protocol', body: 'Every protocol comes with who designed it, what it’s for, its hang and rest times, recommended sets, intensity and how often to do it. Tap Hide to tuck it away once you know it.' },
-    { sel: '#params', title: 'Tweak the numbers', body: 'Tap − and + to adjust. Tap any ⓘ to learn what a setting does. Picking a protocol loads its recommended settings (pick it again to reset them); your load is remembered for each one.' },
+    { sel: '#params', title: 'Tweak the numbers', body: 'Tap − and + to adjust. Tap any ⓘ to learn what a setting does. Picking a protocol loads its recommended settings (pick it again to reset them); your load is remembered for each one.', id: 'presets' },
     { sel: '[data-p="grip"] summary', title: 'Hide what you don’t need', body: 'Sections can be hidden or shown with one tap, and they stay that way.' },
     { sel: '#start', title: 'Start hanging', body: 'You get a get-ready countdown, beeps for the last few seconds, and a “Let go” button if you drop early.' },
   ],
   workouts: [
     { sel: '#wkNew', title: 'Build a workout', body: 'Queue up protocols, set the rest between them and save the list, or just start it. Each exercise is saved as its own session.' },
+    { sel: '#wkProtos', title: 'Your own protocols', body: 'Rename or delete the protocols you’ve saved. Deleting one also takes it out of your workouts.', id: 'protocols' },
     { sel: '[data-p="tpl"] summary', title: 'Starter workouts', body: 'Ready-made workouts that use your own loads. Tap Use to tweak one and save it.' },
     { sel: '#recent', title: 'Your history', body: 'Every session you’ve logged. Tap ↺ to do one again with the same settings, or edit and delete them.' },
   ],
@@ -26,6 +29,7 @@ const PAGE_TIPS: Record<string, Tip[]> = {
   ],
   stats: [
     { sel: '#hscale', title: 'Your consistency', body: 'Switch between week, month, 3 months and year. Tap any day to see what you did.' },
+    { sel: '#view-stats > .card:first-child', title: 'Looking for your sessions?', body: 'Every session you’ve logged is in History on the Workouts tab, where you can edit one or do it again.', id: 'history' },
     { sel: '#ach', title: 'Achievements', body: 'Badges level up through 10 tiers from Iron to GOAT. Tap one for details. There are secret ones too 🤫' },
   ],
   profile: [
@@ -41,6 +45,7 @@ const PAGE_TIPS: Record<string, Tip[]> = {
 const WELCOME = [
   ['🏔️', 'Welcome to Bluies Finest', 'Log hangboard sessions, follow proven protocols and compete with your mates.'],
   ['⏱', 'Smart timer', 'Get-ready countdown, beeps, rest timers and one-arm left/right switching. The screen stays awake while you hang.'],
+  ['📋', 'Workouts', 'Line up a few protocols with a rest between each and run them back to back. Each one is logged as its own session.'],
   ['🏆', 'Compete & celebrate', 'Climb the leaderboard, unlock achievements and heart each other’s sessions.'],
   ['🔒', 'Your data, your call', 'Your data is private. Download or delete it any time from Profile.'],
 ];
@@ -76,8 +81,11 @@ export async function maybeWelcome(): Promise<boolean> {
 
 let running = false;
 export function pageTour(page: string) {
-  if (running || state.settings.toursSeen[page] || !state.settings.toursSeen.welcome) return;
-  const tips = (PAGE_TIPS[page] ?? []).filter(t => $(t.sel)?.getClientRects().length); // skip sections the user has hidden
+  const seen = state.settings.toursSeen;
+  if (running || !seen.welcome) return;
+  // First visit: the whole tour. After that: only newer tips (with an id) not seen yet.
+  const tips = (PAGE_TIPS[page] ?? []).filter(t => (!seen[page] || (t.id && !seen[`${page}.${t.id}`]))
+    && $(t.sel)?.getClientRects().length); // skip sections the user has hidden (an id'd tip waits until it's showing)
   if (!tips.length) return;
   running = true;
   let i = 0; const ov = document.createElement('div'); ov.className = 'tour';
@@ -97,7 +105,11 @@ export function pageTour(page: string) {
     else if (above >= h) card.style.bottom = `${innerHeight - top + 12}px`;
     else card.style.bottom = `${TABS + 8}px`; // big target: pin the tip above the tab bar
   };
-  const finish = () => { ov.remove(); removeEventListener('scroll', place); removeEventListener('resize', place); running = false; state.settings.toursSeen[page] = true; saveSettings(); };
+  const finish = () => {
+    ov.remove(); removeEventListener('scroll', place); removeEventListener('resize', place); running = false;
+    seen[page] = true; for (const t of tips) if (t.id) seen[`${page}.${t.id}`] = true;
+    saveSettings();
+  };
   const draw = () => {
     const t = tips[i]!; el = $(t.sel);
     ov.innerHTML = `<div class="tour-hole"></div><div class="tour-card"><b>${t.title}</b><p>${t.body}</p>
