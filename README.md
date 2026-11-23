@@ -31,7 +31,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 209 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page)
+npm test         # 212 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page)
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.

@@ -37,7 +37,7 @@ export function totalsLine(w: Workout) {
   return `${n} exercise${n === 1 ? '' : 's'} · ${fmtLength(t.secs)} · ${t.hangs} hang${t.hangs === 1 ? '' : 's'}`;
 }
 
-/** Save timer settings as a new custom protocol (also what the Hang page's "Custom protocol…" does). Returns its key. */
+/** Save timer settings as a new custom protocol. Returns its key. */
 export function createCustomProto(name: string, v: BlockVals): string {
   const k = newId('c_'); // two made in the same millisecond mustn't share a key
   state.settings.customProtos[k] = { n: name.slice(0, 60), by: `Custom, by ${state.me?.name ?? 'you'}`, use: 'Your own plan', d: 'Your saved protocol.', int: 'Your call', freq: 'Your call', custom: true,
@@ -85,6 +85,27 @@ export async function renameCustomProto(k: string): Promise<boolean> {
   return true;
 }
 
+// ---------- make your own ----------
+/** "➕ Custom exercise…", first in both protocol lists (the Hang page's and "Add an exercise"). */
+export const customOption = () => `<button type="button" class="protoopt protonew" data-k="__new"><b>➕ Custom exercise…</b><small>Set your own hang, rest and sets. It’s saved to My protocols.</small></button>
+      <p class="protogrp">Protocols</p>`;
+/** Make your own protocol: name it, then set its numbers in the exercise editor, starting from `start`.
+ *  The same everywhere it's offered. Resolves with its key and the exercise as set, or null if cancelled. */
+export async function newCustomExercise(start: WorkoutBlock): Promise<{ key: string; block: WorkoutBlock } | null> {
+  const name = await promptSheet('Custom exercise', 'Name it, then set its hang, rest and sets.', 'e.g. Long hangs on 25mm');
+  if (!name) return null;
+  const S = state.settings, ck = createCustomProto(name, start.vals);
+  const r = await editBlock({ ...start, proto: ck }, { index: 0, count: 1, structure: false });
+  if (!r) { dropCustomProto(ck); saveSettings(); protosChanged(); return null; } // cancelled: don't keep a protocol nobody set up
+  const v = r.block.vals;
+  // the protocol takes the values chosen here, so it's the same wherever it's picked later
+  Object.assign(S.customProtos[ck]!, { hang: v.hang, rest: v.rest, sets: v.sets, reps: v.reps, setRest: v.setRest, edge: v.edge, mode: v.mode, hands: v.hands, sw: v.sw, effort: v.effort });
+  S.vals[ck] = { add: v.add, rem: v.rem, lift: v.lift };
+  saveSettings(); protosChanged();
+  toast(`★ ${name} saved to My protocols`);
+  return { key: ck, block: r.block };
+}
+
 // ---------- pick an exercise ----------
 /** Protocol list to add from. Resolves with a protocol key, '__new' for a custom exercise, or null. */
 async function pickExercise(): Promise<string | null> {
@@ -93,9 +114,7 @@ async function pickExercise(): Promise<string | null> {
   let picked: string | null = null;
   await sheet({
     title: 'Add an exercise',
-    body: `<div class="protolist full">
-      <button type="button" class="protoopt protonew" data-k="__new"><b>➕ Custom exercise…</b><small>Your own hang, rest and sets (saved as a protocol too)</small></button>
-      <p class="protogrp">Protocols</p>${Object.keys(PROTOCOLS).map(item).join('')}
+    body: `<div class="protolist full">${customOption()}${Object.keys(PROTOCOLS).map(item).join('')}
       ${custom.length ? `<p class="protogrp">My protocols</p>${custom.map(item).join('')}` : ''}</div>`,
     onMount: el => el.querySelector('.protolist')!.addEventListener('click', e => {
       const b = (e.target as HTMLElement).closest('.protoopt') as HTMLElement | null; if (!b) return;
@@ -112,20 +131,9 @@ export async function addExercise(w: Workout): Promise<boolean> {
   const S = state.settings, chips = { grip: S.chips.grip || undefined, fing: S.chips.fing || undefined };
   // a new exercise starts from the protocol's recommended settings, with your load for it
   if (k !== '__new') { w.blocks.push(makeBlock(k, allProtos()[k]!, personalVals(k, S.vals[k]), chips)); return true; }
-  const name = await promptSheet('Custom exercise', 'Name it, then set its hang, rest and sets.', 'e.g. Long hangs on 25mm');
-  if (!name) return false;
-  const start = makeBlock('jlmh', { ...PROTOCOLS.jlmh!, simple: false, rest: 60, sets: 5 }, undefined, chips);
-  const ck = createCustomProto(name, start.vals);
-  const b = { ...start, proto: ck };
-  const r = await editBlock(b, { index: w.blocks.length, count: w.blocks.length + 1, structure: false });
-  if (!r) { dropCustomProto(ck); saveSettings(); return false; } // cancelled: don't keep a protocol nobody set up
-  const fin = r.block;
-  // the protocol takes the values chosen here, so it's the same if picked on its own later
-  Object.assign(S.customProtos[ck]!, { hang: fin.vals.hang, rest: fin.vals.rest, sets: fin.vals.sets, reps: fin.vals.reps, setRest: fin.vals.setRest, edge: fin.vals.edge, mode: fin.vals.mode, hands: fin.vals.hands, sw: fin.vals.sw, effort: fin.vals.effort });
-  S.vals[ck] = { add: fin.vals.add, rem: fin.vals.rem, lift: fin.vals.lift };
-  saveSettings();
-  w.blocks.push(fin);
-  toast(`★ ${name} saved to your protocols`);
+  const made = await newCustomExercise(makeBlock('jlmh', { ...PROTOCOLS.jlmh!, simple: false, rest: 60, sets: 5 }, undefined, chips));
+  if (!made) return false;
+  w.blocks.push(made.block);
   return true;
 }
 

@@ -613,3 +613,43 @@ describe('page tours', () => {
   });
 });
 
+describe('custom exercise from the single-session protocol list', () => {
+  it('is first in the list and looks the same as in “Add an exercise”', async () => {
+    $('#protoBtn').click(); await flush();
+    const hangFirst = document.querySelector('.modal .protolist .protoopt')!;
+    const hangHtml = hangFirst.outerHTML;
+    expect(hangFirst.getAttribute('data-k')).toBe('__new');
+    expect(document.querySelector('.modal .protolist')!.classList.contains('full')).toBe(true);
+    document.querySelector<HTMLElement>('.modal .sheet > .row button')!.click(); await flush(); // Close
+    const adding = WP.addExercise(W.cloneWorkout(S.state.settings.workouts[0]!));
+    await flush();
+    expect(document.querySelector('.modal .protolist .protoopt')!.outerHTML).toBe(hangHtml);
+    document.querySelector<HTMLElement>('.modal .sheet > .row button')!.click(); await adding;
+  });
+
+  it('names it, then sets its numbers starting from what’s on screen, and selects it', async () => {
+    const i = $<HTMLInputElement>('#i-sets'); i.value = '3'; i.dispatchEvent(new Event('change', { bubbles: true }));
+    $('#protoBtn').click(); await flush();
+    document.querySelector<HTMLElement>('.protoopt[data-k="__new"]')!.click(); await flush();
+    document.querySelector<HTMLInputElement>('.modal input')!.value = 'My max';
+    sheetButtons()[1]!.click(); await flush();   // name it
+    expect(document.querySelector<HTMLInputElement>('.modal [data-pi="sets"]')!.value).toBe('3'); // from the Hang page
+    const hang = document.querySelector<HTMLInputElement>('.modal [data-pi="hang"]')!; hang.value = '12';
+    sheetButtons()[1]!.click(); await flush();   // Done
+    expect($('#protoName').textContent).toBe('★ My max');
+    expect([$<HTMLInputElement>('#i-sets').value, $<HTMLInputElement>('#i-hang').value]).toEqual(['3', '12']);
+    const k = Object.keys(S.state.settings.customProtos)[0]!;
+    expect(S.state.settings.customProtos[k]).toMatchObject({ n: 'My max', sets: 3, hang: 12 });
+  });
+
+  it('cancelling the editor keeps nothing and stays on the protocol you had', async () => {
+    $('#protoBtn').click(); await flush();
+    document.querySelector<HTMLElement>('.protoopt[data-k="__new"]')!.click(); await flush();
+    document.querySelector<HTMLInputElement>('.modal input')!.value = 'Nope';
+    sheetButtons()[1]!.click(); await flush();
+    sheetButtons()[0]!.click(); await flush();   // Cancel
+    expect(Object.keys(S.state.settings.customProtos)).toEqual([]);
+    expect($('#protoName').textContent).toBe('Max Hangs');
+  });
+});
+

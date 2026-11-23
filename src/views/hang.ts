@@ -11,8 +11,8 @@ import { saveOrQueue, newSessionId } from '../lib/outbox';
 import { go } from '../main';
 import { seasonOf } from '../lib/seasons';
 import deceiveFace from '../assets/deceive.webp';
-import { type Workout, blockValues, readyFor, sanitizeVals, hangCount, loadAdjust, makeBlock, cloneWorkout, blockLine, MAX_BLOCKS } from '../lib/workouts';
-import { protoLabel, drawQueue, libWorkouts, findWorkout, upsertWorkout, totalsLine, createCustomProto, deleteCustomProto, setSessionActiveCheck } from './workout-parts';
+import { type Workout, blockValues, readyFor, sanitizeVals, hangCount, loadAdjust, makeBlock, cloneWorkout, blockLine, protoValues, newId, MAX_BLOCKS } from '../lib/workouts';
+import { protoLabel, drawQueue, libWorkouts, findWorkout, upsertWorkout, totalsLine, customOption, newCustomExercise, deleteCustomProto, setSessionActiveCheck } from './workout-parts';
 import { openBuilder } from './workouts';
 let cur = 'max';
 let val: Values;
@@ -127,9 +127,8 @@ async function pickProtocol() {
   const mine = (k: string) => `<div class="protorow">${item(k)}<button type="button" class="protodel" data-del="${k}" aria-label="Delete ${esc(P[k]!.n)}">${ic('trash')}</button></div>`;
   await sheet({
     title: 'Pick a protocol',
-    body: `<div class="protolist">${Object.keys(PROTOCOLS).map(item).join('')}
-      ${custom.length ? `<p class="protogrp">My protocols</p>${custom.map(mine).join('')}` : ''}
-      <button type="button" class="protoopt" data-k="__new"><b>➕ Custom protocol…</b><small>Save your current settings under a name</small></button></div>`,
+    body: `<div class="protolist full">${customOption()}${Object.keys(PROTOCOLS).map(item).join('')}
+      ${custom.length ? `<p class="protogrp">My protocols</p>${custom.map(mine).join('')}` : ''}</div>`,
     onMount: el => {
       hydrateIcons(el);
       (el.querySelector('.protoopt.on') as HTMLElement | null)?.scrollIntoView({ block: 'nearest' });
@@ -334,10 +333,11 @@ function wireSetup(root: HTMLElement) {
     const sel = e.target as HTMLSelectElement;
     if (sel.value !== '__new') { persist(); usePreset(sel.value); return; }
     sel.value = cur; persist();
-    const n = await promptSheet('New protocol', 'Saves your current hang, rest, sets, edge and load settings under a name.', 'Protocol name');
-    if (!n) return;
-    const k = createCustomProto(n, val);
-    cur = k; protoOptions(); loadProto(k); persist(); toast(`★ ${n} saved`);
+    // the same as "Custom exercise…" in a workout, starting from what's on screen (so tweaks can be kept as your own protocol)
+    const made = await newCustomExercise({ id: newId('b'), proto: cur, vals: sanitizeVals(val, protoValues(allProtos()[cur]!)), grip: chipVal('grip'), fing: chipVal('fing'), restAfter: 0 });
+    if (!made) return;
+    setChip('grip', made.block.grip); setChip('fing', made.block.fing);
+    protoOptions(); loadProto(made.key); persist();
   });
   $('#protoHint').addEventListener('click', e => { if ((e.target as HTMLElement).closest('#delProto')) deleteCustomProto(cur); });
 

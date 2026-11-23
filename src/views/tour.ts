@@ -10,7 +10,7 @@ const PAGE_TIPS: Record<string, Tip[]> = {
   hang: [
     { sel: '#hangMode', title: 'One protocol or a workout', body: 'Single session runs one protocol. Workout runs a list of them back to back, with a rest between each. Build workouts in the Workouts tab.', id: 'workouts' },
     { sel: '#wkQ', title: 'Your workout', body: 'Tap an exercise to change its numbers or grip, or a rest to change how long it is. Start runs them all, and each one is saved as its own session.', id: 'workout-card' },
-    { sel: '#protoBtn', title: 'Pick a protocol', body: 'Each one is a proven training plan with sensible defaults. ⚡ JUST LET ME HANG skips the theory. Pick “Custom protocol…” to save your own.' },
+    { sel: '#protoBtn', title: 'Pick a protocol', body: 'Each one is a proven training plan with sensible defaults. ⚡ JUST LET ME HANG skips the theory. Pick “Custom exercise…” at the top to make your own.' },
     { sel: '[data-p="about"]', title: 'Read the protocol', body: 'Every protocol comes with who designed it, what it’s for, its hang and rest times, recommended sets, intensity and how often to do it. Tap Hide to tuck it away once you know it.' },
     { sel: '#params', title: 'Tweak the numbers', body: 'Tap − and + to adjust. Tap any ⓘ to learn what a setting does. Picking a protocol loads its recommended settings (pick it again to reset them); your load is remembered for each one.', id: 'presets' },
     { sel: '[data-p="grip"] summary', title: 'Hide what you don’t need', body: 'Sections can be hidden or shown with one tap, and they stay that way.' },

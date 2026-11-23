@@ -78,7 +78,7 @@ function myProtocols() {
     const n = workoutsUsing(k).length;
     return `<div class="lrow" data-proto="${esc(k)}"><span class="nm"><b>${esc(p.n)}</b><small>${esc(blockLine(protoValues(p, personalVals(k, S.vals[k]))))}${n ? ` · in ${n} workout${n > 1 ? 's' : ''}` : ''}</small></span>
       <button type="button" class="ed" data-rename aria-label="Rename ${esc(p.n)}">${ic('edit')}</button><button type="button" class="ed" data-delp aria-label="Delete ${esc(p.n)}">${ic('trash')}</button></div>`;
-  }).join('')}</div><p class="sub wb-tip">Make new ones on the Hang page (Custom protocol…) or as a custom exercise in a workout.</p></div>`;
+  }).join('')}</div><p class="sub wb-tip">Make new ones with “Custom exercise…” at the top of the protocol list.</p></div>`;
 }
 
 async function onLibraryClick(e: MouseEvent) {
