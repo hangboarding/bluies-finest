@@ -56,14 +56,14 @@ select,input.tx{width:100%;height:48px;background:var(--card2);color:var(--ink);
 .podium{display:grid;grid-template-columns:1fr 1.3fr 1fr;align-items:end;gap:8px;margin:14px 0}
 .pod{text-align:center;font-size:13px}.pod .ph{margin:0 auto 6px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#111}
 .pod .blk{border-radius:12px 12px 0 0;padding:8px 4px;font-weight:800;font-size:20px;margin-top:6px}
-.p1 .ph{width:92px;height:92px;font-size:30px;background:var(--gold);box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--gold),0 0 36px #f2c14e99}
+.p1 .ph{width:92px;height:92px;font-size:30px;background-color:var(--gold);box-shadow:0 0 0 4px var(--card),0 0 0 7px var(--gold),0 0 36px #f2c14e99}
 .p1 .blk{height:110px;background:linear-gradient(var(--gold),#a9822c);color:#111}
-.p2 .ph{width:60px;height:60px;font-size:20px;background:var(--silver)}.p2 .blk{height:74px;background:#6b747c;color:#fff}
-.p3 .ph{width:60px;height:60px;font-size:20px;background:var(--bronze)}.p3 .blk{height:54px;background:#86573a;color:#fff}
+.p2 .ph{width:60px;height:60px;font-size:20px;background-color:var(--silver)}.p2 .blk{height:74px;background:#6b747c;color:#fff}
+.p3 .ph{width:60px;height:60px;font-size:20px;background-color:var(--bronze)}.p3 .blk{height:54px;background:#86573a;color:#fff}
 .crown{font-size:30px;display:block;margin-bottom:-2px;animation:bob 1.6s ease-in-out infinite}@keyframes bob{50%{transform:translateY(-4px)}}
 .champ{text-align:center;font-size:13px;color:var(--gold);font-weight:700;margin-top:-4px}
 .lrow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line)}
-.lrow .r{width:22px;font-weight:800;color:var(--mute)}.lrow .av{width:36px;height:36px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-weight:700;font-size:12px}
+.lrow .r{width:22px;font-weight:800;color:var(--mute)}.lrow .av{width:36px;height:36px;border-radius:50%;background-color:var(--card2);display:grid;place-items:center;font-weight:700;font-size:12px}
 .lrow .nm{flex:1}.lrow .nm small{display:block;color:var(--mute)}.lrow .pt{font-weight:800}
 .lrow.me{background:color-mix(in srgb,var(--acc) 14%,transparent);border-radius:12px}
 /* done */
