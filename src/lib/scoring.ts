@@ -118,6 +118,8 @@ export interface Category { id: string; icon: string; name: string; desc: string
   value: (mine: Session[], all: Session[], now: Date) => number | null; }
 const days = (n: number, now: Date) => +now - n * 864e5;
 const recent = (xs: Session[], n: number, now: Date) => xs.filter(s => +new Date(s.createdAt) >= days(n, now));
+/** Points from sessions at or after `from` (ms); null when there are none, so empty climbers stay off the board. */
+const pointsSince = (xs: Session[], from: number) => { const ys = xs.filter(s => +new Date(s.createdAt) >= from); return ys.length ? ys.reduce((a, s) => a + s.points, 0) : null; };
 // strength boards compare two-arm hangs (one-arm hangs have their own board)
 const maxHang = (xs: Session[]) => xs.filter(s => s.mode === 'hang' && s.hands === 'both' && s.hang <= 15 && s.fullHangs > 0);
 /** Sets where every hang (both hands, every rep) was held full time. */
@@ -128,7 +130,8 @@ export function completedSets(s: Pick<Session, 'hangs'>) {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'overall', icon: 'award', name: 'Overall', group: 'Overall', unit: 'pts', desc: 'Points over the last 28 days + streak bonus',
+  // Overall stays first: it's the default board (placeOf, the #1 overall crown).
+  { id: 'overall', icon: 'award', name: 'Overall', group: 'Points', unit: 'pts', desc: 'Points over the last 28 days + streak bonus',
     value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.points, 0) + 15 * weekStreak(m, now) },
   { id: 'loadpct', icon: 'bolt', name: '% Bodyweight', group: 'Strength', unit: '%', desc: 'Best load on a two-arm ≤15s hang, as % of bodyweight',
     value: m => { const v = maxBy(maxHang(m).filter(s => s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; } },
@@ -162,7 +165,11 @@ export const CATEGORIES: Category[] = [
       const b = maxBy(maxHang(m.filter(s => { const t = +new Date(s.createdAt); return t < days(30, now) && t >= days(60, now); })).filter(s => s.loadPct != null), s => s.loadPct!);
       return isFinite(a) && isFinite(b) && b > 0 ? Math.round(((a - b) / b) * 1000) / 10 : null;
     } },
-  { id: 'season', icon: 'crown', name: 'This season', group: 'Season', unit: 'pts', desc: 'Points this season. The winner is crowned season champion',
+  { id: 'week', icon: 'calendar', name: 'This week', group: 'Points', unit: 'pts', desc: 'Points since Monday',
+    value: (m, _a, now) => pointsSince(m, +weekStart(now)) },
+  { id: 'month', icon: 'calendar', name: 'This month', group: 'Points', unit: 'pts', desc: 'Points since the 1st of the month',
+    value: (m, _a, now) => pointsSince(m, +new Date(now.getFullYear(), now.getMonth(), 1)) },
+  { id: 'season', icon: 'crown', name: 'This season', group: 'Points', unit: 'pts', desc: 'Points this season. The winner is crowned season champion',
     value: (m, _a, now) => { const se = seasonOf(now), xs = m.filter(x => inSeason(x, se)); return xs.length ? Math.round(xs.reduce((a, x) => a + x.points, 0)) : null; } },
 ];
 

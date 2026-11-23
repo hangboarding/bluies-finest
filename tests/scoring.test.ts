@@ -375,6 +375,20 @@ describe('CATEGORIES', () => {
     expect(weekStreak(tiny, now)).toBe(0);
   });
 
+  it('this week and this month add up points since Monday and since the 1st', () => {
+    // now = Wed 18 Nov 2026; Monday was the 16th
+    const ss = [sessionAt(2026, 11, 16, 9, { points: 40 }), sessionAt(2026, 11, 18, 9, { points: 25 }), sessionAt(2026, 11, 15, 20, { points: 60 }),
+      sessionAt(2026, 11, 1, 8, { points: 10 }), sessionAt(2026, 10, 31, 20, { points: 99 })];
+    expect(cat('week').value(ss, ss, now)).toBe(65);
+    expect(cat('month').value(ss, ss, now)).toBe(135);
+    expect(cat('week').value([sessionAt(2026, 11, 15, 20)], [], now)).toBeNull(); // nothing this week: off the board
+  });
+
+  it('all the points boards share one group, with Overall still the default board', () => {
+    expect(CATEGORIES[0]!.id).toBe('overall');
+    expect(CATEGORIES.filter(c => c.group === 'Points').map(c => c.id).sort()).toEqual(['month', 'overall', 'season', 'week']);
+  });
+
   it('weekly streak category matches weekStreak', () => {
     const ss = twoPerWeek(weekStart(now), [1, 2, 3, 4, 5, 6]);
     expect(cat('streak').value(ss, ss, now)).toBe(6);
