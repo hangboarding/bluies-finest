@@ -6,7 +6,7 @@ import { state, saveSettings } from '../lib/state';
 interface Tip { sel: string; title: string; body: string; }
 const PAGE_TIPS: Record<string, Tip[]> = {
   hang: [
-    { sel: '#proto', title: 'Pick a protocol', body: 'Each one is a proven training plan with sensible defaults. ⚡ JUST LET ME HANG skips the theory. Pick “Custom protocol…” to save your own.' },
+    { sel: '#protoBtn', title: 'Pick a protocol', body: 'Each one is a proven training plan with sensible defaults. ⚡ JUST LET ME HANG skips the theory. Pick “Custom protocol…” to save your own.' },
     { sel: '[data-p="about"]', title: 'Read the protocol', body: 'Every protocol comes with who designed it, what it’s for, its hang and rest times, recommended sets, intensity and how often to do it. Tap Hide to tuck it away once you know it.' },
     { sel: '#params', title: 'Tweak the numbers', body: 'Tap − and + to adjust. Tap any ⓘ to learn what a setting does. Everything is remembered for next time.' },
     { sel: '[data-p="grip"] summary', title: 'Hide what you don’t need', body: 'Sections can be hidden or shown with one tap, and they stay that way.' },

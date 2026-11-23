@@ -93,6 +93,33 @@ describe('SessionTimer', () => {
     expect(t.left()).toBe(20);
   });
 
+  it('endEarly keeps finished hangs plus the time held on the current one, then stops', () => {
+    const h = hooks(), t = new SessionTimer(steps(), h);
+    t.start();
+    sec(10.1);            // first hang done
+    sec(20);              // rest done
+    sec(4.3);             // 4s into the second hang
+    t.pause();            // the Cancel sheet pauses first
+    expect(t.heldNow()).toBe(4);
+    const log = t.endEarly();
+    expect(log).toEqual([
+      { set: 1, rep: 1, hand: 'both', target: 10, held: 10, full: true },
+      { set: 2, rep: 1, hand: 'both', target: 10, held: 4, full: false },
+    ]);
+    sec(60);              // stopped: nothing more is logged and onDone never fires
+    expect(t.log).toHaveLength(2);
+    expect(h.onDone).not.toHaveBeenCalled();
+  });
+
+  it('endEarly during a rest adds nothing; with no hangs yet there is nothing to save', () => {
+    const t = new SessionTimer(steps(), hooks());
+    t.start();
+    expect(t.hasProgress()).toBe(false);  // still on the get-ready-free first hang at 0s
+    sec(12);                              // into the rest after hang 1
+    expect(t.heldNow()).toBe(0);
+    expect(t.endEarly()).toHaveLength(1);
+  });
+
   it('letGo during a rest does nothing', () => {
     const h = hooks(), t = new SessionTimer(steps(), h);
     t.start();

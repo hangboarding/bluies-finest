@@ -64,7 +64,7 @@ svg.lic{stroke:currentColor}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:50}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-details.panel>summary{gap:6px}
+details.panel>summary{gap:6px}details.panel>summary:after{margin-left:auto}
 /* Mobile: no double-tap zoom, and no iOS auto-zoom when focusing small inputs. */
 html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 button,.chip,.a,.tip,a,select,input,label,summary,.heat i{touch-action:manipulation}
@@ -353,3 +353,40 @@ html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
 @keyframes t10fade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){.t10.in .t10b,.t10.in .t10v{animation:none}}
 @media (forced-colors:active){.t10b{background:CanvasText!important}.t10r.me .t10b{background:Highlight!important}}
+
+/* ---------- Hang: protocol picker (name + what it's for) ---------- */
+.protobtn{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card2);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:9px 12px;min-height:56px;cursor:pointer;font:inherit}
+.protobtn>span:first-child{flex:1;min-width:0}
+.protobtn b{display:block;font-size:16px;font-weight:700}
+.protobtn small,.protoopt small{display:block;color:var(--mute);font-size:12px;font-weight:400;margin-top:2px}
+.protobtn .chev{color:var(--mute);font-size:14px}
+.protolist{max-height:58vh;overflow:auto;text-align:left;margin:4px -4px 10px;padding:0 4px}
+.protoopt{display:block;width:100%;text-align:left;background:none;color:var(--ink);border:0;border-bottom:1px solid var(--line);padding:11px 10px;cursor:pointer;font:inherit;border-radius:0}
+.protoopt b{font-size:15px;font-weight:700}
+.protoopt:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.protoopt.on{background:color-mix(in srgb,var(--acc) 16%,transparent);border-radius:10px;border-bottom-color:transparent}
+.protogrp{margin:14px 10px 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+
+/* ---------- Log a past session: the face that rises from behind "I promise" ---------- */
+/* Same two columns as the buttons below, so the right half sits exactly over "I promise".
+   The box ends where the button starts and clips what's below, so she comes up from behind it. */
+.peekrow{display:flex;gap:10px;height:120px;margin:4px 0 -6px}
+.promisecol{display:flex;align-items:center;padding-bottom:6px}
+.peekrow .promise{margin:0;width:100%;text-align:left;font-size:14px;line-height:1.35}
+.peekrow>span{flex:1;min-width:0}
+.peek{display:flex;justify-content:center;align-items:flex-end;overflow:hidden}
+.peek img{height:120px;width:auto;display:block;transform:translateY(100%);animation:peekup 3.2s .6s cubic-bezier(.25,.6,.2,1) forwards}
+@keyframes peekup{to{transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){.peek img{animation:none;transform:none}}
+/* three choices (e.g. Cancel session: keep going / end early / give up): stack them */
+.sheet>.row:has(>button:nth-child(3)){flex-direction:column}
+
+/* ---------- Timer: set and rep, readable from across the room ---------- */
+.ring .p{font-size:20px;letter-spacing:3px}
+.counts{display:flex;gap:10px;justify-content:center;margin:4px 0 2px}
+.cnt{flex:1;max-width:200px;background:var(--card2);border:1px solid var(--line);border-radius:18px;padding:8px 10px 6px;text-align:center}
+.cnt small{display:block;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.cnt b{display:block;font-size:52px;line-height:1.05;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.cnt b i{font-style:normal;font-size:26px;font-weight:700;color:var(--mute);margin-left:2px}
+.counts.now .cnt{border-color:color-mix(in srgb,var(--acc) 55%,var(--line))}
+.counts.now .cnt small{color:var(--ink)}

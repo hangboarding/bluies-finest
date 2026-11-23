@@ -1,4 +1,4 @@
-import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, vibrate } from '../lib/ui';
+import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, vibrate, closeSheet } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, type Values, type Protocol } from '../lib/protocols';
 import { state, saveSettings, mySessions, achievementCtx } from '../lib/state';
@@ -10,6 +10,7 @@ import { confetti } from '../lib/confetti';
 import { saveOrQueue } from '../lib/outbox';
 import { go } from '../main';
 import { seasonOf } from '../lib/seasons';
+import deceiveFace from '../assets/deceive.webp';
 
 const allProtos = (): Record<string, Protocol> => ({ ...PROTOCOLS, ...state.settings.customProtos });
 let cur = 'max';
@@ -29,8 +30,9 @@ export function renderHang(root: HTMLElement) {
   <section id="v-setup">
     <div class="card">
       <label class="f">Protocol</label>
-      <select id="proto"></select>
-      <details class="panel inner" data-p="about" open><summary>${ic('about')} About<small id="aboutSum"></small></summary><div class="hint" id="protoHint"></div></details>
+      <button type="button" class="protobtn" id="protoBtn" aria-haspopup="dialog"><span><b id="protoName"></b><small id="protoUse"></small></span><span class="chev" aria-hidden="true">▾</span></button>
+      <select id="proto" class="hide" aria-hidden="true" tabindex="-1"></select>
+      <details class="panel inner" data-p="about" open><summary>${ic('about')} About</summary><div class="hint" id="protoHint"></div></details>
       <div id="modeWrap"><br><label class="f lab">${ic('mode')} Load method<span class="tip" data-tip="mode">i</span></label>
         <div class="chips g g2" data-k="mode"><span class="chip" data-v="hang">Hang (on board)</span><span class="chip" data-v="lift">No-hang (lift)</span></div></div>
     </div>
@@ -61,6 +63,10 @@ export function renderHang(root: HTMLElement) {
     <div class="sub" id="tmeta"></div>
     <div class="ring" id="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="var(--line)" stroke-width="6"/><circle id="arc" cx="50" cy="50" r="45" fill="none" stroke-width="6" stroke-linecap="round" stroke-dasharray="282.7"/></svg>
       <div class="t"><div><div class="p" id="ph"></div><div class="hand hide" id="hand"></div><div class="n" id="num"></div><div class="sub" id="setlbl"></div></div></div></div>
+    <div class="counts" aria-live="polite">
+      <div class="cnt" id="cSet"><small id="cSetL">Set</small><b><span id="cSetN"></span><i id="cSetT"></i></b></div>
+      <div class="cnt" id="cRep"><small id="cRepL">Rep</small><b><span id="cRepN"></span><i id="cRepT"></i></b></div>
+    </div>
     <div class="dots" id="dots"></div>
     <button class="big letgo hide" id="letgo">${ic('open')} Let go and log time held</button>
     <div class="row"><button class="big ghost" id="pause">${ic('pause')} Pause</button><button class="big ghost" id="skip">Skip ${ic('skip')}</button></div>
@@ -95,6 +101,34 @@ function protoOptions() {
     + (custom.length ? `<optgroup label="My protocols">${custom.map(k => `<option value="${k}">★ ${esc(P[k]!.n)}</option>`).join('')}</optgroup>` : '')
     + `<option value="__new">➕ Custom protocol…</option>`;
   ($('#proto') as HTMLSelectElement).value = cur;
+}
+const protoLabel = (k: string, p: Protocol) => `${p.simple ? '⚡ ' : p.custom || k.startsWith('c_') ? '★ ' : ''}${esc(p.n)}`;
+/** The protocol field: name, with what it's for underneath. */
+function drawProtoBtn() {
+  const p = allProtos()[cur]; if (!p) return;
+  $('#protoName').innerHTML = protoLabel(cur, p); $('#protoUse').textContent = p.use;
+}
+/** Pick a protocol from a list that says what each one is for. Picking sets the hidden select
+ *  and fires its change event, so everything else works as it did with the dropdown. */
+async function pickProtocol() {
+  const P = allProtos(), custom = Object.keys(state.settings.customProtos);
+  const item = (k: string) => `<button type="button" class="protoopt${k === cur ? ' on' : ''}" data-k="${k}"${k === cur ? ' aria-current="true"' : ''}><b>${protoLabel(k, P[k]!)}</b><small>${esc(P[k]!.use)}</small></button>`;
+  await sheet({
+    title: 'Pick a protocol',
+    body: `<div class="protolist">${Object.keys(PROTOCOLS).map(item).join('')}
+      ${custom.length ? `<p class="protogrp">My protocols</p>${custom.map(item).join('')}` : ''}
+      <button type="button" class="protoopt" data-k="__new"><b>➕ Custom protocol…</b><small>Save your current settings under a name</small></button></div>`,
+    onMount: el => {
+      (el.querySelector('.protoopt.on') as HTMLElement | null)?.scrollIntoView({ block: 'nearest' });
+      el.querySelector('.protolist')!.addEventListener('click', e => {
+        const b = (e.target as HTMLElement).closest('.protoopt') as HTMLElement | null; if (!b) return;
+        closeSheet(el);
+        const sel = $('#proto') as HTMLSelectElement;
+        if (b.dataset.k === cur) return;
+        sel.value = b.dataset.k!; sel.dispatchEvent(new Event('change'));
+      });
+    },
+  });
 }
 
 function hint(p: Protocol) {
@@ -145,7 +179,6 @@ function summaries() {
   const b = ($('#board') as HTMLSelectElement).value;
   $('#gripSum').textContent = [chipVal('grip'), chipVal('fing'), val.hands !== 'both' ? handsLabel(val.hands) : ''].filter(Boolean).join(' · ');
   $('#setupSum').textContent = [b !== '__add' ? b : '', chipVal('mat'), chipVal('prof')].filter(Boolean).join(' · ');
-  $('#aboutSum').textContent = allProtos()[cur]?.use ?? '';
 }
 
 function loadProto(k: string) {
@@ -154,7 +187,7 @@ function loadProto(k: string) {
   val = { ...DEFAULTS, ...p, ...(state.settings.vals[k] ?? {}) } as Values;
   val.simple = !!p.simple;
   val.ready = getReady(); // one setting for every protocol (Profile → Settings)
-  ($('#proto') as HTMLSelectElement).value = k;
+  ($('#proto') as HTMLSelectElement).value = k; drawProtoBtn();
   $('#protoHint').innerHTML = hint(p);
   setChip('mode', val.mode); setChip('hands', val.hands);
   drawParams(); summaries(); hydrateIcons($('#protoHint')); drawSuggestion();
@@ -260,6 +293,7 @@ function wireSetup(root: HTMLElement) {
     d.addEventListener('toggle', () => { S.panels[k] = d.open; saveSettings(); });
   }
 
+  $('#protoBtn').addEventListener('click', pickProtocol);
   $('#proto').addEventListener('change', async e => {
     const sel = e.target as HTMLSelectElement;
     if (sel.value !== '__new') { persist(); loadProto(sel.value); persist(); return; }
@@ -410,9 +444,16 @@ function render(s: Step, left: number) {
   $('#ring').className = 'ring' + (warn ? ' warn' : '');
   const ph = $('#ph'); ph.textContent = { ready: 'Get ready', hang: val.mode === 'lift' ? 'Pull!' : 'Hang!', rest: s.bigRest ? 'Set rest' : 'Rest', sw: 'Switch hands' }[s.p]; ph.style.color = COL[s.p];
   $('#num').textContent = String(left);
-  $('#setlbl').textContent = s.set ? `Set ${s.set}/${val.sets}` + (val.reps > 1 ? ` · rep ${s.rep}/${val.reps}` : '') : 'Chalk up 🧂';
+  $('#setlbl').textContent = s.p === 'ready' ? 'Chalk up 🧂' : '';
   // One-arm sessions: show which hand, big and colour-coded. During rests it shows the next hand.
   const hEl = $('#hand'), upcoming = s.p === 'hang' ? s : timer?.steps.slice(timer.idx).find(x => x.p === 'hang');
+  // Set and rep, big enough to read with the phone propped up across the room.
+  // While hanging: the current one. Otherwise: the one coming up next.
+  const at = upcoming ?? s, now = s.p === 'hang';
+  $('#cSetL').textContent = now ? 'Set' : 'Next set'; $('#cSetN').textContent = String(at.set ?? 1); $('#cSetT').textContent = `/${val.sets}`;
+  $('#cRep').classList.toggle('hide', val.reps <= 1);
+  $('#cRepL').textContent = now ? 'Rep' : 'Next rep'; $('#cRepN').textContent = String(at.rep ?? 1); $('#cRepT').textContent = `/${val.reps}`;
+  $('.counts').classList.toggle('now', now);
   const hand = upcoming?.hand && upcoming.hand !== 'both' ? upcoming.hand : null;
   hEl.classList.toggle('hide', !hand);
   if (hand) {
@@ -435,7 +476,20 @@ function togglePause() {
 async function quit() {
   if (!timer) return;
   const wasPaused = timer.paused; timer.pause(); togglePauseLabel();
-  if (await confirmSheet('Cancel session?', "This session won't be saved or count toward the leaderboard.", 'Give up 🏳️', 'Hang in there 💪')) {
+  const n = timer.log.length + (timer.heldNow() > 0 ? 1 : 0), canSave = n > 0;
+  const choice = await sheet({
+    title: 'Cancel session?',
+    body: `<p class="sub">${canSave ? `<b>End session early</b> saves the ${n > 1 ? `${n} hangs` : 'hang'} you've done so far (a hang in progress counts for the time held). <b>Give up</b> saves nothing.` : "This session won't be saved or count toward the leaderboard."}</p>`,
+    buttons: canSave
+      ? [{ label: 'Hang in there 💪', kind: 'ghost' }, { label: 'End session early', kind: 'primary' }, { label: 'Give up 🏳️', kind: 'danger' }]
+      : [{ label: 'Hang in there 💪', kind: 'ghost' }, { label: 'Give up 🏳️', kind: 'danger' }],
+  });
+  const giveUp = canSave ? choice === 2 : choice === 1, endEarly = canSave && choice === 1;
+  if (!timer) return;
+  if (endEarly) {
+    const log = timer.endEarly(); keepAwake(false);
+    done(log); toast('Ended early. Here’s what you did');
+  } else if (giveUp) {
     if (Date.now() - startedAt < 10_000) { state.settings.flags.dramaticExit = true; saveSettings(); }
     timer.stop(); timer = null; keepAwake(false); show('setup'); toast('Session cancelled');
   } else if (!wasPaused) { timer.resume(); togglePauseLabel(); }
@@ -470,7 +524,7 @@ async function backlog() {
       <label class="f" style="text-align:left">When did you do it?</label>
       <input class="tx" type="datetime-local" id="blWhen" value="${localIso(now)}" min="${localIso(min)}" max="${localIso(now)}" style="margin-bottom:12px">
       <p class="sub" style="font-size:12px">Up to 7 days back, within this season.</p>
-      <p class="promise">I promise that I did these hangs. Why would I deceive you?</p>`,
+      <div class="peekrow"><span class="promisecol"><p class="promise">I promise I did these hangs.<br>Why would I deceive you?</p></span><span class="peek" aria-hidden="true"><img src="${deceiveFace}" alt=""></span></div>`,
     buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'I promise', kind: 'primary' }],
     onMount: el => { when = el.querySelector('#blWhen')!; },
   });

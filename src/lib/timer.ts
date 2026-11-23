@@ -130,6 +130,16 @@ export class SessionTimer {
   pause() { if (this.paused) return; this.remaining = this.endAt - performance.now(); this.paused = true; this.pausedAt = Date.now(); }
   resume() { if (!this.paused) return; const p = Date.now() - this.pausedAt; this.pausedMs += p; this.maxPauseMs = Math.max(this.maxPauseMs, p); this.endAt = performance.now() + this.remaining; this.paused = false; this.tick(); }
   stop() { clearInterval(this.h); document.removeEventListener('visibilitychange', this.vis); }
+  /** Anything worth saving yet: a logged hang, or a hang in progress with time on it. */
+  hasProgress() { return this.log.length > 0 || this.heldNow() > 0; }
+  /** Seconds held so far on a hang in progress (0 when not on a hang). */
+  heldNow() { return this.step?.p === 'hang' && !this.step.logged ? this.elapsed() : 0; }
+  /** End the session now. A hang in progress counts for the time held so far. Returns the log. */
+  endEarly() {
+    if (this.done) return this.log;
+    if (this.step?.p === 'hang' && !this.step.logged && this.elapsed() > 0) this.cutShort();
+    this.done = true; this.stop(); return this.log;
+  }
   private finish() { this.done = true; this.stop(); this.hooks.onDone(this.log); }
 }
 

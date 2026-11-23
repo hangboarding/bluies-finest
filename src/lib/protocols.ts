@@ -59,6 +59,7 @@ export const TIPS: Record<string, [string, string]> = {
 
 export const QUOTES: [string, string][] = [
   ['The board has been humbled.', 'You walked in, hung, and left it shook. Iconic.'],
+  ['Do the mahi, get the treat', '🍭🍬🍭🍬🍭'],
   ['Fierce. Fabulous. Forearms.', 'Rest up, superstar. You earned every second.'],
   ['Ate and left no crimps.', "That session was a full-course meal. Chef's kiss."],
   ['Crimp royalty has entered the chat 👑', 'Bow down, then go hydrate, queen.'],

@@ -24,7 +24,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,ico,woff2}'],
         importScripts: ['push-sw.js'],
         navigateFallbackDenylist: [/^\/auth/, /\/tour\//],
         globIgnores: ['**/tour/**', '**/og-image.png'],
