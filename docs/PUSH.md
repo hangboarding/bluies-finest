@@ -50,12 +50,9 @@ You don't need to add `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY`; Supabase pr
 npx supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com WEBHOOK_SECRET=...
 ```
 
-## 4. Create the subscriptions table
+## 4. Check the subscriptions table
 
-1. Go to **SQL Editor → New query**.
-2. Paste in **all** of [`supabase/push.sql`](../supabase/push.sql) and click **Run**. You should see "Success. No rows returned".
-
-This stores which devices have notifications turned on. Each member can only see and change their own devices. It's safe to run again.
+The table that stores which devices have notifications turned on is part of [`supabase/schema.sql`](../supabase/schema.sql), so if you've run that (see [SUPABASE.md](SUPABASE.md)) there's nothing to do here. Each member can only see and change their own devices. If your project was set up before push existed, run all of `schema.sql` again in the **SQL Editor**; it's safe to run again.
 
 ## 5. Deploy the `notify` function
 
@@ -111,7 +108,7 @@ Notifications are per device, so turn them on on each phone you use.
 
 Members can send a report from **Profile → Report an issue**. Admins see every report under **Profile → Admin tools**, and open ones show in their notification bell. To set it up:
 
-1. In the **SQL Editor**, run [`supabase/issues.sql`](../supabase/issues.sql). Reports work in the app from this point.
+1. Make sure your database is up to date: run all of [`supabase/schema.sql`](../supabase/schema.sql) in the **SQL Editor** if you haven't since problem reports were added. Reports work in the app from this point.
 2. **Phone notifications to admins:** add a third webhook as in step 6, named `notify_issues`, on the `issues` table, **Insert** only, same function and header. Redeploy the function (step 5) so it has the issue code. Admins get a push on each phone where they've turned notifications on.
 3. **Emails to admins (optional):** make a free account at [resend.com](https://resend.com), create an API key, then add these secrets (as in step 3):
 
@@ -139,4 +136,4 @@ Members can send a report from **Profile → Report an issue**. Admins see every
 
 **The Notifications option doesn't show in Profile:** the site was built without `VITE_VAPID_PUBLIC_KEY` (step 7), or the app is in demo mode.
 
-**"permission denied for table sessions" in the notify logs?** Run [`supabase/service-role.sql`](../supabase/service-role.sql) in the SQL Editor. Newer Supabase projects don't let server functions read new tables until they're granted access.
+**"permission denied for table sessions" in the notify logs?** Run all of [`supabase/schema.sql`](../supabase/schema.sql) again in the SQL Editor (it grants that access). Newer Supabase projects don't let server functions read new tables until they're granted access.

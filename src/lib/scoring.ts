@@ -1,11 +1,13 @@
 // Points + leaderboard maths. Kept deliberately simple and explainable.
-// The database (supabase/points-v3.sql) uses exactly the same rules; this copy is for the
+// The database (the fair-scoring section of supabase/schema.sql) uses exactly the same rules; this copy is for the
 // done screen, the edit sheet and demo mode.
 //
 // Intensity  = two-arm-equivalent load as a fraction of bodyweight, always worked out from
 //              the kg entered: bodyweight on two arms = 1.0, +20% added = 1.2, one arm = ×2.
 //              No-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Clamped 0.4–3.
 //              With no bodyweight set, a 70kg climber is assumed (target effort % never counts).
+//              Abrahangs and Warm-up are light by design (feet on or assisted, which people rarely
+//              enter as assist), so they count at most 80%.
 // Work       = time under tension × intensity² × edge factor, per arm: a one-arm hang's time
 //              counts half, so left + right at bodyweight = one two-arm hang at +100% (the
 //              same load on each arm), and one hand only is half of that.
@@ -23,17 +25,20 @@ import { seasonOf, inSeason, tzParts } from './seasons';
 
 /** Assumed bodyweight when a climber hasn't set theirs. */
 export const DEFAULT_BW = 70;
-/** A session needs this much time under tension to count as a session (streaks, show-up points). */
+/** A session needs this much time under tension to count as real training: streaks, the show-up points,
+ *  the Consistency board, the Training days badges and crew-challenge session counts. */
 export const MIN_TUT = 15;
 
-type Load = Pick<Session, 'mode' | 'loadPct' | 'hands' | 'addedKg' | 'assistKg' | 'liftKg'>;
+type Load = Pick<Session, 'mode' | 'loadPct' | 'hands' | 'addedKg' | 'assistKg' | 'liftKg'> & { protocolKey?: string };
+/** Protocols done light by design, and the most they can count for. */
+export const LIGHT_PROTOCOLS = new Set(['abra', 'warm']), LIGHT_CAP = 0.8;
 type Scored = Load & Pick<Session, 'tutS' | 'fullHangs' | 'totalHangs' | 'isPb' | 'edgeMm' | 'createdAt'> & { id?: string };
 
 /** Two-arm-equivalent load ÷ bodyweight. */
 export function intensity(s: Load) {
   const pct = s.loadPct ?? (s.mode === 'lift' ? liftPct(DEFAULT_BW, s.liftKg) : loadPct(DEFAULT_BW, s.addedKg, s.assistKg))!;
   const raw = (pct / 100) * (s.mode === 'hang' && s.hands !== 'both' ? 2 : 1); // lifts are already per hand × 2
-  return Math.min(3, Math.max(0.4, raw));
+  return Math.min(LIGHT_PROTOCOLS.has(s.protocolKey ?? '') ? LIGHT_CAP : 3, Math.max(0.4, raw));
 }
 export const edgeFactor = (mm: number) => Math.min(1.6, Math.max(0.6, 20 / Math.max(1, mm)));
 /** Training work in one session (see the top of this file). */

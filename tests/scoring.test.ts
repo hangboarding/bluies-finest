@@ -269,6 +269,18 @@ describe('points', () => {
     expect(pts({ edgeMm: 14 })).toBeGreaterThan(pts({ edgeMm: 20 }));
   });
 
+  it('Abrahangs and Warm-up count at most 80%, so light-by-design sessions logged at bodyweight stay below a loaded Max Hangs', () => {
+    expect(intensity(L({ protocolKey: 'abra', loadPct: 100 }))).toBe(0.8);
+    expect(intensity(L({ protocolKey: 'warm', loadPct: 120 }))).toBe(0.8);
+    expect(intensity(L({ protocolKey: 'abra', loadPct: 50 }))).toBe(0.5);           // real assist entered: used as is
+    expect(intensity(L({ protocolKey: 'abra', mode: 'lift', loadPct: 100 }))).toBe(0.8);
+    expect(intensity(L({ protocolKey: 'max', loadPct: 100 }))).toBe(1);             // everything else untouched
+    const abra = pts({ protocolKey: 'abra', tutS: 100, fullHangs: 10, totalHangs: 10 }), max = pts({ protocolKey: 'max' });
+    expect(abra).toBe(53);                                                           // was 68 at full bodyweight
+    expect(max).toBe(46);
+    expect(abra).toBeLessThan(pts({ protocolKey: 'max', loadPct: 120 }));            // below Max Hangs at +20% (56)
+  });
+
   it('intensity clamps to 0.4–3', () => {
     expect(intensity(L({ loadPct: 350 }))).toBe(3);
     expect(intensity(L({ loadPct: 20 }))).toBe(0.4);

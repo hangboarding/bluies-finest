@@ -18,7 +18,6 @@ let val: Values;
 let timer: SessionTimer | null = null;
 let editing = false;
 let startedAt = 0;
-let lastLog: HangResult[] = [];
 
 const GRIPS: [string, string][] = [['Open', 'open'], ['Half crimp', 'half'], ['Full crimp', 'full'], ['Pinch', 'pinch'], ['Sloper', 'sloper']];
 const FINGERS = ['All 4', 'Front 3', 'Back 3', 'Front 2', 'Middle 2', 'Back 2', 'Mono', 'Custom'];
@@ -96,10 +95,8 @@ export function renderHang(root: HTMLElement) {
 
 // ---------------- setup ----------------
 function protoOptions() {
-  const P = allProtos(), custom = Object.keys(state.settings.customProtos);
-  $('#proto').innerHTML = Object.entries(PROTOCOLS).map(([k, p]) => `<option value="${k}">${p.simple ? '⚡ ' : ''}${esc(p.n)}</option>`).join('')
-    + (custom.length ? `<optgroup label="My protocols">${custom.map(k => `<option value="${k}">★ ${esc(P[k]!.n)}</option>`).join('')}</optgroup>` : '')
-    + `<option value="__new">➕ Custom protocol…</option>`;
+  // hidden: only its values matter (the visible picker is #protoBtn and its list)
+  $('#proto').innerHTML = [...Object.keys(allProtos()), '__new'].map(k => `<option value="${k}"></option>`).join('');
   ($('#proto') as HTMLSelectElement).value = cur;
 }
 const protoLabel = (k: string, p: Protocol) => `${p.simple ? '⚡ ' : p.custom || k.startsWith('c_') ? '★ ' : ''}${esc(p.n)}`;
@@ -554,7 +551,7 @@ async function backlog() {
 
 let pending: NewSession | null = null;
 function done(log: HangResult[]) {
-  timer = null; keepAwake(false); lastLog = log;
+  timer = null; keepAwake(false);
   const q = QUOTES[Math.floor(Math.random() * QUOTES.length)]!;
   const tut = log.reduce((a, h) => a + h.held, 0), full = log.filter(h => h.full).length, short = log.filter(h => !h.full);
   const bw = state.priv.bodyweightKg;
@@ -618,4 +615,3 @@ async function saveSession() {
   } catch (e: any) { toast(e.message ?? 'Could not save. Try again.'); }
   finally { btn.disabled = false; }
 }
-export const lastHangLog = () => lastLog;

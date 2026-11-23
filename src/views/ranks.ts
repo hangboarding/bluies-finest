@@ -28,7 +28,7 @@ export function renderRanks(root: HTMLElement) {
   </div>
   ${chartCard()}
   ${hallOfChampions()}
-  <p class="sub center" style="font-size:12px">Tap anyone to see their profile. Seasons: Summer Dec–Feb, Autumn Mar–May, Winter Jun–Aug, Spring Sep–Nov. Other boards cover the last 90 days. Overall = points from the last 28 days + 15 per week of streak. Session points reward time under tension, heavier load (as % bodyweight, and heavier counts for more), one-arm hangs, smaller edges, holding hangs full time and PBs. Long easy sessions count, but each extra minute counts a little less.</p>`;
+  <p class="sub center" style="font-size:12px">Tap anyone to see their profile. Seasons: Summer Dec–Feb, Autumn Mar–May, Winter Jun–Aug, Spring Sep–Nov. Other boards cover the last 90 days. Overall = points from the last 28 days + 15 per week of streak (a week with training on 2+ days). Points reward time under tension, heavier load (as % of bodyweight: heavier counts for clearly more), smaller edges, holding hangs full time and PBs. One-arm hangs count each arm, so left + right at bodyweight scores like a two-arm hang at +100%. Points are counted per day: more training always earns more, each extra minute a little less, and splitting it into lots of short sessions earns nothing extra.</p>`;
   $('#cats').addEventListener('change', e => { cat = (e.target as HTMLSelectElement).value; draw(); });
   wireChart();
   hydrateIcons(root);

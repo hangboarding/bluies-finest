@@ -1,5 +1,5 @@
 // Phone push notifications (Web Push). Client helpers only, no UI.
-// Server side: supabase/push.sql (subscriptions table) and supabase/functions/notify.
+// Server side: the push section of supabase/schema.sql (subscriptions table) and supabase/functions/notify.
 // Setup guide: docs/PUSH.md.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { state } from './state';

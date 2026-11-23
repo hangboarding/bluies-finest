@@ -14,7 +14,7 @@ export interface Recap {
 export function weeklyRecap(all: Session[], now = new Date()): Recap {
   const thisMon = weekStart(now), lastMon = addDays(thisMon, -7);
   const inLast = all.filter(s => { const t = new Date(s.createdAt); return t >= lastMon && t < thisMon && !s.pendingUpload; });
-  const tally = <K extends string>(xs: Session[], f: (s: Session) => number) => {
+  const tally = (xs: Session[], f: (s: Session) => number) => {
     const m = new Map<string, number>(); for (const s of xs) m.set(s.userId, (m.get(s.userId) ?? 0) + f(s));
     return [...m.entries()].map(([userId, v]) => ({ userId, v })).sort((a, b) => b.v - a.v);
   };

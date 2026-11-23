@@ -23,15 +23,15 @@ async function draw() {
   let codes: InviteCode[] = [], comments: (Comment & { protocol: string })[] = [], codeErr = '';
   const [c, f] = await Promise.allSettled([state.store.listInviteCodes(), state.store.feed(60)]);
   if (c.status === 'fulfilled') codes = c.value;
-  else codeErr = 'Run supabase/admin.sql in the Supabase SQL editor to manage invite codes from here.';
+  else codeErr = 'Run supabase/schema.sql in the Supabase SQL editor to manage invite codes from here.';
   let issues: Issue[] = [], issueErr = '';
-  try { issues = await state.store.listIssues(); } catch { issueErr = 'Run supabase/issues.sql in the Supabase SQL editor to receive problem reports.'; }
+  try { issues = await state.store.listIssues(); } catch { issueErr = 'Run supabase/schema.sql in the Supabase SQL editor to receive problem reports.'; }
   if (f.status === 'fulfilled') comments = f.value.flatMap(x => x.comments.map(cm => ({ ...cm, protocol: x.session.protocolName }))).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 25);
   if (!root?.isConnected) return;
 
   const who = (id: string) => state.profiles.get(id);
   let chals: ChallengeRow[] = [];
-  try { chals = await state.store.listChallenges(); state.challenges = chals; } catch { /* seasons.sql not run yet */ }
+  try { chals = await state.store.listChallenges(); state.challenges = chals; } catch { /* schema.sql not updated yet */ }
   const today = todayISO(), [ty, tm] = today.split('-').map(Number);
   const monthStart = `${ty}-${String(tm).padStart(2, '0')}-01`, monthEnd = `${ty}-${String(tm).padStart(2, '0')}-${String(new Date(Date.UTC(ty!, tm!, 0)).getUTCDate()).padStart(2, '0')}`;
   const counts = new Map<string, number>(); for (const s of state.sessions) counts.set(s.userId, (counts.get(s.userId) ?? 0) + 1);

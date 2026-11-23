@@ -293,7 +293,7 @@ export class SupabaseStore implements Store {
   // ---------------------------------------------------------------- profiles
 
   async listProfiles(): Promise<Profile[]> {
-    // location needs supabase/profile-location.sql; fall back without it so the app still loads
+    // location needs an up-to-date supabase/schema.sql; fall back without it so the app still loads
     let res = await this.client.from('profiles').select('id,name,avatar_url,location,is_admin,created_at').order('created_at', { ascending: true });
     if (res.error && /location/.test(res.error.message)) res = await this.client.from('profiles').select('id,name,avatar_url,is_admin,created_at').order('created_at', { ascending: true }) as any;
     const rows = check(res);
@@ -500,7 +500,7 @@ export class SupabaseStore implements Store {
     if (likes.error) throw friendly(likes.error);
     if (comments.error) throw friendly(comments.error);
     // Admins also hear about open problem reports. The database only shows other people's reports to
-    // admins, so everyone else gets none; an error (issues.sql not run yet) is ignored.
+    // admins, so everyone else gets none; an error (schema.sql not updated yet) is ignored.
     const issues = await this.client.from('issues').select('id,user_id,body,created_at').eq('status', 'open').neq('user_id', uid).order('created_at', { ascending: false }).limit(limit);
     const out: Notif[] = [
       ...((issues.error ? [] : issues.data) as any[]).map(r => ({ kind: 'issue' as const, sessionId: r.id, protocolName: '', fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
@@ -515,7 +515,7 @@ export class SupabaseStore implements Store {
     const body = i.body.trim().slice(0, 2000);
     if (!body) throw new Error('Describe the problem first');
     const { error } = await this.client.from('issues').insert({ category: i.category, body, context: i.context.slice(0, 500) });
-    if (error) throw error.code === '42P01' || /relation .*issues/.test(error.message) ? new Error('Problem reports aren’t set up yet. Ask an admin to run supabase/issues.sql.') : friendly(error);
+    if (error) throw error.code === '42P01' || /relation .*issues/.test(error.message) ? new Error('Problem reports aren’t set up yet. Ask an admin to run supabase/schema.sql.') : friendly(error);
   }
 
   async listIssues(): Promise<Issue[]> {
@@ -559,7 +559,7 @@ export class SupabaseStore implements Store {
     this.requireUid();
     const { data, error } = await this.client.rpc('season_champions');
     if (error) {
-      // seasons.sql not run yet — the app falls back to working champions out locally
+      // schema.sql not updated yet — the app falls back to working champions out locally
       if ((error as any).code === 'PGRST202' || /could not find the function|schema cache/i.test(error.message)) return null;
       throw friendly(error);
     }

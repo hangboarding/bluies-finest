@@ -66,7 +66,7 @@ export const QUOTES: [string, string][] = [
   ['Not you making it look easy 🙄💖', 'Rude of you to be this strong. Keep it up.'],
   ['King of the castle.', '👑🏰'],
   ['Slay of the day 🔥', 'Rest well, legend.'],
-  ["Consistency looks gorgeous on you.", 'Keep up the work'],
+  ["Consistency looks gorgeous on you.", 'Keep up the good work'],
   ['Bask in the dopamine', "You've earned it."],
 ];
 

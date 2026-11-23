@@ -10,9 +10,6 @@ interface Queued { tempId: string; userId: string; session: NewSession; }
 function read(): Queued[] { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }
 function write(q: Queued[]) { try { localStorage.setItem(KEY, JSON.stringify(q)); } catch { /* storage full/blocked */ } }
 
-/** True when an error looks like "no connection" rather than "the server said no". */
-export const isNetworkError = (e: any) =>
-  !navigator.onLine || /reach the server|failed to fetch|network|load failed|timed? ?out|offline/i.test(String(e?.message ?? e));
 
 /** Sessions waiting to upload for the signed-in user, shaped like real sessions (for stats). */
 export function queuedSessions(): Session[] {

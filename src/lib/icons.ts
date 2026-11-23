@@ -67,7 +67,6 @@ const MAP: Record<string, [string, string]> = {
 
 let mode: 'emoji' | 'flat' = 'flat';
 export const setIconMode = (m: 'emoji' | 'flat') => { mode = m; };
-export const iconMode = () => mode;
 
 /** Render an icon. `force` pins emoji or flat regardless of the user's setting. */
 export function ic(key: string, force?: 'emoji' | 'flat') {

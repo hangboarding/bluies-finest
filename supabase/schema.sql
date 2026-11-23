@@ -1,7 +1,12 @@
 -- =====================================================================
 -- Bluies Finest - Supabase schema
--- Paste this whole file into Supabase -> SQL Editor -> New query -> Run.
--- It is safe to run again later (it updates things in place).
+-- Everything the app needs, in one file. Paste it all into Supabase -> SQL Editor ->
+-- New query -> Run. For a new project, and to update an existing one: it's safe to run
+-- again (it updates things in place and never deletes your data).
+--
+-- Sections, in order: tables, security and policies, avatars, invite codes, hardening,
+-- admin page access, seasons and crew challenges, push notifications, server-function
+-- access, problem reports, profile location, hardening 2, fair scoring (points v3).
 -- =====================================================================
 
 create extension if not exists pgcrypto;
@@ -370,8 +375,7 @@ select 'BLUIES', null
 where not exists (select 1 from public.invite_codes);
 
 -- =====================================================================
--- Bluies Finest — database hardening (run once in the Supabase SQL editor).
--- Safe to run again. Also included at the end of schema.sql for new projects.
+-- Bluies Finest — database hardening (part of schema.sql, safe to run again).
 --
 -- What it does:
 --   • Rejects impossible session values (0s hangs, 10,000 sets, 1mm edges…)
@@ -451,8 +455,7 @@ create trigger sessions_guard
   for each row execute function public.sessions_guard();
 
 -- =====================================================================
--- Bluies Finest — admin page access (run once in the Supabase SQL editor).
--- Safe to run again. Also included at the end of schema.sql for new projects.
+-- Bluies Finest — admin page access (part of schema.sql, safe to run again).
 --
 -- Lets admins (profiles.is_admin = true) view, add, edit and delete invite
 -- codes from the app's Admin page. Everyone else still can't see them.
@@ -489,8 +492,7 @@ create policy "invite codes: admins delete" on public.invite_codes
   for delete to authenticated using ((select public.is_admin()));
 
 -- =====================================================================
--- Bluies Finest — seasons and crew challenges (run once in the SQL editor).
--- Safe to run again. Also included at the end of schema.sql for new projects.
+-- Bluies Finest — seasons and crew challenges (part of schema.sql, safe to run again).
 -- =====================================================================
 
 -- ---------- Seasons ----------
@@ -569,7 +571,7 @@ create policy "challenges: admins delete" on public.challenges
 
 -- =====================================================================
 -- Bluies Finest: phone push notifications (Web Push subscriptions)
--- Run once in Supabase → SQL Editor after schema.sql. Safe to run again.
+-- Part of schema.sql (safe to run again).
 -- See docs/PUSH.md for the full setup.
 -- =====================================================================
 
@@ -616,8 +618,7 @@ create policy "push: delete own" on public.push_subscriptions
   for delete to authenticated using (user_id = (select auth.uid()));
 
 -- =====================================================================
--- Bluies Finest — let server functions read the tables (run once).
--- Safe to run again. Also included at the end of schema.sql.
+-- Bluies Finest — let server functions read the tables (part of schema.sql, safe to run again).
 --
 -- The `notify` Edge Function uses Supabase's built-in `service_role` to look
 -- up sessions, names and push subscriptions. Newer Supabase projects don't
@@ -629,3 +630,448 @@ create policy "push: delete own" on public.push_subscriptions
 grant usage on schema public to service_role;
 grant select on public.sessions, public.profiles to service_role;
 grant select, delete on public.push_subscriptions to service_role;
+
+
+-- =====================================================================
+-- Bluies Finest: "Report an issue" (problem reports from members to admins)
+-- Part of schema.sql (safe to run again).
+-- To get a phone notification and an email for each new report, also follow
+-- the "Problem reports" section of docs/PUSH.md.
+-- =====================================================================
+
+create table if not exists public.issues (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  category    text not null default 'bug' check (category in ('bug', 'idea', 'account', 'other')),
+  body        text not null check (char_length(btrim(body)) between 1 and 2000),
+  context     text check (char_length(context) <= 500),   -- device/browser and app page, filled in by the app
+  status      text not null default 'open' check (status in ('open', 'resolved')),
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists issues_created_at_idx on public.issues (created_at desc);
+create index if not exists issues_user_id_idx on public.issues (user_id);
+
+alter table public.issues enable row level security;
+
+revoke all on public.issues from public, anon;
+grant select, insert, update, delete on public.issues to authenticated;
+
+-- Members send reports as themselves, and can see their own.
+drop policy if exists "issues: insert own" on public.issues;
+create policy "issues: insert own" on public.issues
+  for insert to authenticated with check (user_id = (select auth.uid()) and status = 'open');
+
+drop policy if exists "issues: read own or admin" on public.issues;
+create policy "issues: read own or admin" on public.issues
+  for select to authenticated using (user_id = (select auth.uid()) or (select public.is_admin()));
+
+-- Only admins mark reports resolved or delete them.
+drop policy if exists "issues: admins update" on public.issues;
+create policy "issues: admins update" on public.issues
+  for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+
+drop policy if exists "issues: admins delete" on public.issues;
+create policy "issues: admins delete" on public.issues
+  for delete to authenticated using ((select public.is_admin()));
+
+
+-- =====================================================================
+-- Bluies Finest: optional public location on profiles
+-- Part of schema.sql (safe to run again).
+--
+-- A member's location stays private (in private_data) unless they tick
+-- "Show on my profile"; only then does the app copy it here, where other
+-- members can see it under their photo.
+-- =====================================================================
+
+alter table public.profiles add column if not exists location text;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_location_len') then
+    alter table public.profiles add constraint profiles_location_len
+      check (location is null or char_length(location) between 1 and 60);
+  end if;
+end $$;
+
+-- Members can change their own name, photo and shown location (the existing
+-- "profiles: update own" policy limits it to their own row).
+grant update (name, avatar_url, location) on public.profiles to authenticated;
+
+
+-- =====================================================================
+-- Bluies Finest: second round of hardening (November 2026 review). Part of schema.sql.
+--
+--   • Session totals (hangs, full hangs, time under tension) are worked out from the
+--     hang-by-hang log instead of trusting the numbers the app sends
+--   • Sessions can only have their editable fields changed (edge, load, RPE, note), and
+--     sessions from a finished season can't have their scoring changed at all
+--   • Length limits on every session text field and on the hang log
+--   • Comments, hearts and problem reports always get the server's time
+--   • Limits on how fast comments and problem reports can be sent
+--   • Push subscriptions must be a real https push address
+--   • A log the notify function uses so un-hearting and re-hearting doesn't re-notify
+-- New limits are added NOT VALID, so existing rows are left alone.
+-- =====================================================================
+
+-- ---------- session limits ----------
+do $$
+declare c record;
+begin
+  for c in select * from (values
+    ('sessions_text_len', 'char_length(protocol_key) <= 40 and char_length(protocol_name) <= 80 and char_length(grip) <= 40 and char_length(fingers) <= 40 and char_length(board) <= 60 and char_length(edge_material) <= 40 and char_length(edge_profile) <= 40 and char_length(feel) <= 16'),
+    ('sessions_hangs_len', 'jsonb_array_length(hangs) <= 1500'),
+    ('sessions_hangs_objects', $c$not jsonb_path_exists(hangs, '$[*] ? (@.type() != "object")')$c$)
+  ) as t(name, expr)
+  loop
+    if not exists (select 1 from pg_constraint where conname = c.name) then
+      execute format('alter table public.sessions add constraint %I check (%s) not valid', c.name, c.expr);
+    end if;
+  end loop;
+end $$;
+
+-- ---------- start of the current season (Australia/Sydney): 1 Mar, 1 Jun, 1 Sep or 1 Dec ----------
+create or replace function public.current_season_start()
+returns timestamptz
+language sql
+stable
+set search_path = ''
+as $$
+  select ((date_trunc('month', now() at time zone 'Australia/Sydney')
+           - make_interval(months => (extract(month from now() at time zone 'Australia/Sydney')::int % 3)))
+          at time zone 'Australia/Sydney');
+$$;
+
+-- ---------- server-side totals, points and tamper protection ----------
+create or replace function public.sessions_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  li double precision;
+  ef double precision;
+begin
+  if tg_op = 'INSERT' then
+    -- Sessions saved offline upload later with their real finish time; accept up to 7 days old,
+    -- otherwise (or if in the future) use the server's clock. No long-range back-dating.
+    new.created_at := case when new.created_at between now() - interval '7 days' and now() + interval '5 minutes'
+                           then new.created_at else now() end;
+    new.user_id    := auth.uid();       -- always the signed-in user
+  else
+    new.created_at := old.created_at;   -- immutable after creation
+    new.user_id    := old.user_id;
+    new.is_pb      := old.is_pb;        -- PB is decided when the session is saved
+    new.hangs      := old.hangs;        -- the hang log can't be rewritten
+    -- a finished season's results are final: its sessions can still get a note or RPE, but not new scoring
+    if old.created_at < public.current_season_start() then
+      new.edge_mm := old.edge_mm; new.added_kg := old.added_kg; new.assist_kg := old.assist_kg;
+      new.lift_kg := old.lift_kg; new.load_pct := old.load_pct;
+    end if;
+  end if;
+
+  -- Totals come from the hang log (each hold counts up to its target), not from the app's numbers.
+  -- Same rules as src/views/hang.ts: full = held the whole target.
+  if jsonb_array_length(new.hangs) > 0 then
+    select count(*)::int,
+           count(*) filter (where (h->>'held')::double precision >= (h->>'target')::double precision)::int,
+           coalesce(sum(least((h->>'held')::double precision, (h->>'target')::double precision)), 0)
+      into new.total_hangs, new.full_hangs, new.tut_s
+      from jsonb_array_elements(new.hangs) h;
+  else
+    new.total_hangs := 0; new.full_hangs := 0; new.tut_s := 0;
+  end if;
+  if new.full_hangs = 0 then new.is_pb := false; end if; -- no PB without a single full hang
+
+  -- Same formula as src/lib/scoring.ts sessionPoints() (points v2, November 2026):
+  -- intensity = load as a fraction of bodyweight on two arms (one-arm counts double; lifts store
+  -- per-hand kg × 2 ÷ bodyweight in load_pct), clamped 0.4–3; work = tut × intensity² × edge factor;
+  -- points = 5 + 40·ln(1 + work/40) + 10 × share of hangs held full + 10 for a PB.
+  li := case when new.mode = 'lift' then coalesce(new.load_pct / 100.0, coalesce(nullif(new.effort_pct, 0), 60) / 100.0)
+             else coalesce(new.load_pct, 100) / 100.0 * case when new.hands = 'both' then 1 else 2 end end;
+  li := least(3, greatest(0.4, li));
+  ef := least(1.6, greatest(0.6, 20.0 / greatest(1, new.edge_mm)));
+  -- numeric rounding (halves round up) to match JavaScript's Math.round exactly
+  new.points := round((5 + 40 * ln(1 + greatest(0, new.tut_s) * li * li * ef / 40.0)
+                       + case when new.total_hangs > 0 then 10.0 * new.full_hangs / new.total_hangs else 0 end
+                       + case when new.is_pb then 10 else 0 end)::numeric);
+  return new;
+end $$;
+
+drop trigger if exists sessions_guard on public.sessions;
+create trigger sessions_guard
+  before insert or update on public.sessions
+  for each row execute function public.sessions_guard();
+
+-- Members can only edit what the app's "Edit session" sheet edits (points are recomputed above).
+revoke update on public.sessions from authenticated;
+grant update (edge_mm, added_kg, assist_kg, lift_kg, rpe, note, load_pct, points) on public.sessions to authenticated;
+
+-- ---------- server time on comments, hearts and reports; rate limits ----------
+create or replace function public.stamp_and_limit()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare n int;
+begin
+  new.created_at := now();
+  if tg_table_name = 'comments' then
+    select count(*) into n from public.comments where user_id = auth.uid() and created_at > now() - interval '1 hour';
+    if n >= 60 then raise exception 'You''re commenting very fast. Try again in a bit.' using errcode = 'P0001'; end if;
+  elsif tg_table_name = 'issues' then
+    select count(*) into n from public.issues where user_id = auth.uid() and created_at > now() - interval '1 hour';
+    if n >= 5 then raise exception 'You''ve sent a few reports already. Try again in an hour.' using errcode = 'P0001'; end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists comments_stamp on public.comments;
+create trigger comments_stamp before insert on public.comments for each row execute function public.stamp_and_limit();
+drop trigger if exists likes_stamp on public.likes;
+create trigger likes_stamp before insert on public.likes for each row execute function public.stamp_and_limit();
+drop trigger if exists issues_stamp on public.issues;
+create trigger issues_stamp before insert on public.issues for each row execute function public.stamp_and_limit();
+
+-- ---------- push subscriptions: real https push addresses only ----------
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'push_endpoint_ok') then
+    alter table public.push_subscriptions add constraint push_endpoint_ok check (
+      endpoint ~ '^https://[^/\s]+/' and char_length(endpoint) <= 1024
+      and char_length(p256dh) <= 200 and char_length(auth) <= 100
+      and (user_agent is null or char_length(user_agent) <= 400)
+    ) not valid;
+  end if;
+end $$;
+
+-- ---------- notification log (used only by the notify function) ----------
+-- One row per (kind, session, person), so hearting, un-hearting and hearting again notifies once.
+create table if not exists public.notify_log (
+  key  text primary key,
+  at   timestamptz not null default now()
+);
+alter table public.notify_log enable row level security;  -- no policies: members can't see or touch it
+revoke all on public.notify_log from public, anon, authenticated;
+grant select, insert, delete on public.notify_log to service_role;
+
+
+-- =====================================================================
+-- Bluies Finest: points v3, fair scoring (November 2026). Part of schema.sql (safe to run again).
+--
+-- Matches src/lib/scoring.ts. What changed:
+--   • Points are scored per day (Sydney time). Each session earns the work points it adds to
+--     its day, so lots of little sessions never beat one real one. The 5 for showing up is
+--     once a day (for a session with 15s+ under tension) and the PB bonus is once a day.
+--   • Holding every hang full time is worth up to 25% more on the session's work points,
+--     instead of a flat 10 that could be collected over and over.
+--   • One-arm hangs count each arm's time at half, so left + right at bodyweight equals a
+--     two-arm hang at +100% (the same load on each arm); one hand only is half of that.
+--   • Load comes from the kg entered and the climber's own bodyweight, worked out here, never
+--     from the app's number. With no bodyweight set, 70kg is assumed for points. Target
+--     effort % no longer counts at all.
+--   • Personal bests are checked here against the climber's earlier sessions.
+--   • A finished season's points are frozen, and nothing new can be dated into it.
+--   • When a session is added, edited or deleted, the climber's later sessions that day are
+--     re-scored automatically.
+-- At the end, every session in the current season is re-scored. Finished seasons are untouched.
+-- =====================================================================
+
+-- Start of the scoring day (midnight Sydney time) containing ts.
+create or replace function public.scoring_day_start(ts timestamptz)
+returns timestamptz
+language sql stable
+set search_path = public
+as $$
+  select date_trunc('day', ts at time zone 'Australia/Sydney') at time zone 'Australia/Sydney';
+$$;
+
+-- Training work in one session: tut × intensity² × edge factor, one-arm time at half.
+-- Intensity = two-arm-equivalent load ÷ bodyweight (one-arm hang ×2; lifts are per hand × 2 ÷ bw),
+-- clamped 0.4–3. With no load_pct (no bodyweight set), a 70kg climber is assumed.
+-- Abrahangs and Warm-up are light by design (feet on or assisted, rarely entered as assist), so
+-- they count at most 0.8. Same rules as src/lib/scoring.ts intensity().
+drop function if exists public.session_work(text, text, double precision, double precision, double precision, double precision, double precision, double precision);
+create or replace function public.session_work(p_protocol text, p_mode text, p_hands text, p_load_pct double precision,
+  p_added double precision, p_assist double precision, p_lift double precision, p_tut double precision, p_edge double precision)
+returns double precision
+language sql immutable
+set search_path = public
+as $$
+  select greatest(0, p_tut)
+       * case when p_hands = 'both' then 1 else 0.5 end
+       * power(least(case when p_protocol in ('abra', 'warm') then 0.8 else 3 end, greatest(0.4,
+           coalesce(p_load_pct,
+             least(400, greatest(10, round((case when p_mode = 'lift' then 2 * p_lift / 70.0 * 100
+                                                 else (70 + p_added - p_assist) / 70.0 * 100 end)::numeric)))::double precision)
+           / 100.0 * case when p_mode = 'hang' and p_hands <> 'both' then 2 else 1 end)), 2)
+       * least(1.6, greatest(0.6, 20.0 / greatest(1, p_edge)));
+$$;
+
+create or replace function public.sessions_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  bw       double precision;
+  day0     timestamptz;
+  w0       double precision;
+  w        double precision;
+  had_real boolean;
+  had_pb   boolean;
+  held     double precision;
+  reload   boolean;
+begin
+  if tg_op = 'INSERT' then
+    -- Sessions saved offline upload later with their real finish time; accept up to 7 days old,
+    -- otherwise (or if in the future) use the server's clock. No long-range back-dating.
+    new.created_at := case when new.created_at between now() - interval '7 days' and now() + interval '5 minutes'
+                           then new.created_at else now() end;
+    -- A finished season's results are final: nothing new can be dated into it.
+    if new.created_at < public.current_season_start() then new.created_at := now(); end if;
+    new.user_id := auth.uid();          -- always the signed-in user
+    reload := true;
+  else
+    new.created_at := old.created_at;   -- immutable after creation
+    new.user_id    := old.user_id;
+    new.is_pb      := old.is_pb;        -- PB is decided when the session is saved
+    new.hangs      := old.hangs;        -- the hang log can't be rewritten
+    -- a finished season's results are final: its sessions can still get a note or RPE, but not new scoring
+    if old.created_at < public.current_season_start() then
+      new.edge_mm := old.edge_mm; new.added_kg := old.added_kg; new.assist_kg := old.assist_kg;
+      new.lift_kg := old.lift_kg;
+    end if;
+    reload := new.added_kg is distinct from old.added_kg or new.assist_kg is distinct from old.assist_kg
+           or new.lift_kg is distinct from old.lift_kg;
+  end if;
+
+  -- Load always comes from the kg entered and the climber's own bodyweight, never the app's number.
+  -- (Edits only recompute it when the weights change, using today's bodyweight.)
+  if reload then
+    select pd.bodyweight_kg into bw from public.private_data pd where pd.id = new.user_id;
+    new.load_pct := case when bw is null or bw <= 0 then null
+                         when new.mode = 'lift' then least(400, greatest(10, round((2 * new.lift_kg / bw * 100)::numeric)))
+                         else least(400, greatest(10, round(((bw + new.added_kg - new.assist_kg) / bw * 100)::numeric))) end;
+  else
+    new.load_pct := old.load_pct;
+  end if;
+
+  -- Totals come from the hang log (each hold counts up to its target), not from the app's numbers.
+  if jsonb_array_length(new.hangs) > 0 then
+    select count(*)::int,
+           count(*) filter (where (h->>'held')::double precision >= (h->>'target')::double precision)::int,
+           coalesce(sum(least((h->>'held')::double precision, (h->>'target')::double precision)), 0)
+      into new.total_hangs, new.full_hangs, new.tut_s
+      from jsonb_array_elements(new.hangs) h;
+  else
+    new.total_hangs := 0; new.full_hangs := 0; new.tut_s := 0;
+  end if;
+
+  -- Personal best, checked against the climber's earlier sessions (same rules as src/views/hang.ts):
+  -- heavier than every comparable session (same mode, edge, one/two-arm, hang length within 3s),
+  -- or a smaller edge than ever before at the same load or more.
+  if tg_op = 'INSERT' then
+    new.is_pb := new.full_hangs > 0 and (
+      (exists (select 1 from public.sessions c
+                where c.user_id = new.user_id and c.mode = new.mode and c.edge_mm = new.edge_mm and c.full_hangs > 0
+                  and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                  and (new.mode = 'lift' or c.load_pct is not null))
+       and case when new.mode = 'lift' then
+             not exists (select 1 from public.sessions c
+                          where c.user_id = new.user_id and c.mode = 'lift' and c.edge_mm = new.edge_mm and c.full_hangs > 0
+                            and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                            and c.lift_kg >= new.lift_kg)
+           else
+             new.load_pct is not null
+             and not exists (select 1 from public.sessions c
+                              where c.user_id = new.user_id and c.mode = 'hang' and c.edge_mm = new.edge_mm and c.full_hangs > 0
+                                and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                                and c.load_pct is not null and c.load_pct >= new.load_pct)
+           end)
+      or
+      (new.mode = 'hang' and new.load_pct is not null
+       and exists (select 1 from public.sessions c
+                    where c.user_id = new.user_id and c.mode = 'hang' and c.full_hangs > 0 and c.load_pct is not null
+                      and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                      and c.edge_mm > new.edge_mm)
+       and not exists (select 1 from public.sessions c
+                        where c.user_id = new.user_id and c.mode = 'hang' and c.full_hangs > 0 and c.load_pct is not null
+                          and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                          and c.load_pct >= new.load_pct and c.edge_mm <= new.edge_mm))
+    );
+  end if;
+  if new.full_hangs = 0 then new.is_pb := false; end if; -- no PB without a single full hang
+
+  -- Points: the work this session adds to the climber's day, with diminishing returns per day.
+  day0 := public.scoring_day_start(new.created_at);
+  select coalesce(sum(public.session_work(c.protocol_key, c.mode, c.hands, c.load_pct, c.added_kg, c.assist_kg, c.lift_kg, c.tut_s, c.edge_mm)), 0),
+         coalesce(bool_or(c.tut_s >= 15), false),
+         coalesce(bool_or(c.is_pb), false)
+    into w0, had_real, had_pb
+    from public.sessions c
+   where c.user_id = new.user_id and c.id <> new.id
+     and c.created_at >= day0
+     and (c.created_at, c.id) < (new.created_at, new.id);
+  w := public.session_work(new.protocol_key, new.mode, new.hands, new.load_pct, new.added_kg, new.assist_kg, new.lift_kg, new.tut_s, new.edge_mm);
+  held := case when new.total_hangs > 0 then new.full_hangs::double precision / new.total_hangs else 0 end;
+  -- numeric rounding (halves round up) to match JavaScript's Math.round
+  new.points := round((
+      case when new.tut_s >= 15 and not had_real then 5 else 0 end
+    + (40 * ln(1 + (w0 + w) / 40.0) - 40 * ln(1 + w0 / 40.0)) * (1 + 0.25 * held)
+    + case when new.is_pb and not had_pb then 10 else 0 end)::numeric);
+
+  -- a finished season's points are final
+  if tg_op = 'UPDATE' and old.created_at < public.current_season_start() then new.points := old.points; end if;
+  return new;
+end $$;
+
+drop trigger if exists sessions_guard on public.sessions;
+create trigger sessions_guard
+  before insert or update on public.sessions
+  for each row execute function public.sessions_guard();
+
+-- The season lock is now inside sessions_guard (it has to run before points are worked out).
+drop trigger if exists sessions_season_lock on public.sessions;
+drop function if exists public.sessions_season_lock();
+
+-- When a session is added, edited or deleted, re-score the climber's later sessions that day
+-- (each session's points depend on the work done earlier that day). Runs as the owner so an
+-- admin removing someone's session re-scores theirs too.
+create or replace function public.sessions_rescore_day()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r    record;
+  day0 timestamptz;
+begin
+  if pg_trigger_depth() > 1 then return null; end if; -- the re-score itself doesn't cascade
+  if tg_op = 'DELETE' then r := old; else r := new; end if;
+  day0 := public.scoring_day_start(r.created_at);
+  update public.sessions s set points = s.points
+   where s.user_id = r.user_id
+     and s.created_at >= greatest(day0, public.current_season_start())
+     and s.created_at < day0 + interval '26 hours'
+     and public.scoring_day_start(s.created_at) = day0
+     and (s.created_at, s.id) > (r.created_at, r.id);
+  return null;
+end $$;
+
+drop trigger if exists sessions_rescore_ins on public.sessions;
+create trigger sessions_rescore_ins after insert on public.sessions
+  for each row execute function public.sessions_rescore_day();
+drop trigger if exists sessions_rescore_del on public.sessions;
+create trigger sessions_rescore_del after delete on public.sessions
+  for each row execute function public.sessions_rescore_day();
+drop trigger if exists sessions_rescore_upd on public.sessions;
+create trigger sessions_rescore_upd after update on public.sessions
+  for each row when (old.load_pct is distinct from new.load_pct or old.edge_mm is distinct from new.edge_mm)
+  execute function public.sessions_rescore_day();
+
+-- Re-score this season with the new rules (each session's points depend only on the other
+-- sessions' weights and times, so the order rows are updated in doesn't matter).
+update public.sessions set points = points where created_at >= public.current_season_start();

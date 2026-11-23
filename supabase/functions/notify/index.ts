@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     if (payload.table === 'likes') {
       const { data: first, error: logErr } = await db.from('notify_log')
         .upsert({ key: `like:${rec.session_id}:${rec.user_id}` }, { onConflict: 'key', ignoreDuplicates: true }).select('key');
-      if (logErr) console.error('notify_log unavailable (run supabase/hardening-2.sql):', logErr.message);
+      if (logErr) console.error('notify_log unavailable (run supabase/schema.sql):', logErr.message);
       else if (!first?.length) return json(200, { skipped: 'already notified for this heart' });
     }
 

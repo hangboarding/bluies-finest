@@ -4,7 +4,7 @@
 import { esc, avatar, sheet, toast } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, seasonsWon } from '../lib/state';
-import { weekStreak, dayKey, addDays, weekStart, favouriteProtocol, CATEGORIES } from '../lib/scoring';
+import { weekStreak, dayKey, addDays, weekStart, favouriteProtocol } from '../lib/scoring';
 import { TIERED, TIER_NAMES, TIER_COLOURS, tierOf, type Ctx } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { sessRow } from './stats';

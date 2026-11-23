@@ -1,7 +1,7 @@
 import { $, $$, esc, sheet, confirmSheet, toast, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
-import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, CATEGORIES, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
+import { weekStreak, bestDayRun, dayKey, weekStart, addDays, sessionPoints, loadPct, favouriteProtocol, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, tierOf } from '../lib/achievements';
 import type { Session } from '../lib/types';
 import { placeOf } from '../lib/leaderboard';
@@ -10,7 +10,7 @@ const DAY = 864e5, MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'
 let hs: 'w' | 'm' | 'q' | 'y' = 'y', ho = 0;
 
 export function renderStats(root: HTMLElement) {
-  const mine = mySessions(), now = new Date();
+  const mine = mySessions();
   const rank = placeOf(state.me?.id); // same ranking as the Ranks page
   root.innerHTML = `
   <div class="card"><div class="stats" style="margin:0"><div class="stat"><b>${mine.length}</b>sessions</div><div class="stat"><b>${weekStreak(mine)} ${ic('streak')}</b>wk streak</div><div class="stat"><b>${rank}</b>rank</div></div>${(() => { const f = favouriteProtocol(mine); return f ? `<p class="fav">${ic('star')} Favourite protocol: <b>${esc(f.name)}</b> · ${f.count} session${f.count > 1 ? 's' : ''} (${f.pct}%)</p>` : ''; })()}</div>

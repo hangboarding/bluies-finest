@@ -31,7 +31,7 @@ Without Supabase keys the app runs in **demo mode**: data stays in your browser,
 ## Set up the real backend
 
 Follow [docs/SUPABASE.md](docs/SUPABASE.md) (about 15 minutes, free plan). In short:
-1. Run `supabase/schema.sql` in a new Supabase project.
+1. Run `supabase/schema.sql` in a new Supabase project. To update an existing project later, run the whole file again: it's safe to re-run.
 2. Add the project URL and publishable key as GitHub secrets.
 3. Set up an email sender.
 4. Make yourself admin.
@@ -48,6 +48,7 @@ Harder training earns more, and there's nothing to gain from gaming it.
   - **Intensity:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2. Capped between 0.4 and 3. Squared, so heavier hangs earn clearly more.
   - **One-arm hangs** count each arm's time at half, so left + right at bodyweight equals a two-arm hang at +100%: the same load on each arm.
   - **Edge factor:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
+  - **Abrahangs and Warm-up** are done light (feet on or assisted), which people rarely enter as assist, so they count at most 80% of bodyweight.
 - **Points are scored per day.** A day's work is worth 40 × ln(1 + work ÷ 40): more always scores more, with diminishing returns, so long easy volume can't beat heavy work. Each session gets what it adds to its day, so splitting training into lots of little sessions earns nothing extra.
   - Holding every hang its full time adds up to 25% to a session's work points.
   - +5 for the day's first session with 15s or more under tension, and +10 for the day's first personal best (checked on the server).
@@ -60,6 +61,8 @@ Harder training earns more, and there's nothing to gain from gaming it.
 |---|---|
 | `src/views/` | Screens: Hang, Activity, Ranks, Stats, Profile, Admin, sign-in, tour |
 | `src/lib/` | Timer, scoring, achievements, offline outbox, and the two backends (demo and Supabase) |
-| `supabase/` | `schema.sql` (everything for a new project), update scripts for existing projects, and the `notify` push function |
-| `tests/` | Vitest suite |
-| `design/` | The original clickable sketch and logo explorations |
+| `supabase/` | `schema.sql` (the whole database in one re-runnable file) and the `notify` push function |
+| `tests/` | Vitest suite, including `schema.test.ts`, which runs `schema.sql` in an in-process Postgres and checks its points match the app |
+| `docs/` | Setup guides: [SUPABASE.md](docs/SUPABASE.md) (backend) and [PUSH.md](docs/PUSH.md) (phone notifications and problem reports) |
+| `public/` | App icons, the push notification worker, and the standalone tour page linked from sign-in |
+| `scripts/` | `og-image.mjs`, which draws the link-preview image (`public/og-image.png`) |
