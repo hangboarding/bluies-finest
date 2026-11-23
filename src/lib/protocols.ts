@@ -60,15 +60,14 @@ export const TIPS: Record<string, [string, string]> = {
 export const QUOTES: [string, string][] = [
   ['The board has been humbled.', 'You walked in, hung, and left it shook. Iconic.'],
   ['Do the mahi, get the treat', '🍭🍬🍭🍬🍭'],
-  ['Fierce. Fabulous. Forearms.', 'Rest up, superstar. You earned every second.'],
-  ['Ate and left no crimps.', "That session was a full-course meal. Chef's kiss."],
-  ['Crimp royalty has entered the chat 👑', 'Bow down, then go hydrate, queen.'],
+  ['Fierce. Fabulous. Forearms.', 'Rest up, superstar. You earned every second 😘'],
+  ['Ate and left no crimps.', "That was a full-course meal. Chef's kiss 👩‍🍳"],
+  ['Look at the big strong boi', 'Take a bow, then go hydrate, queen.'],
   ['Not you making it look easy 🙄💖', 'Rude of you to be this strong. Keep it up.'],
-  ['The edge is SHOOK.', 'That edge never stood a chance against you.'],
-  ['Slay of the day 🔥', 'Tendons thank you. Rest well, legend.'],
-  ["It's giving… unstoppable.", 'Consistency looks gorgeous on you.'],
-  ['Serve, sweat, repeat 💦', 'Another deposit in the strength bank, darling.'],
-  ['Gagged. Absolutely gagged.', "We'd clap but you've got chalk everywhere."],
+  ['King of the castle.', '👑🏰'],
+  ['Slay of the day 🔥', 'Rest well, legend.'],
+  ["Consistency looks gorgeous on you.", 'Keep up the work'],
+  ['Bask in the dopamine', "You've earned it."],
 ];
 
 /** Near-maximal protocols: warm up first, and don't overdo them. */
