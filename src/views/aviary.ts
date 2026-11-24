@@ -1,6 +1,6 @@
 // The crew's weekly flock: the bird button in the header opens a clearing where every 30 points anyone
 // earns this week brings a bird. See lib/flock.ts for the counting and src/aviary/ for the birds.
-import { $, esc, avatar } from '../lib/ui';
+import { $, esc, avatar, onSwipe, slideIn } from '../lib/ui';
 import { state, refreshShared } from '../lib/state';
 import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, SPECIES_NAMES, POINTS_PER_BIRD, type FlockMember, type SpeciesId } from '../lib/flock';
 import { FACTS } from '../aviary/facts';
@@ -67,31 +67,35 @@ export function openAviary() {
     <div class="av-head">
       <div class="av-top">
         <button class="av-back" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <div class="av-tt"><b>Bird of the week</b><span>${esc(names.one)}</span></div>
+        <div class="av-tt"><b>Bird of the week</b><span>${esc(names.one)} <i>${esc(names.sci)}</i></span></div>
       </div>
-      <div class="av-facts" role="group" aria-roledescription="carousel" aria-label="About the ${esc(names.one.toLowerCase())}">
+      <div class="av-facts" role="group" aria-roledescription="carousel" aria-label="About the ${esc(names.one.toLowerCase())}: tap or swipe for more" tabindex="0">
         <div class="av-fact-list">${facts.map((f, i) => `<p class="${i ? '' : 'on'}"${i ? ' aria-hidden="true"' : ''}>${esc(f)}</p>`).join('')}</div>
-        <div class="av-dots">${facts.map((_, i) => `<button type="button" class="${i ? '' : 'on'}" data-fact="${i}" aria-label="Fact ${i + 1} of ${facts.length}"></button>`).join('')}</div>
       </div>
     </div>
     <div class="av-stage"><canvas role="img" aria-label="${esc(names.many)} in a Blue Mountains clearing"></canvas><div class="av-msg hide" id="avMsg"></div><div class="av-new hide" id="avNew"></div></div>
-    <div class="av-foot"><div class="av-legend" id="avLegend"></div><p class="av-hint">Every ${POINTS_PER_BIRD} points anyone earns brings a bird, and they fly off when Sunday ends. Tap the ground to throw some seed, or a bird to startle it.</p></div>`;
+    <div class="av-foot"><div class="av-legend" id="avLegend"></div><p class="av-hint">Tap the ground to throw some seed, or a bird to startle it.</p></div>`;
   document.body.append(el);
   history.pushState({ aviary: 1 }, '');
 
-  // ---- the facts: one at a time, moving on slowly; tap for the next one, or a dot for that one ----
-  let fact = 0;
-  const showFact = (i: number) => {
-    fact = (i + facts.length) % facts.length;
-    el.querySelectorAll('.av-fact-list p').forEach((p, j) => { p.classList.toggle('on', j === fact); p.setAttribute('aria-hidden', String(j !== fact)); });
-    el.querySelectorAll('.av-dots button').forEach((d, j) => d.classList.toggle('on', j === fact));
-  };
+  // ---- the facts: one at a time, moving on slowly. Tap (or swipe left) for the next, swipe right for the one before. ----
+  let fact = 0, swiped = 0;
   const FACT_MS = 7000;
   let factT = setInterval(() => showFact(fact + 1), FACT_MS);
-  $('.av-facts', el).addEventListener('click', e => {
-    const d = (e.target as HTMLElement).closest('[data-fact]') as HTMLElement | null;
-    showFact(d ? +d.dataset.fact! : fact + 1);
-    clearInterval(factT); factT = setInterval(() => showFact(fact + 1), FACT_MS);
+  const showFact = (i: number, by?: 'left' | 'right') => {
+    fact = (i + facts.length) % facts.length;
+    el.querySelectorAll('.av-fact-list p').forEach((p, j) => { p.classList.toggle('on', j === fact); p.setAttribute('aria-hidden', String(j !== fact)); });
+    if (by) slideIn($('.av-fact-list', el), by);
+    clearInterval(factT); factT = setInterval(() => showFact(fact + 1), FACT_MS); // a fresh 7 seconds to read it
+  };
+  const factsEl = $('.av-facts', el);
+  onSwipe(factsEl, dir => { swiped = Date.now(); showFact(fact + (dir === 'left' ? 1 : -1), dir); });
+  factsEl.addEventListener('click', () => { if (Date.now() - swiped > 400) showFact(fact + 1); }); // a mouse drag also ends in a click
+  factsEl.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') showFact(fact - 1);
+    else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') showFact(fact + 1);
+    else return;
+    e.preventDefault();
   });
 
   const stage = $('.av-stage', el), cv = $('canvas', stage) as HTMLCanvasElement, ctx = cv.getContext('2d');

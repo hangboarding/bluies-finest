@@ -7,17 +7,18 @@ import type { Profile, Session } from './types';
 export const POINTS_PER_BIRD = 30;
 export const SPECIES_ORDER = ['currawong', 'galah', 'kingparrot', 'cockatoo', 'rosella', 'magpie', 'raven', 'woodduck', 'crimsonrosella', 'wattlebird'] as const;
 export type SpeciesId = typeof SPECIES_ORDER[number];
-export const SPECIES_NAMES: Record<SpeciesId, { one: string; many: string }> = {
-  currawong: { one: 'Pied currawong', many: 'Currawongs' },
-  galah: { one: 'Galah', many: 'Galahs' },
-  kingparrot: { one: 'Australian king parrot', many: 'King parrots' },
-  cockatoo: { one: 'Sulphur-crested cockatoo', many: 'Cockatoos' },
-  rosella: { one: 'Eastern rosella', many: 'Eastern rosellas' },
-  magpie: { one: 'Australian magpie', many: 'Magpies' },
-  raven: { one: 'Australian raven', many: 'Ravens' },
-  woodduck: { one: 'Australian wood duck', many: 'Wood ducks' },
-  crimsonrosella: { one: 'Crimson rosella', many: 'Crimson rosellas' },
-  wattlebird: { one: 'Red wattlebird', many: 'Red wattlebirds' },
+/** Each bird's name, plural, and scientific name. */
+export const SPECIES_NAMES: Record<SpeciesId, { one: string; many: string; sci: string }> = {
+  currawong: { one: 'Pied currawong', many: 'Currawongs', sci: 'Strepera graculina' },
+  galah: { one: 'Galah', many: 'Galahs', sci: 'Eolophus roseicapilla' },
+  kingparrot: { one: 'Australian king parrot', many: 'King parrots', sci: 'Alisterus scapularis' },
+  cockatoo: { one: 'Sulphur-crested cockatoo', many: 'Cockatoos', sci: 'Cacatua galerita' },
+  rosella: { one: 'Eastern rosella', many: 'Eastern rosellas', sci: 'Platycercus eximius' },
+  magpie: { one: 'Australian magpie', many: 'Magpies', sci: 'Gymnorhina tibicen' },
+  raven: { one: 'Australian raven', many: 'Ravens', sci: 'Corvus coronoides' },
+  woodduck: { one: 'Australian wood duck', many: 'Wood ducks', sci: 'Chenonetta jubata' },
+  crimsonrosella: { one: 'Crimson rosella', many: 'Crimson rosellas', sci: 'Platycercus elegans' },
+  wattlebird: { one: 'Red wattlebird', many: 'Red wattlebirds', sci: 'Anthochaera carunculata' },
 };
 
 /** The currawongs' first week. */
