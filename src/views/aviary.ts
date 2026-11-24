@@ -1,6 +1,6 @@
 // The crew's weekly flock: the bird button in the header opens a clearing where every 30 points anyone
 // earns this week brings a bird. See lib/flock.ts for the counting and src/aviary/ for the birds.
-import { $, esc, avatar, onSwipe, slideIn } from '../lib/ui';
+import { $, esc, avatar, onSwipe, slideIn, toast } from '../lib/ui';
 import { state, refreshShared } from '../lib/state';
 import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, SPECIES_NAMES, POINTS_PER_BIRD, type FlockMember, type SpeciesId } from '../lib/flock';
 import { FACTS } from '../aviary/facts';
@@ -9,8 +9,11 @@ import { drawBird, restPose } from '../aviary/rig';
 import { World } from '../aviary/sim';
 import { paintSky, paintLand, paintCanopy, paintProps, skyAt, type Sprite } from '../aviary/scene';
 import { drawWorld } from '../aviary/render';
-import { birdSound } from '../aviary/sound';
-import { unlockAudio } from '../lib/timer';
+import { birdSound, owlHoot, birdsMuted, setBirdsMuted } from '../aviary/sound';
+import { unlockAudio, soundOn } from '../lib/timer';
+
+const SPEAKER = '<path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/>';
+const muteIcon = (muted: boolean) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPEAKER}${muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>'}</svg>`;
 
 /** At most this many birds on screen; the count still shows them all. */
 const MAX_BIRDS = 120;
@@ -58,7 +61,8 @@ export function openAviary() {
   if (isOpen) return;
   isOpen = true;
   unlockAudio();
-  const id = speciesOfWeek(), names = SPECIES_NAMES[id], week = weekIndex();
+  const devBird = import.meta.env.DEV ? new URLSearchParams(location.search).get('bird') : null; // ?bird=galah to try another week's bird
+  const id = devBird && devBird in SPECIES_NAMES ? devBird as SpeciesId : speciesOfWeek(), names = SPECIES_NAMES[id], week = weekIndex();
   const opener = document.activeElement as HTMLElement | null;
   const el = document.createElement('div');
   el.className = 'aviary'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', labelOf(id));
@@ -68,6 +72,7 @@ export function openAviary() {
       <div class="av-top">
         <button class="av-back" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <div class="av-tt"><b>Bird of the week</b><span>${esc(names.one)} <i>${esc(names.sci)}</i></span></div>
+        <button class="av-mute" id="avMute"></button>
       </div>
       <div class="av-facts" role="group" aria-roledescription="carousel" aria-label="About the ${esc(names.one.toLowerCase())}: tap or swipe for more" tabindex="0">
         <div class="av-fact-list">${facts.map((f, i) => `<p class="${i ? '' : 'on'}"${i ? ' aria-hidden="true"' : ''}>${esc(f)}</p>`).join('')}</div>
@@ -104,10 +109,13 @@ export function openAviary() {
   const world = new World();
   let dpr = 1, hourPainted = -1, light = 1, raf = 0, last = performance.now();
   world.onSound = (b, k) => birdSound(b.sp.id, k, (b.x / world.w) * 1.4 - 0.7, 0.45 + 0.55 * Math.min(1, Math.max(0, (b.y - world.hor) / world.gh)));
+  world.onOwl = x => owlHoot((x / world.w) * 1.4 - 0.7, 0.8);
 
-  const hourNow = () => { const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
+  // the real time of day; while developing, ?hour=22 (say) shows another time
+  const fakeHour = import.meta.env.DEV ? new URLSearchParams(location.search).get('hour') : null;
+  const hourNow = () => { if (fakeHour) return +fakeHour; const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
   const paint = () => {
-    const h = hourNow(); hourPainted = h; const s = skyAt(h); light = s.light; world.night = light < 0.25;
+    const h = hourNow(); hourPainted = h; const s = skyAt(h); light = s.light; world.night = light < 0.25; world.hour = h;
     for (const [cvx, f] of [[sky, paintSky], [land, paintLand], [canopy, paintCanopy]] as const) {
       cvx.width = Math.round(world.w * dpr); cvx.height = Math.round(world.h * dpr);
       const c = cvx.getContext('2d'); if (!c) continue;
@@ -190,6 +198,15 @@ export function openAviary() {
   addEventListener('popstate', onPop);
   const back = () => { if (history.state?.aviary) history.back(); else close(); };
   $('.av-back', el).addEventListener('click', back);
+  // the mute button: just the birds and animals (the app's Sound setting still rules everything)
+  const muteBtn = $('#avMute', el);
+  const paintMute = () => { const off = birdsMuted || !soundOn; muteBtn.innerHTML = muteIcon(off); muteBtn.setAttribute('aria-label', off ? 'Unmute the birds' : 'Mute the birds'); muteBtn.setAttribute('aria-pressed', String(off)); };
+  paintMute();
+  muteBtn.addEventListener('click', () => {
+    if (!soundOn) { toast('Sound is off in Profile. Turn it on there to hear the birds.'); return; }
+    setBirdsMuted(!birdsMuted); paintMute();
+    if (!birdsMuted) { unlockAudio(); const b = world.birds.find(x => !x.leaving && x.alt < 1 && x.perch < 0); if (b) world.go(b, 'call'); } // someone sings to say hello
+  });
   function close() {
     if (!isOpen) return;
     isOpen = false;

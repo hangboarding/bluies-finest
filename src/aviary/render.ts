@@ -3,6 +3,9 @@
 import { drawBird } from './rig';
 import { windPt, FLYING, type Bird, type Bug, type Prop, type World } from './sim';
 import type { Sprite } from './scene';
+import { critterDepth } from './critters';
+import { drawCritter, owlEyeShine } from './critter-draw';
+import { drawRock } from './nature';
 
 type Ctx = CanvasRenderingContext2D;
 const TAU = Math.PI * 2;
@@ -107,17 +110,12 @@ function bug(c: Ctx, w: World, g: Bug) {
   }
 }
 
-function rock(c: Ctx, p: Prop) {
-  const s = p.s, grey = p.seed % 3 === 0;
-  c.fillStyle = 'rgba(35,40,20,0.28)'; c.beginPath(); c.ellipse(p.x + s * 0.2, p.y, s * 1.15, s * 0.36, 0, 0, TAU); c.fill();
-  c.fillStyle = grey ? '#8f8a7c' : '#a68a62'; c.beginPath(); c.ellipse(p.x, p.y - s * 0.32, s, s * 0.6, 0, 0, TAU); c.fill();
-  c.fillStyle = 'rgba(60,45,30,0.35)'; c.beginPath(); c.ellipse(p.x + s * 0.3, p.y - s * 0.18, s * 0.6, s * 0.3, 0, 0, TAU); c.fill();
-  c.fillStyle = grey ? '#b6b1a2' : '#cbb083'; c.beginPath(); c.ellipse(p.x - s * 0.28, p.y - s * 0.55, s * 0.5, s * 0.25, -0.2, 0, TAU); c.fill();
-}
+function rock(c: Ctx, p: Prop) { drawRock(c, p.x, p.y, p.s, p.seed); }
 function prop(c: Ctx, w: World, p: Prop, s: Sprite | null) {
-  if (p.k === 'rock') return rock(c, p);
-  if (!s) return;
-  const k = p.flex ? p.flex * (0.012 * Math.sin(w.t * 1.3 + p.x * 0.05) + 0.05 * Math.min(1.5, w.gust) * w.windDir) : 0; // swaying in the breeze
+  if (!s) { if (p.k === 'rock') rock(c, p); return; }
+  // swaying in the breeze: a slow lean and a quicker flutter, each plant in its own time, and a push with every gust
+  const ph = p.seed * 0.37 + p.x * 0.05;
+  const k = p.flex ? p.flex * (0.035 * (0.7 * Math.sin(w.t * 0.9 + ph) + 0.3 * Math.sin(w.t * 2.3 + ph * 1.7)) + 0.05 * Math.min(1.5, w.gust) * w.windDir) : 0;
   c.save(); c.translate(p.x, p.y); if (k) c.transform(1, 0, -k, 1, 0, 0);
   c.drawImage(s.cv, s.ox, s.oy, s.w, s.h); c.restore();
 }
@@ -148,11 +146,16 @@ export function drawWorld(c: Ctx, w: World, L: Layers, light: number) {
     c.globalAlpha = 0.35 + 0.2 * Math.sin(w.t * 7); c.fillStyle = b.band; c.beginPath(); c.ellipse(b.x, b.y, rx, rx * 0.3, 0, 0, TAU); c.fill(); c.globalAlpha = 1;
   }
   // birds and everything standing in the clearing, furthest first, so a bird can walk behind a bush
-  const items: [number, number][] = [];
-  w.props.forEach((p, i) => items.push([p.y, -1 - i]));
-  w.birds.forEach((b, i) => items.push([w.depth(b), i]));
+  const items: [number, number, number][] = []; // depth, what (0 bird, 1 prop, 2 animal), which
+  w.props.forEach((p, i) => items.push([p.y, 1, i]));
+  w.birds.forEach((b, i) => items.push([w.depth(b), 0, i]));
+  w.critters.forEach((cr, i) => { if (!cr.hidden) items.push([critterDepth(w, cr), 2, i]); });
   items.sort((a, b) => a[0] - b[0]);
-  for (const [, i] of items) { if (i >= 0) bird(c, w, w.birds[i]!); else prop(c, w, w.props[-1 - i]!, L.props[-1 - i] ?? null); }
+  for (const [, t, i] of items) {
+    if (t === 0) bird(c, w, w.birds[i]!);
+    else if (t === 1) prop(c, w, w.props[i]!, L.props[i] ?? null);
+    else drawCritter(c, w, w.critters[i]!);
+  }
   c.drawImage(L.canopy, 0, 0, w.w, w.h);
   for (const g of w.bugs) if (FLYING.has(g.k) && w.bugAwake(g)) bug(c, w, g); // in the air
   for (const p of w.parts) {
@@ -172,4 +175,5 @@ export function drawWorld(c: Ctx, w: World, L: Layers, light: number) {
   motes(c, w, light);
   winds(c, w, light);
   if (light < 0.98) { c.fillStyle = `rgba(6,12,34,${(1 - light) * 0.42})`; c.fillRect(0, 0, w.w, w.h); }
+  for (const cr of w.critters) if (cr.k === 'owl') owlEyeShine(c, w, cr);
 }

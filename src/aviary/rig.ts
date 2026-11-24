@@ -201,11 +201,17 @@ export function drawBird(c: Ctx, sp: Species, lk: Look, p: Pose, o: DrawOpts = {
     tail.quadraticCurveTo(Rx + dx * (L + w1 * 0.45), Ry + dy * (L + w1 * 0.45), Rx + dx * L - nx * w1, Ry + dy * L - ny * w1);
     tail.lineTo(Rx - nx * w0, Ry - ny * w0); tail.closePath();
     c.fillStyle = col(lk.tail); c.fill(tail);
-    if (!sil && (lk.tailTip || lk.tailBase)) {
+    if (!sil && (lk.tailTip || lk.tailBase || lk.tailPanel)) {
       c.save(); c.clip(tail);
       const band = (t0: number, t1: number, colr: string) => { const a = L * t0, b = L * t1 + w1; poly(c, [[Rx + dx * a + nx * 30, Ry + dy * a + ny * 30], [Rx + dx * b + nx * 30, Ry + dy * b + ny * 30], [Rx + dx * b - nx * 30, Ry + dy * b - ny * 30], [Rx + dx * a - nx * 30, Ry + dy * a - ny * 30]]); c.fillStyle = colr; c.fill(); };
       if (lk.tailBase) band(-0.2, 0.34, lk.tailBase);
       if (lk.tailTip) band(0.84, 1.3, lk.tailTip);
+      if (lk.tailPanel) { // yellow across the outer feathers, the middle pair dark, showing more as the tail fans
+        band(0.3, 0.74, col(lk.tailPanel));
+        const k = 0.32 * (1 - 0.45 * p.fan);
+        poly(c, [[Rx + nx * w0 * k, Ry + ny * w0 * k], [Rx + dx * L + nx * w1 * k, Ry + dy * L + ny * w1 * k], [Rx + dx * L - nx * w1 * k, Ry + dy * L - ny * w1 * k], [Rx - nx * w0 * k, Ry - ny * w0 * k]]);
+        c.fillStyle = col(lk.tail); c.fill();
+      }
       c.restore();
     }
   }

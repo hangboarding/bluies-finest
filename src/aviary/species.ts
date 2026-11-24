@@ -11,6 +11,8 @@ export interface Look {
   billUp: string; billLo: string; billTip?: string;
   wing: string; primary: string; wingPatch?: string; shoulder?: string;
   tail: string; tailTip?: string; tailBase?: string; vent?: string;
+  /** Black cockatoo: the yellow panels in the outer tail feathers, the middle ones dark. */
+  tailPanel?: string;
   leg: string; thigh?: string; crest?: string; backLines?: string;
   /** Red wattlebird: the red skin hanging from the cheek, and the white streaks all over. */
   wattle?: string; streaks?: string;
@@ -167,6 +169,20 @@ export const SPECIES: Record<SpeciesId, Species> = {
     },
     acts: { walk: 0.5, hop: 3, peck: 2, nectar: 6, hawk: 4, drink: 1.5, bathe: 1.5, call: 3, preen: 2, stretch: 1, shake: 1, pester: 6, perch: 5, idle: 2, fly: 2.5, hunt: 1 },
     chatty: 1.4, bold: 1, song: [[0, 0.12], [0.18, 0.3], [0.38, 0.62]],
+  },
+  blackcockatoo: {
+    id: 'blackcockatoo', size: 1.25, rx: 22, ry: 13.5, leg: 13, neck: 7, hr: 10.5,
+    bill: { type: 'hook', len: 10, depth: 11 }, tailLen: 44, tailW0: 6, tailW1: 10, tailDroop: 0.06, pitch: 0.85,
+    wingTip: 4, span: 76, crest: 'galah', feet: 'zygo', gait: 'waddle', walkSpeed: 18, glide: 0.55, flapHz: 3.2,
+    look: {
+      body: '#2b2521', scallop: '#4d412c', head: '#2b2521', headPatches: [P(-0.08, 0.3, 0.46, 0.36, '#e9c13a')], neck: '#2b2521',
+      iris: '#2a1a14', eyeRing: '#d9788a', billUp: '#2a2a2c', billLo: '#232325',
+      wing: '#2a241f', primary: '#1d1916', tail: '#26211d', tailPanel: '#efc93f', leg: '#5b5552', thigh: '#2b2521', crest: '#2b2521',
+    },
+    // females have a pale bill, a grey eye ring, and a bigger, brighter yellow cheek
+    female: { headPatches: [P(-0.06, 0.28, 0.58, 0.46, '#f2cd3e')], eyeRing: '#9b9b98', billUp: '#d9cdb2', billLo: '#cbbfa5' },
+    acts: { walk: 2, peck: 2, seed: 5, footfeed: 4, probe: 3, drink: 1, bathe: 0.7, call: 3.5, preen: 2.5, stretch: 1.2, shake: 1, pester: 1.5, perch: 4, hang: 1, idle: 2, fly: 2.5 },
+    chatty: 1.3, bold: 0.6, song: [[0, 0.62], [0.8, 1.45]],
   },
 };
 

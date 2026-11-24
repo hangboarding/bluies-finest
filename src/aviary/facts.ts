@@ -10,7 +10,7 @@ export const FACTS: Record<SpeciesId, [string, string, string, string]> = {
   ],
   galah: [
     '“Galah” comes from gilaa, its name in the Yuwaalaraay language of northern NSW.',
-    'Call someone a galah and you’re calling them a bit of a fool.',
+    'Call someone a galah and you’re calling them a bit of a cunt.',
     'When it rains, galahs hang upside down from branches and wires, wings spread, to shower.',
     'Once mostly an inland bird, it spread to the coast as farms brought grain and water.',
   ],
@@ -61,5 +61,11 @@ export const FACTS: Record<SpeciesId, [string, string, string, string]> = {
     'It’s the largest honeyeater on the mainland.',
     'It’s bossy: it chases other birds away from trees in flower.',
     'Its brush-tipped tongue mops up nectar, pollinating grevilleas and banksias as it feeds.',
+  ],
+  blackcockatoo: [
+    'It rips branches open to get at fat wood-boring grubs, leaving the wood torn and splintered.',
+    'Its wailing “wee-la” carries a long way, and bush lore says a passing flock means rain is coming.',
+    'Females have a pale bill and bigger yellow cheeks; males have a black bill and a pink eye ring.',
+    'It lays two eggs but almost always raises just one chick, which stays with its parents for months.',
   ],
 };

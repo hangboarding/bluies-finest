@@ -7,6 +7,7 @@
 import { lookOf, SPECIES, type Behaviour, type Look, type Species } from './species';
 import { restPose, billTip, type Pose, type PoseKey } from './rig';
 import type { SpeciesId } from '../lib/flock';
+import { stepCritters, tapCritter, type Critter } from './critters';
 
 export type Act = Behaviour | 'faceoff' | 'flee' | 'chase' | 'perched' | 'sleep' | 'forage' | 'arrive' | 'depart' | 'startle' | 'notice' | 'eat' | 'roost';
 export type SoundKind = 'song' | 'alarm' | 'squabble';
@@ -34,9 +35,10 @@ export interface Perch { x: number; y: number; gy: number; by: Bird | null; br: 
 export interface Branch { x0: number; y0: number; c1x: number; c1y: number; c2x: number; c2y: number; x1: number; y1: number; th: number; gy: number; from: number; to: number; seed: number; wob: number; dead?: boolean }
 /** The pond is a run of overlapping ellipses: from off the left edge, winding away towards the horizon. */
 export interface Pool { x: number; y: number; rx: number; ry: number }
-export type PropKind = 'gum' | 'fern' | 'sheoak' | 'sapling' | 'wattle' | 'teatree' | 'banksia' | 'grevillea' | 'waratah' | 'heath' | 'bracken' | 'tussock' | 'rock';
-/** Something standing in the clearing, drawn in depth order with the birds. `foot` is how much ground it takes up (0: birds can stand right by it). */
-export interface Prop { k: PropKind; x: number; y: number; s: number; flex: number; foot: number; seed: number }
+export type PropKind = 'gum' | 'fern' | 'sheoak' | 'sapling' | 'wattle' | 'teatree' | 'banksia' | 'grevillea' | 'waratah' | 'heath' | 'bracken' | 'tussock' | 'rock' | 'stag' | 'burrow' | 'tree' | 'shrub' | 'grass' | 'wetrock' | 'reeds' | 'log' | 'boulder';
+/** Something standing in the clearing, drawn in depth order with the birds. `foot` is how much ground it takes up (0: birds can stand right by it).
+ *  `a`: which way a fallen log lies across the ground (0 runs across the view, ±1 points well towards or away from it). */
+export interface Prop { k: PropKind; x: number; y: number; s: number; flex: number; foot: number; seed: number; a?: number }
 export interface Tree { x: number; w: number; base: number; top: number; far: boolean }
 /** Something in flower the honeyeaters and parrots feed at. */
 export interface Flower { x: number; y: number; r: number; h: number; kind: 'grevillea' | 'waratah' }
@@ -99,6 +101,14 @@ export class World {
   t = 0; night = false; seq = 0;
   hi: { uid: string; until: number } | null = null;
   onSound: (b: Bird, k: SoundKind) => void = () => {};
+  /** The owl hoots (x: where it is). */
+  onOwl: (x: number) => void = () => {};
+  /** The other animals (see critters.ts), the hour of the day they go by, and when the next snake or kangaroo might come. */
+  critters: Critter[] = []; hour = 12; snakeT = 20; rooT = 25;
+  /** The old dead gum with the owl's hollow (hx, hy, hrx, hry) and the broken limb it perches on (px, py). */
+  stag = { x: 0, y: 0, w: 1, h: 1, hx: 0, hy: 0, hrx: 1, hry: 1, hseed: 911, px: 0, py: 0 };
+  /** The wombat's burrow: the mouth, facing right. */
+  burrow = { x: 0, y: 0 };
   private rests = new Map<SpeciesId, Pose>();
 
   constructor(public rand: () => number = Math.random) { this.windDir = rand() < 0.75 ? 1 : -1; }
@@ -107,8 +117,8 @@ export class World {
   resize(w: number, h: number) {
     const ow = this.w, oh = this.h, ohor = this.hor, ogh = this.gh;
     this.w = w; this.h = h; this.hor = Math.round(h * 0.42); this.gh = h - this.hor;
-    const hor = this.hor, gh = this.gh, tw = Math.max(18, w * 0.065);
-    this.U = Math.min(w, 720) / 640;
+    const hor = this.hor, gh = this.gh, tw = Math.max(16, Math.min(w * 0.065, h * 0.045)); // sizes are capped by the height too, so a wide screen doesn't fatten everything
+    this.U = Math.min(w, 720, h * 1.1) / 640;
     // the pond: wide where it runs off the left edge, narrowing as it winds away towards the horizon
     const spine: [number, number, number, number][] = [[-0.08, 0.76, 0.34, 0.12], [0.17, 0.63, 0.25, 0.09], [0.34, 0.51, 0.16, 0.06], [0.45, 0.4, 0.09, 0.036], [0.52, 0.31, 0.044, 0.019]];
     this.pools = [];
@@ -116,10 +126,16 @@ export class World {
       const f = (i / 24) * (spine.length - 1), j = Math.min(spine.length - 2, Math.floor(f)), t = f - j, a = spine[j]!, b = spine[j + 1]!, s = t * t * (3 - 2 * t);
       this.pools.push({ x: w * lerp(a[0], b[0], t), y: hor + gh * lerp(a[1], b[1], t), rx: Math.max(10, w * lerp(a[2], b[2], s)), ry: Math.max(4, gh * lerp(a[3], b[3], s)) });
     }
+    const lr = seeded(91), main = this.pools.length;
+    for (let i = 0; i < 16; i++) { // bays pushing out past the shore here and there, so it isn't one smooth outline
+      const e = this.pools[Math.floor(lr() * main)]!, a = lr() * Math.PI * 2, f = 0.28 + lr() * 0.3;
+      const x = e.x + Math.cos(a) * e.rx * 1.0, y = e.y + Math.sin(a) * e.ry * 1.0;
+      if (x > -10 && x < w + 10) this.pools.push({ x, y, rx: e.rx * f, ry: e.ry * (f + 0.12) });
+    }
     this.trees = [
-      { x: w * 0.33, w: 5, base: hor + 3, top: hor - h * 0.25, far: true },
+      { x: w * 0.55, w: 4, base: hor + 3, top: hor - h * 0.16, far: true }, // (clear of the cliff's end)
       { x: w * 0.62, w: 7, base: hor + 4, top: hor - h * 0.31, far: true },
-      { x: w * 0.83, w: 5, base: hor + 2, top: hor - h * 0.21, far: true },
+      { x: w * 0.83, w: 4, base: hor + 2, top: hor - h * 0.15, far: true },
       { x: w * 0.035, w: tw * 0.55, base: hor + gh * 0.07, top: -10, far: false },
       { x: w - tw * 0.15, w: tw, base: hor + gh * 0.26, top: -10, far: false },
     ];
@@ -135,8 +151,8 @@ export class World {
       { x0: X(1), y0: Y(0.055), c1x: X(0.85), c1y: Y(0.012), c2x: X(0.68), c2y: Y(0.095), x1: X(0.54), y1: Y(0.085), th: 5.6, gy: hor + gh * 0.2, from: 0.1, to: 0.92, seed: 7.9, wob: 2.4, dead: true },
     ];
     this.flowers = [
-      { x: w * 0.8, y: hor + gh * 0.17, r: Math.max(24, w * 0.065), h: Math.max(24, w * 0.065) * 1.25, kind: 'grevillea' },
-      { x: w * 0.135, y: hor + gh * 0.15, r: 9, h: 30, kind: 'waratah' },
+      { x: w * 0.8, y: hor + gh * 0.17, r: Math.max(20, Math.min(w * 0.065, h * 0.045)), h: Math.max(20, Math.min(w * 0.065, h * 0.045)) * 1.25, kind: 'grevillea' },
+      { x: w * 0.135, y: hor + gh * 0.15, r: 9, h: 40, kind: 'waratah' },
     ];
     // everything standing in the clearing, drawn in depth order with the birds
     const P = (k: PropKind, fx: number, fy: number, s: number, flex: number, foot: number): Prop => ({ k, x: w * fx, y: hor + gh * fy, s, flex, foot, seed: Math.round(fx * 997 + fy * 131) });
@@ -144,23 +160,127 @@ export class World {
     this.props = [
       P('gum', 0.035, 0.07, tw * 0.55, 0, tw * 0.4), { ...P('gum', 0, 0.26, tw, 0, tw * 0.7), x: w - tw * 0.15 },
       P('fern', 0.22, 0.05, 1, 0.5, 6), P('fern', 0.93, 0.36, 1.3, 0.5, 8),
-      P('sheoak', 0.31, 0.25, h * 0.17, 0.3, 5), P('sapling', 0.74, 0.36, h * 0.2, 0.25, 4), P('wattle', 0.88, 0.66, h * 0.14, 0.35, 10),
-      P('teatree', 0.61, 0.56, 15, 0.25, 12), P('banksia', 0.5, 0.07, Math.max(16, w * 0.045), 0.15, 10),
+      P('sheoak', 0.31, 0.25, h * 0.17, 0.55, 5), P('sapling', 0.74, 0.36, h * 0.2, 0.5, 4), P('wattle', 0.88, 0.66, h * 0.14, 0.55, 10),
+      P('teatree', 0.61, 0.56, 15, 0.45, 12), P('banksia', 0.5, 0.07, Math.max(14, Math.min(w * 0.045, h * 0.032)), 0.35, 10),
       { ...P('grevillea', 0, 0, g.r, 0.2, g.r * 0.7), x: g.x, y: g.y }, { ...P('waratah', 0, 0, 1, 0.5, 4), x: wa.x, y: wa.y },
       P('heath', 0.39, 0.04, 1, 0.2, 0), P('heath', 0.69, 0.1, 1, 0.2, 0), P('heath', 0.57, 0.13, 1, 0.2, 0),
-      P('bracken', 0.66, 0.05, 46, 0.4, 0), P('bracken', 0.72, 0.92, 36, 0.4, 0),
+      P('bracken', 0.66, 0.05, 46, 0.4, 0),
+      // golden wattles: a group at the front right, and a few small ones at the back
+      P('wattle', 0.74, 0.86, h * 0.12, 0.55, 8), P('wattle', 0.82, 0.9, h * 0.15, 0.55, 10), P('wattle', 0.9, 0.83, h * 0.13, 0.55, 9),
+      P('wattle', 0.96, 0.93, h * 0.16, 0.55, 10), P('wattle', 0.86, 0.97, h * 0.11, 0.55, 8),
+      P('wattle', 0.12, 0.06, h * 0.075, 0.5, 5), P('wattle', 0.16, 0.03, h * 0.07, 0.5, 5), P('wattle', 0.44, 0.05, h * 0.07, 0.5, 5),
+      // banksias: a group in the front-left corner and two more at the back by the first
+      ...([[0.05, 0.93, 22], [0.13, 0.97, 24], [0.22, 0.92, 20], [0.53, 0.035, 13], [0.45, 0.025, 12]] as const).map(([fx, fy, s]) => {
+        const z = s * this.scaleAt(hor + gh * fy) * 1.4; return P('banksia', fx, fy, z, 0.35, z * 0.6);
+      }),
+      // gums of every size through the middle of the clearing
+      // (each sized so its crown stays clear of any perch branch it stands in front of)
+      { ...P('tree', 0.56, 0.15, h * 0.22, 0.4, 5), seed: 1 }, { ...P('tree', 0.24, 0.19, h * 0.2, 0.42, 4), seed: 2 },
+      { ...P('tree', 0.84, 0.45, h * 0.17, 0.45, 4), seed: 4 },
+      { ...P('tree', 0.13, 0.47, h * 0.13, 0.48, 3), seed: 6 }, { ...P('tree', 0.47, 0.09, h * 0.12, 0.4, 4), seed: 7 }, // low, under the cliff's end
     ];
+    // native shrubs, mostly mid-sized, in groups of a kind the way they grow in the bush (the kind comes from seed % 5:
+    // 0 tea-tree, 1 correa, 2 yellow peas, 3 hardenbergia, 4 plain green), sized for their distance
+    const SHRUB_GROUPS: [number, number, number, number][] = [
+      [0.17, 0.44, 13, 0], [0.21, 0.41, 15, 5], [0.27, 0.38, 14, 10], [0.33, 0.36, 16, 15], // a tea-tree thicket on the pond's upper bank
+      [0.04, 0.27, 12, 1], [0.11, 0.26, 14, 6], [0.19, 0.3, 11, 11], [0.07, 0.19, 10, 16], // correa round the wombat's burrow
+      [0.86, 0.2, 12, 2], [0.92, 0.24, 14, 7], [0.89, 0.29, 11, 12], [0.8, 0.27, 10, 17], // yellow peas at the back right
+      [0.57, 0.29, 11, 3], [0.69, 0.3, 12, 8], [0.62, 0.33, 10, 13], // hardenbergia at the foot of the old stag
+      [0.36, 0.1, 11, 18], [0.42, 0.14, 12, 23], [0.29, 0.12, 10, 28], // more hardenbergia at the back
+      [0.66, 0.7, 15, 4], [0.72, 0.74, 17, 9], [0.62, 0.78, 13, 14], [0.7, 0.81, 12, 19], // a stand of plain green shrubs
+      [0.42, 0.84, 13, 21], [0.48, 0.9, 15, 26], [0.38, 0.93, 11, 31], // correa by the pond's front bank
+      [0.54, 0.45, 12, 22], [0.58, 0.5, 10, 27], // yellow peas in the middle
+    ];
+    for (const [fx, fy, s, seed] of SHRUB_GROUPS) {
+      const size = s * this.scaleAt(hor + gh * fy) * 2.5;
+      this.props.push({ ...P('shrub', fx, fy, size, 0.45, size * 0.7), seed });
+    }
+    // the old stag: a dead gum with a big hollow, where the powerful owl lives
+    const sw = Math.max(20, Math.min(w * 0.075, h * 0.05)), sh = h * 0.32, sx = w * 0.64, sy = hor + gh * 0.24; // in front of the big gum's branches, well clear of the cliffs
+    this.stag = { x: sx, y: sy, w: sw, h: sh, hx: sx + sw * 0.05, hy: sy - sh * 0.58, hrx: sw * 0.22, hry: sw * 0.37, hseed: 911, px: sx + sw * 0.5 + sh * 0.1, py: sy - sh * 0.8 };
+    this.props.push({ k: 'stag', x: sx, y: sy, s: sw, flex: 0, foot: sw * 0.6, seed: 31 });
+    // the wombat's burrow, on the left
+    this.burrow = { x: w * 0.08, y: hor + gh * 0.36 };
+    this.props.push({ k: 'burrow', x: this.burrow.x - 8, y: this.burrow.y, s: 1, flex: 0, foot: 16, seed: 37 });
     const rr = seeded(77), clearOf = (x: number, y: number, d: number) => !this.inPond(x, y, 1.4) && this.props.every(p => Math.hypot(p.x - x, (p.y - y) * 2) > d);
     for (let i = 0, n = 0; i < 60 && n < 9; i++) { // tussocks dotted about
       const z = rr(), x = rr() * w, y = hor + gh * (0.12 + z * 0.84);
       if (clearOf(x, y, 30)) { this.props.push({ k: 'tussock', x, y, s: 0.6 + z * 0.9, flex: 1, foot: 0, seed: i + 5 }); n++; }
     }
-    for (const e of this.pools) for (let i = 0; i < 5; i++) { // sandstone rocks round the water's edge
+    for (const e of this.pools) for (let i = 0; i < 14; i++) { // sandstone rocks and boulders round the water's edge
       const a = rr() * Math.PI * 2, x = e.x + Math.cos(a) * e.rx * 1.03, y = e.y + Math.sin(a) * e.ry * 1.1;
       if (x < -6 || x > w + 6 || this.inPond(x, y, 0.995)) continue;
-      if (this.props.some(p => p.k === 'rock' && Math.hypot(p.x - x, (p.y - y) * 2) < 11)) continue;
-      const big = rr() < 0.15;
-      this.props.push({ k: 'rock', x, y: y + 1, s: (big ? 6 + rr() * 3 : 2.2 + rr() * 3.5) * this.scaleAt(y) * 1.4, flex: 0, foot: big ? 8 : 0, seed: i });
+      if (this.props.some(p => p.k === 'rock' && Math.hypot(p.x - x, (p.y - y) * 2) < 12)) continue;
+      const big = rr() < 0.3, sc = this.scaleAt(y) * 1.4;
+      this.props.push({ k: 'rock', x, y: y + 1, s: (big ? 8 + rr() * 6 : 3 + rr() * 3.5) * sc, flex: 0, foot: big ? 9 : 0, seed: Math.round(x * 13 + y * 7) });
+      if (rr() < 0.6) for (let j = 0; j < 1 + Math.floor(rr() * 3); j++) { // smaller stones tumbled beside it
+        const sx = x + (rr() - 0.5) * 18 * sc, sy = y + (rr() - 0.3) * 6 * sc;
+        if (!this.inPond(sx, sy, 0.9)) this.props.push({ k: 'rock', x: sx, y: sy + 1, s: (1.8 + rr() * 2.6) * sc, flex: 0, foot: 0, seed: Math.round(sx * 17 + sy * 3) });
+      }
+      if (rr() < 0.25) { // a boulder out in the shallows, the water lapping round it
+        const wx = e.x + Math.cos(a) * e.rx * 0.8, wy = e.y + Math.sin(a) * e.ry * 0.8;
+        if (this.inPond(wx, wy, 0.95) && wx > 4 && wx < w - 4) this.props.push({ k: 'wetrock', x: wx, y: wy, s: (5 + rr() * 5) * this.scaleAt(wy) * 1.4, flex: 0, foot: 0, seed: Math.round(wx * 19 + wy * 5) });
+      }
+    }
+    // reed beds round the pond: rushes and cumbungi in clumps right along the water's edge, the odd one standing in the
+    // shallows just off the bank (never out in the open water)
+    const rd = seeded(61), edge = (x: number, y: number, wet: boolean) => (wet ? this.inPond(x, y) && !this.inPond(x, y, 0.88) : !this.inPond(x, y, 0.99) && this.inPond(x, y, 1.12));
+    for (let i = 0; i < 500 && this.props.filter(p => p.k === 'reeds').length < 40; i++) {
+      const e = this.pools[Math.floor(rd() * this.pools.length)]!, a = rd() * Math.PI * 2, wet = rd() < 0.15, m = wet ? 0.95 : 1.04;
+      const x = e.x + Math.cos(a) * e.rx * m, y = e.y + Math.sin(a) * e.ry * m;
+      if (x < 4 || x > w - 4 || !edge(x, y, wet)) continue;
+      if (this.props.some(p => p.k === 'reeds' && Math.hypot(p.x - x, (p.y - y) * 2) < 15)) continue;
+      for (let j = 0; j < 1 + Math.floor(rd() * 3); j++) { // two or three clumps together make a bed
+        const rx = x + (rd() - 0.5) * 20, ry = y + (rd() - 0.5) * 4;
+        if (edge(rx, ry, wet)) this.props.push({ k: 'reeds', x: rx, y: ry, s: (0.7 + rd() * 0.5) * this.scaleAt(ry) * 1.3, flex: 1.1, foot: 0, seed: Math.round(rx * 23 + ry * 3) });
+      }
+    }
+    // fallen logs and limbs of every length, lying every which way: [x, depth, length, angle across the ground]
+    for (const [fx, fy, len, a] of [[0.8, 0.56, 58, 0.55], [0.4, 0.28, 34, -0.85], [0.58, 0.95, 82, 0.12], [0.12, 0.6, 30, -0.35],
+      [0.33, 0.07, 24, 0.95], [0.93, 0.68, 40, -0.7], [0.7, 0.4, 18, 1.05]] as const) {
+      const x = w * fx, y = hor + gh * fy, L = len * this.scaleAt(y) * 1.3;
+      if (this.inPond(x, y, 1.6) || this.props.some(p => p.foot > 0 && p.k !== 'rock' && Math.hypot(p.x - x, (p.y - y) * 2) < p.foot + L * 0.3)) continue;
+      this.props.push({ k: 'log', x, y, s: L, a, flex: 0, foot: L * 0.45, seed: Math.round(fx * 100 + fy * 10) });
+    }
+    // mossy boulders: two big ones out at the back on the right, smaller ones on the left and towards the front. Each
+    // takes the first of its spots that's dry and clear of everything else: [size, spots]
+    const BOULDERS: [number, [number, number][]][] = [
+      [62, [[0.88, 0.06], [0.84, 0.04], [0.92, 0.09]]],
+      [46, [[0.78, 0.035], [0.74, 0.05], [0.93, 0.1]]],
+      [28, [[0.03, 0.16], [0.26, 0.28], [0.02, 0.42]]],
+      [20, [[0.1, 0.1], [0.21, 0.21], [0.04, 0.58]]],
+      [26, [[0.3, 0.95], [0.27, 0.9], [0.35, 0.99]]],
+      [17, [[0.5, 0.97], [0.55, 0.88], [0.25, 0.98]]],
+      // a few big ones out in the middle of the clearing
+      [58, [[0.44, 0.2], [0.42, 0.23], [0.47, 0.18]]],
+      [50, [[0.55, 0.21], [0.51, 0.27], [0.36, 0.29], [0.52, 0.23]]],
+      [42, [[0.36, 0.16], [0.33, 0.19], [0.5, 0.13]]],
+    ];
+    for (const [size, spots] of BOULDERS) for (const [fx, fy] of spots) {
+      const x = w * fx, y = hor + gh * fy, s = size * this.scaleAt(y) * 1.3;
+      if (this.inPond(x, y, 1.3) || this.props.some(p => p.foot > 0 && Math.hypot(p.x - x, (p.y - y) * 2) < p.foot + s * 0.6)) continue;
+      this.props.push({ k: 'boulder', x, y, s, flex: 0, foot: s * 0.95, seed: Math.round(fx * 311 + fy * 97) });
+      break;
+    }
+    // and more of them round the lake, sitting on the bank with the water at their feet
+    const bs = seeded(43);
+    for (let i = 0, made = 0; i < 600 && made < 10; i++) {
+      const e = this.pools[Math.floor(bs() * this.pools.length)]!, a = bs() * Math.PI * 2, x = e.x + Math.cos(a) * e.rx * 1.06, y = e.y + Math.sin(a) * e.ry * 1.12;
+      if (x < 12 || x > w - 12 || this.inPond(x, y, 1.0) || !this.inPond(x, y, 1.25)) continue;
+      const s = (14 + bs() * 18) * this.scaleAt(y) * 1.3;
+      // clear of the other boulders and the trees, but happy to sit among the stones and in front of a bush
+      if (this.props.some(p => p.k === 'boulder' ? Math.hypot(p.x - x, (p.y - y) * 2) < p.s + s * 1.2
+        : p.foot > 0 && p.k !== 'rock' && Math.hypot(p.x - x, (p.y - y) * 2) < p.foot * 0.6 + s * 0.5)) continue;
+      this.props.push({ k: 'boulder', x, y, s, flex: 0, foot: s * 0.9, seed: Math.round(x * 7 + y * 13) });
+      made++;
+    }
+    const gr = seeded(57); // tufts of native grasses, in clumps here and there
+    for (let k = 0, made = 0; k < 40 && made < 7; k++) {
+      const cx = gr() * w, cy = hor + gh * (0.1 + gr() * 0.85); if (this.inPond(cx, cy, 1.4)) continue; made++;
+      for (let j = 0; j < 2 + Math.floor(gr() * 3); j++) {
+        const x = cx + (gr() - 0.5) * 34, y = cy + (gr() - 0.5) * 12;
+        if (!this.inPond(x, y, 1.3)) this.props.push({ k: 'grass', x, y, s: (0.8 + gr() * 0.5) * this.scaleAt(y) * 1.4, flex: 1, foot: 0, seed: Math.round(x * 7 + y * 11) });
+      }
     }
     // keep everyone in the same place relative to the new size
     for (const b of this.birds) {
@@ -171,7 +291,7 @@ export class World {
     }
     this.buildPerches(ow);
     for (const f of this.food) { f.x = (f.x / ow) * w; f.y = hor + ((f.y - ohor) / ogh) * gh; }
-    this.parts = []; this.winds = [];
+    this.parts = []; this.winds = []; this.critters = []; // the animals start afresh where the new size puts their homes
     if (!this.bugs.length) for (const k of ['midge', 'midge', 'midge', 'butterfly', 'butterfly', 'dragonfly', 'dragonfly', 'moth', 'moth', 'moth', 'hopper', 'hopper', 'hopper', 'beetle', 'beetle'] as BugKind[]) this.bugs.push(this.spawnBug(k));
     else for (const g of this.bugs) Object.assign(g, this.spawnBug(g.k));
     this.motes = Array.from({ length: Math.round(w / 14) }, () => ({ x: this.rand() * w, y: this.rand() * h * 0.95, ph: this.rand() * 9, s: this.r(0.5, 1.4), v: this.r(0.5, 1.5) }));
@@ -189,7 +309,9 @@ export class World {
       let i = 0;
       for (let s = L * B.from + gap / 2; s <= L * B.to - gap / 2; s += gap) {
         const p = pts.find(q => q.s >= s) ?? pts[pts.length - 1]!;
-        out.push({ x: p.x, y: p.y - branchTh(B, p.t) + 1, gy: B.gy, by: null, br, i: i++ });
+        const S = this.stag, hidden = B.gy < S.y && Math.abs(p.x - S.x) < S.w * 0.9 && p.y > S.y - S.h * 1.15; // behind the old stag: no one would see it
+        if (!hidden) out.push({ x: p.x, y: p.y - branchTh(B, p.t) + 1, gy: B.gy, by: null, br, i: i++ });
+        else i++;
       }
     });
     old.forEach((o, oi) => {
@@ -237,15 +359,22 @@ export class World {
   spot(b: Bird | null, min = 0, max = 0, awayX?: number) {
     let best = { x: this.w / 2, y: (this.top + this.bottom) / 2 }, score = -Infinity;
     const len = b ? 100 * this.px(b) : 0;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0, ok = 0; i < 60 && ok < 10; i++) { // ten good places to choose from, however much is water, rock or bush
       let x: number, y: number;
       if (b && max > 0) { const a = this.rand() * Math.PI * 2, d = this.r(min, max) * len; x = b.x + Math.cos(a) * d; y = b.y + Math.sin(a) * d * 0.55; }
       else { x = this.r(24, this.w - 24); y = this.r(this.top + 6, this.bottom - 6); }
       if (!this.okGround(x, y)) continue;
+      ok++;
       let near = Infinity;
       for (const o of this.birds) if (o !== b && o.perch < 0 && !o.gone) near = Math.min(near, Math.hypot(o.x - x, (o.y - y) * 1.6));
       const s = Math.min(near, 160) + (awayX != null ? Math.abs(x - awayX) * 0.8 : 0) + this.rand() * 20;
       if (s > score) { score = s; best = { x, y }; }
+    }
+    if (score === -Infinity) { // nowhere near enough: the nearest open ground to it instead
+      const cx = b?.x ?? best.x, cy = b?.y ?? best.y; let d = Infinity;
+      for (let gx = 24; gx < this.w - 24; gx += 12) for (let gy = this.top + 6; gy < this.bottom - 6; gy += 8) {
+        const dd = Math.hypot(gx - cx, gy - cy); if (dd < d && this.okGround(gx, gy)) { d = dd; best = { x: gx, y: gy }; }
+      }
     }
     return best;
   }
@@ -253,12 +382,16 @@ export class World {
    *  the bird, so a bird there faces the water. `cx` is the middle of that stretch, to face. */
   pondEdge(b: Bird, m: number) {
     const near = [...this.pools].filter(e => e.x > 10).sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y));
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 24; i++) {
       const e = near[Math.floor(this.rand() * Math.min(5, near.length))]!, a = (b.x < e.x && e.x - e.rx > 16 ? Math.PI : 0) + this.r(-0.5, 0.5);
-      const x = e.x + Math.cos(a) * e.rx * m, y = e.y + Math.sin(a) * e.ry * m;
-      if (this.inBounds(x, y) && (m > 1 ? !this.inPond(x, y) : this.inPond(x, y))) return { x, y, cx: e.x };
+      // on the bank: step outward from m until clear of the water (a bay may reach past this stretch's own edge)
+      for (let k = m; k < (m > 1 ? m + 1.2 : m + 0.01); k += 0.1) {
+        const x = e.x + Math.cos(a) * e.rx * k, y = e.y + Math.sin(a) * e.ry * k;
+        if (this.inBounds(x, y) && (m > 1 ? !this.inPond(x, y) : this.inPond(x, y))) return { x, y, cx: e.x };
+      }
     }
-    const e = this.pools[8]!; return { x: e.x + e.rx * m, y: e.y, cx: e.x };
+    const e = this.pools[8]!; let x = e.x + e.rx * m; while (m > 1 && this.inPond(x, e.y) && x < this.w - 14) x += 3;
+    return { x, y: e.y, cx: e.x };
   }
   /** A point out on the water, `f` of the way from the middle of a stretch to its edge. */
   pondPoint(f: number) {
@@ -543,7 +676,7 @@ export class World {
       }
     }
   }
-  private leafCol() { return ['#7d8a4c', '#a39a55', '#b78a4a', '#6f7d46'][Math.floor(this.rand() * 4)]!; }
+  private leafCol() { return ['#7d8a4c', '#a39a55', '#b78a4a', '#6f7d46', '#c7a04a', '#a8643a'][Math.floor(this.rand() * 6)]!; }
   /** A breath of wind: a white line or two that loops or curls away; sometimes a gust that blows leaves and dust about. */
   blow(gusty = this.rand() < 0.35) {
     const d = this.windDir, n = gusty ? 2 + Math.floor(this.rand() * 2) : 1;
@@ -559,14 +692,15 @@ export class World {
   }
   /** A gum leaf lets go of a canopy and drifts down. */
   private dropLeaf() {
-    const cs = [[this.w * 0.9, this.h * 0.04], [this.w * 0.04, this.h * 0.06], [this.w * 0.62, this.hor - this.h * 0.3]] as const;
+    const cs = [[this.w * 0.9, this.h * 0.04], [this.w * 0.78, this.h * 0.01], [this.w * 0.98, this.h * 0.12], [this.w * 0.04, this.h * 0.06], [this.w * 0.1, this.h * 0.02], [this.w * 0.62, this.hor - this.h * 0.3],
+      ...this.branches.map(B => [B.x1, B.y1] as const)] as const;
     const [cx, cy] = cs[Math.floor(this.rand() * cs.length)]!, gy = this.r(this.top, this.bottom), sy = cy + this.r(0, 30);
-    this.part('leaf', clamp(cx + this.r(-30, 30), 4, this.w - 4), gy, Math.max(0, gy - sy), { vx: this.windDir * this.r(4, 14), va: -this.r(3, 8), max: this.r(10, 15), c: this.leafCol(), r: 2.2 * this.scaleAt(gy) * 1.4, rot: this.rand() * 6, vr: this.r(-3, 3) });
+    this.part('leaf', clamp(cx + this.r(-30, 30), 4, this.w - 4), gy, Math.max(0, gy - sy), { vx: this.windDir * this.r(4, 14), va: -this.r(3, 8), max: this.r(12, 18), c: this.leafCol(), r: 3.2 * this.scaleAt(gy) * 1.4, rot: this.rand() * 6, vr: this.r(-3, 3) });
   }
 
   // ---------- input ----------
-  /** A tap at (x, y): startles a bird, ripples the pond, or scatters seed on the ground. */
-  tap(x: number, y: number): 'bird' | 'food' | 'water' | null {
+  /** A tap at (x, y): startles a bird, gets an animal's attention, ripples the pond, or scatters seed on the ground. */
+  tap(x: number, y: number): 'bird' | 'critter' | 'food' | 'water' | null {
     const hit = [...this.birds].filter(b => !b.gone && !b.leaving).sort((a, b) => this.depth(b) - this.depth(a)).find(b => {
       const k = this.px(b), cx = b.x, cy = b.y - b.alt - (b.sp.leg * 0.8 + b.sp.ry) * k * (b.hang > 0.5 ? -1 : 1), r = Math.max(18, (b.sp.rx + 8) * k * 1.3);
       return (x - cx) ** 2 + ((y - cy) * 1.15) ** 2 < r * r;
@@ -576,6 +710,7 @@ export class World {
       for (const o of this.birds) if (o !== hit && !o.leaving && !BUSY.has(o.act) && Math.hypot(o.x - hit.x, o.y - hit.y) < 90 && this.rand() < 0.45) this.go(o, 'startle', { fx: x, delay: this.r(0.1, 0.5) });
       return 'bird';
     }
+    if (tapCritter(this, x, y)) return 'critter';
     if (y < this.top - this.gh * 0.04) return null;
     if (this.inPond(x, y, 1)) { this.ripple(x, y, 3); return 'water'; }
     const n = 6 + Math.floor(this.rand() * 4);
@@ -612,7 +747,7 @@ export class World {
       m.x += (this.windDir * (4 + this.gust * 30) * m.v + Math.sin(m.ph * 0.8) * 3) * dt; m.y += Math.cos(m.ph * 0.6) * 2.5 * dt;
       if (m.x < -6) m.x = this.w + 6; else if (m.x > this.w + 6) m.x = -6;
     }
-    if ((this.leafT -= dt) <= 0) { this.leafT = this.r(4, 10); this.dropLeaf(); }
+    if ((this.leafT -= dt) <= 0) { this.leafT = this.r(1.2, 3.5); this.dropLeaf(); if (this.rand() < 0.25) this.dropLeaf(); }
     if (this.queue.length) { const due = this.queue.filter(q => q.at <= this.t); this.queue = this.queue.filter(q => q.at > this.t); due.forEach(q => q.run()); }
     for (const b of this.birds) this.update(b, dt);
     if (this.birds.some(b => b.gone)) {
@@ -626,6 +761,7 @@ export class World {
     }
     this.food = this.food.filter(f => f.left > 0 && f.age < 90);
     this.moveBugs(dt);
+    stepCritters(this, dt);
     for (const p of this.parts) {
       p.life += dt;
       if (p.k === 'ripple') { p.r += 16 * dt; continue; }
@@ -978,6 +1114,7 @@ export const ACTS: Record<Act, ActFn> = {
       case 'magpie': W.hAng = 1.0; W.nAng = 1.45; W.pitch += 0.2; W.nExt = 1.15; break;
       case 'raven': W.pitch = 0; W.nAng = 0.35; W.hAng = on ? -0.4 : -0.2; W.hackle = 1; W.wing = 0.12; W.flap = -0.5; break;
       case 'cockatoo': W.crest = 1; W.wing = 0.3; W.flap = 0.55; W.hAng = 0.2; W.nAng += 0.1 * Math.sin(t * 8); break;
+      case 'blackcockatoo': W.crest = 0.8; W.hAng = 0.25; W.nAng += 0.12; W.fan = on ? 0.8 : 0.4; W.tail += 0.1; break; // a slow wail, tail fanned to flash the yellow
       case 'galah': W.crest = 0.9; W.hAng = 0.1 + 0.15 * Math.sin(t * 9); W.nAng += 0.15 * Math.sin(t * 9); break;
       case 'woodduck': W.hAng = 0.35; W.nAng += 0.2; W.nExt = 1.1; break;
       case 'wattlebird': W.hAng = on ? 0.5 : 0.2; W.nAng += on ? 0.25 : 0; if (on) W.tail += 0.25; break;

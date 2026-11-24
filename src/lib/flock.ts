@@ -5,7 +5,7 @@ import { weekStart, addDays, parseDayKey } from './scoring';
 import type { Profile, Session } from './types';
 
 export const POINTS_PER_BIRD = 30;
-export const SPECIES_ORDER = ['currawong', 'galah', 'kingparrot', 'cockatoo', 'rosella', 'magpie', 'raven', 'woodduck', 'crimsonrosella', 'wattlebird'] as const;
+export const SPECIES_ORDER = ['currawong', 'galah', 'kingparrot', 'cockatoo', 'rosella', 'magpie', 'raven', 'woodduck', 'crimsonrosella', 'wattlebird', 'blackcockatoo'] as const;
 export type SpeciesId = typeof SPECIES_ORDER[number];
 /** Each bird's name, plural, and scientific name. */
 export const SPECIES_NAMES: Record<SpeciesId, { one: string; many: string; sci: string }> = {
@@ -19,6 +19,7 @@ export const SPECIES_NAMES: Record<SpeciesId, { one: string; many: string; sci: 
   woodduck: { one: 'Australian wood duck', many: 'Wood ducks', sci: 'Chenonetta jubata' },
   crimsonrosella: { one: 'Crimson rosella', many: 'Crimson rosellas', sci: 'Platycercus elegans' },
   wattlebird: { one: 'Red wattlebird', many: 'Red wattlebirds', sci: 'Anthochaera carunculata' },
+  blackcockatoo: { one: 'Yellow-tailed black cockatoo', many: 'Black cockatoos', sci: 'Zanda funerea' },
 };
 
 /** The currawongs' first week. */

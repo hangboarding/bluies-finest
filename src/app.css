@@ -590,7 +590,8 @@ html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
 .aviary{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);overscroll-behavior:contain}
 .av-head{border-bottom:1px solid var(--line)}
 .av-top{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top, 0px)) 12px 2px 6px}
-.av-back{flex:none;width:40px;height:40px;border-radius:12px;border:0;background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.av-back,.av-mute{flex:none;width:40px;height:40px;border-radius:12px;border:0;background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.av-mute{align-self:flex-start}.av-mute[aria-pressed=true]{color:var(--mute)}
 .av-tt{flex:1;min-width:0}.av-tt b{display:block;font-size:18px;line-height:1.2}.av-tt span{display:block;color:var(--acc);font-weight:700;font-size:13px}.av-tt i{color:var(--mute);font-weight:400;margin-left:2px}
 /* facts about the bird, one at a time: all stacked in one grid cell, so the box is always as tall as the longest */
 .av-facts{padding:2px 16px 10px 54px;cursor:pointer;-webkit-user-select:none;user-select:none;touch-action:pan-y;overflow:hidden}

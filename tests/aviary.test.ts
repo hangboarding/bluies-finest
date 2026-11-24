@@ -2,6 +2,7 @@
 // of time: seed thrown, birds startled, climbers tapped, birds leaving. Nothing may break, get stuck or wander off.
 import { describe, it, expect } from 'vitest';
 import { World, windPt, type Bird } from '../src/aviary/sim';
+import { spawn } from '../src/aviary/critters';
 import { SPECIES } from '../src/aviary/species';
 import { SPECIES_ORDER } from '../src/lib/flock';
 
@@ -32,7 +33,7 @@ describe('the clearing', () => {
           acts.add(b.act);
           expect(finite(b), `${id} ${b.act}`).toBe(true);
           expect(b.x).toBeGreaterThan(-90); expect(b.x).toBeLessThan(375 + 90);
-          expect(b.alt).toBeGreaterThanOrEqual(0); expect(b.alt).toBeLessThan(560);
+          expect(b.alt).toBeGreaterThanOrEqual(0); expect(b.alt).toBeLessThan(560 * 1.5); // arriving birds start off the top of the screen
           if (b.alt < 1 && b.perch < 0 && !b.fl && b.act !== 'arrive') { expect(b.y).toBeGreaterThan(w.hor); expect(b.y).toBeLessThan(560 + 1); }
           const key = b.id * 1000 + b.act.length; stuck.set(key, b.at);
           if (!['perched', 'sleep', 'swim'].includes(b.act)) expect(b.at, `${id} stuck in ${b.act}`).toBeLessThan(40);
@@ -163,6 +164,89 @@ describe('the clearing', () => {
     w.night = true;
     expect(w.bugs.some(g => g.k === 'moth' && w.bugAwake(g))).toBe(true);
     expect(w.bugs.some(g => g.k === 'butterfly' && w.bugAwake(g))).toBe(false);
+  });
+
+  const fresh = (seed: number, hour: number, birds = 0, id: keyof typeof SPECIES = 'magpie') => {
+    const w = new World(seeded(seed)); w.resize(375, 560); w.hour = hour; w.night = hour >= 20 || hour < 5;
+    for (let i = 0; i < birds; i++) w.add(id, 'u', '#f00', 'place');
+    return w;
+  };
+  const of = (w: World, k: string) => w.critters.filter(c => c.k === k);
+  const critFinite = (w: World) => w.critters.every(c => [c.x, c.y, c.a].every(Number.isFinite));
+
+  it('the powerful owl comes out of its hollow at night, hunts antechinus, and goes back in by day', () => {
+    const w = fresh(4, 22);
+    let out = false, caught = 0, hoots = 0, last = '';
+    w.onOwl = () => hoots++;
+    run(w, 300, () => {
+      const o = of(w, 'owl')[0]!; if (!o.hidden && o.st !== 'peek') out = true;
+      for (const m of of(w, 'antechinus')) if (!m.hidden) expect(w.inPond(m.x, m.y), 'an antechinus in the water').toBe(false); // land only
+      for (const m of of(w, 'antechinus')) { if (m.st === 'held' && last !== 'held' + of(w, 'antechinus').indexOf(m)) { caught++; last = 'held' + of(w, 'antechinus').indexOf(m); } }
+      expect(critFinite(w)).toBe(true);
+    });
+    expect(out).toBe(true);
+    expect(caught).toBeGreaterThan(0);
+    expect(hoots).toBeGreaterThan(0);
+    expect(of(w, 'skink').every(s => s.hidden)).toBe(true); // skinks are tucked away at night
+    w.night = false; w.hour = 7;
+    run(w, 40);
+    expect(of(w, 'owl')[0]!.st).toBe('in');
+    expect(of(w, 'antechinus').every(m => m.hidden)).toBe(true);
+  });
+
+  it('skinks dart about and the water dragon basks by the pond by day, bolting from birds', () => {
+    const w = fresh(5, 11, 10);
+    let skinks = 0, dragonRan = false, dragonOut = false;
+    run(w, 200, () => {
+      skinks = Math.max(skinks, of(w, 'skink').filter(s => !s.hidden).length);
+      for (const s of of(w, 'skink')) if (!s.hidden) expect(w.inPond(s.x, s.y), 'a skink in the water').toBe(false); // land only
+      const d = of(w, 'dragon')[0]!; if (!d.hidden) dragonOut = true; if (d.st === 'run' || d.st === 'swim') dragonRan = true;
+      expect(critFinite(w)).toBe(true);
+    });
+    expect(skinks).toBeGreaterThan(0);
+    expect(dragonOut && dragonRan).toBe(true);
+    expect(of(w, 'antechinus').every(m => m.hidden)).toBe(true);
+  });
+
+  it('a snake turns up only at dusk, now and then, and sends nearby birds into the air', () => {
+    const day = fresh(6, 13);
+    let seen = false;
+    run(day, 600, () => { if (of(day, 'snake').length) seen = true; });
+    expect(seen).toBe(false);
+    const dusk = fresh(6, 18.5);
+    run(dusk, 600, () => { if (of(dusk, 'snake').length) seen = true; });
+    expect(seen).toBe(true);
+    // one slithers right past a flock on the ground
+    const w = fresh(7, 18.5, 12);
+    run(w, 3);
+    const s = spawn(w, 'snake'); s.x = 10; s.y = w.birds[0]!.y; s.tx = w.w + 60; s.ty = s.y;
+    let startled = 0;
+    run(w, 25, () => { startled = Math.max(startled, w.birds.filter(b => b.act === 'startle').length); expect(critFinite(w)).toBe(true); });
+    expect(startled).toBeGreaterThan(0);
+  });
+
+  it('kangaroos and wallabies hop across in the distance and are gone again', () => {
+    const w = fresh(8, 16);
+    let seen = 0;
+    run(w, 400, () => { if (of(w, 'roo').length) seen++; for (const r of of(w, 'roo')) expect(r.y).toBeLessThan(w.hor + w.gh * 0.1); });
+    expect(seen).toBeGreaterThan(0);
+    const r = spawn(w, 'roo');
+    run(w, 150);
+    expect(w.critters.includes(r)).toBe(false);
+  });
+
+  it('the wombat comes out of its burrow at night, grazes nearby, and goes back underground by morning', () => {
+    const w = fresh(9, 23);
+    const b = of(w, 'wombat')[0] ?? (run(w, 0.1), of(w, 'wombat')[0]!);
+    let out = false, far = 0;
+    run(w, 120, () => { if (['walk', 'graze', 'scratch'].includes(b.st)) out = true; far = Math.max(far, Math.hypot(b.x - w.burrow.x, b.y - w.burrow.y)); });
+    expect(out).toBe(true);
+    expect(far).toBeLessThan(w.w * 0.45);
+    w.night = false; w.hour = 6.5;
+    run(w, 90);
+    expect(b.st).toBe('in'); expect(b.hidden).toBe(true);
+    const day = fresh(9, 13); run(day, 120);
+    expect(of(day, 'wombat')[0]!.hidden).toBe(true);
   });
 
   it('keeps birds where they were when the screen changes size', () => {

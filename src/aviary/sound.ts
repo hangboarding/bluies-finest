@@ -59,14 +59,37 @@ const SONGS: Record<SpeciesId, Voice> = {
     noise(ac, o, t + a, Math.min(d, 0.08), [1300, 2], 0.5);
     tone(ac, o, t + a, d, i < n.length - 1 ? [[0, 560], [1, 470]] : [[0, 700], [1, 430]], { type: 'square', bp: [1100, 2], gain: 0.45 });
   }),
+  blackcockatoo: (ac, o, t, n) => each(n, (a, d, i) => { // the slow, eerie "wee-la": rising, then falling away
+    tone(ac, o, t + a, d, i === 0 ? [[0, 1000], [0.55, 1400], [1, 1320]] : [[0, 1250], [0.35, 1080], [1, 720]], { type: 'sawtooth', vib: [5, 22], bp: [1300, 2], gain: 0.85 });
+    noise(ac, o, t + a, d, [1500, 1.5], 0.15);
+  }),
 };
-const PITCH: Record<SpeciesId, number> = { currawong: 900, galah: 2400, kingparrot: 1700, cockatoo: 2000, rosella: 2600, crimsonrosella: 2300, magpie: 1200, raven: 500, woodduck: 800, wattlebird: 1200 };
+const PITCH: Record<SpeciesId, number> = { currawong: 900, galah: 2400, kingparrot: 1700, cockatoo: 2000, rosella: 2600, crimsonrosella: 2300, magpie: 1200, raven: 500, woodduck: 800, wattlebird: 1200, blackcockatoo: 1100 };
+
+/** The mute button on the flock page: just the birds and animals, remembered on this phone. */
+const MUTE_KEY = 'bf:aviary-muted';
+export let birdsMuted = (() => { try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; } })();
+export function setBirdsMuted(m: boolean) { birdsMuted = m; try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* storage blocked */ } }
+
+/** The powerful owl's call: a slow, deep double hoot, the second note a little higher and longer. */
+export function owlHoot(pan: number, vol: number) {
+  const ac = audio();
+  if (!soundOn || birdsMuted || !ac || ac.state !== 'running') return;
+  try {
+    const out = ac.createGain(); out.gain.value = 0.32 * vol;
+    if (ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); out.connect(p); p.connect(ac.destination); }
+    else out.connect(ac.destination);
+    const t = ac.currentTime + 0.02;
+    tone(ac, out, t, 0.55, [[0, 300], [0.3, 318], [1, 296]], { vib: [5, 3], bp: [340, 1.2] });
+    tone(ac, out, t + 0.85, 0.8, [[0, 318], [0.3, 338], [1, 308]], { vib: [5, 3], bp: [360, 1.2] });
+  } catch { /* audio unavailable */ }
+}
 
 let lastSong = 0, lastAny = 0;
 /** Play a call. `pan` −1 (left) … 1 (right); `vol` 0..1 (nearer birds are louder). */
 export function birdSound(id: SpeciesId, kind: SoundKind, pan: number, vol: number) {
   const ac = audio();
-  if (!soundOn || !ac || ac.state !== 'running') return;
+  if (!soundOn || birdsMuted || !ac || ac.state !== 'running') return;
   const now = ac.currentTime;
   if (now - lastAny < 0.12 || (kind === 'song' && now - lastSong < 0.7)) return; // a flock, not a wall of noise
   lastAny = now; if (kind === 'song') lastSong = now;
