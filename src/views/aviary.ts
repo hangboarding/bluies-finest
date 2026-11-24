@@ -1,0 +1,176 @@
+// The crew's weekly flock: the bird button in the header opens a clearing where every 30 points anyone
+// earns this week brings a bird. See lib/flock.ts for the counting and src/aviary/ for the birds.
+import { $, esc, avatar } from '../lib/ui';
+import { state, refreshShared } from '../lib/state';
+import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, SPECIES_NAMES, SPECIES_ORDER, POINTS_PER_BIRD, type FlockMember, type SpeciesId } from '../lib/flock';
+import { SPECIES } from '../aviary/species';
+import { drawBird, restPose } from '../aviary/rig';
+import { World } from '../aviary/sim';
+import { paintSky, paintLand, skyAt } from '../aviary/scene';
+import { drawWorld } from '../aviary/render';
+import { birdSound } from '../aviary/sound';
+import { unlockAudio } from '../lib/timer';
+
+/** At most this many birds on screen; the count still shows them all. */
+const MAX_BIRDS = 120;
+const labelOf = (id: SpeciesId) => `This week's ${SPECIES_NAMES[id].many.toLowerCase()}`;
+
+export function flockBtnHtml() {
+  return `<button class="flockbtn" id="flockBtn" aria-label="${labelOf(speciesOfWeek())}"><canvas width="64" height="64" aria-hidden="true"></canvas><i class="flock-dot hide"></i></button>`;
+}
+
+const icons = new Map<string, HTMLCanvasElement>();
+/** The week's bird as a solid silhouette in `colour`, fitted to a 64×64 canvas. */
+function silhouette(id: SpeciesId, colour: string): HTMLCanvasElement | null {
+  const key = `${id}|${colour}`, hit = icons.get(key); if (hit) return hit;
+  const big = document.createElement('canvas'); big.width = big.height = 240;
+  const c = big.getContext('2d'); if (!c) return null;
+  const sp = SPECIES[id];
+  c.translate(150, 200); c.scale(-1.7, 1.7); // facing left, towards the app's name
+  drawBird(c, sp, sp.look, restPose(sp), { sil: colour });
+  const d = c.getImageData(0, 0, 240, 240).data;
+  let x0 = 240, y0 = 240, x1 = 0, y1 = 0;
+  for (let y = 0; y < 240; y++) for (let x = 0; x < 240; x++) if (d[(y * 240 + x) * 4 + 3]! > 30) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  if (x1 <= x0) return null;
+  const out = document.createElement('canvas'); out.width = out.height = 64;
+  const s = Math.min(60 / (x1 - x0 + 1), 60 / (y1 - y0 + 1)), w = (x1 - x0 + 1) * s, h = (y1 - y0 + 1) * s;
+  out.getContext('2d')!.drawImage(big, x0, y0, x1 - x0 + 1, y1 - y0 + 1, (64 - w) / 2, 62 - h, w, h);
+  icons.set(key, out);
+  return out;
+}
+
+/** Draw this week's bird on the header button, with a dot when new birds have arrived since you last looked. */
+export function paintFlockButton() {
+  const btn = $('#flockBtn'); if (!btn) return;
+  const id = speciesOfWeek(), cv = btn.querySelector('canvas') as HTMLCanvasElement | null;
+  try {
+    const icon = silhouette(id, getComputedStyle(btn).color || '#eef2f6'), c = cv?.getContext('2d');
+    if (icon && c) { c.clearRect(0, 0, 64, 64); c.drawImage(icon, 0, 0); }
+  } catch { /* no canvas (tests) */ }
+  const n = newBirds(crewFlock(state.sessions, state.profiles));
+  btn.querySelector('.flock-dot')?.classList.toggle('hide', n === 0);
+  btn.setAttribute('aria-label', labelOf(id) + (n ? `, ${n} new` : ''));
+}
+
+let isOpen = false;
+export function openAviary() {
+  if (isOpen) return;
+  isOpen = true;
+  unlockAudio();
+  const id = speciesOfWeek(), names = SPECIES_NAMES[id], week = weekIndex();
+  const next = SPECIES_NAMES[SPECIES_ORDER[(SPECIES_ORDER.indexOf(id) + 1) % SPECIES_ORDER.length]!].many;
+  const opener = document.activeElement as HTMLElement | null;
+  const el = document.createElement('div');
+  el.className = 'aviary'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', labelOf(id));
+  el.innerHTML = `
+    <div class="av-top">
+      <button class="av-back" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="av-tt"><b>${esc(names.many)}</b><small>Every ${POINTS_PER_BIRD} points anyone earns brings one. They fly off when Sunday ends.</small></div>
+      <div class="av-n" id="avN" aria-live="polite"></div>
+    </div>
+    <div class="av-stage"><canvas role="img" aria-label="${esc(names.many)} in a Blue Mountains clearing"></canvas><div class="av-msg hide" id="avMsg"></div><div class="av-new hide" id="avNew"></div></div>
+    <div class="av-foot"><div class="av-legend" id="avLegend"></div><p class="av-hint">Tap the ground to throw some seed, or a bird to startle it. Next week: ${esc(next.toLowerCase())}.</p></div>`;
+  document.body.append(el);
+  history.pushState({ aviary: 1 }, '');
+
+  const stage = $('.av-stage', el), cv = $('canvas', stage) as HTMLCanvasElement, ctx = cv.getContext('2d');
+  const sky = document.createElement('canvas'), land = document.createElement('canvas');
+  const world = new World();
+  let dpr = 1, hourPainted = -1, light = 1, raf = 0, last = performance.now();
+  world.onSound = (b, k) => birdSound(b.sp.id, k, (b.x / world.w) * 1.4 - 0.7, 0.45 + 0.55 * Math.min(1, Math.max(0, (b.y - world.hor) / world.gh)));
+
+  const hourNow = () => { const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
+  const paint = () => {
+    const h = hourNow(); hourPainted = h; const s = skyAt(h); light = s.light; world.night = light < 0.25;
+    for (const [cvx, f] of [[sky, paintSky], [land, paintLand]] as const) {
+      cvx.width = Math.round(world.w * dpr); cvx.height = Math.round(world.h * dpr);
+      const c = cvx.getContext('2d'); if (!c) continue;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, world.w, world.h); f(c, world, h);
+    }
+  };
+  const fit = () => {
+    const w = Math.max(200, stage.clientWidth), h = Math.max(240, stage.clientHeight);
+    if (w === world.w && h === world.h && cv.width) return;
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    world.resize(w, h); paint();
+  };
+  fit();
+
+  // ---- birds: one per 30 points, per climber ----
+  let members: FlockMember[] = [];
+  const pending = (uid: string) => world.queue.filter(q => q.uid === uid).length;
+  const sync = (first: boolean) => {
+    members = crewFlock(state.sessions, state.profiles);
+    const seen = first ? seenBirds() : {};
+    let budget = MAX_BIRDS, delay = first ? 0.7 : 0.2, arriving = 0;
+    for (const m of members) {
+      const want = Math.min(m.birds, budget), have = world.count(m.userId) + pending(m.userId); budget -= want;
+      if (want > have) {
+        let place = first ? Math.min(seen[m.userId] ?? 0, want) : 0;
+        for (let i = have; i < want; i++) {
+          if (place-- > 0) { world.add(id, m.userId, m.band, 'place'); continue; }
+          world.queue.push({ at: world.t + delay, uid: m.userId, run: () => world.add(id, m.userId, m.band, 'arrive') });
+          delay += 0.5 + Math.random() * 0.8; arriving++;
+        }
+      } else if (want < have) {
+        const drop = Math.min(pending(m.userId), have - want);
+        for (let i = 0; i < drop; i++) { const q = world.queue.findIndex(x => x.uid === m.userId); if (q >= 0) world.queue.splice(q, 1); }
+        world.remove(m.userId, have - want - drop);
+      }
+    }
+    for (const uid of new Set(world.birds.map(b => b.uid))) if (!members.some(m => m.userId === uid)) world.remove(uid, world.count(uid));
+    markSeen(members);
+    const total = flockSize(members);
+    $('#avN', el).textContent = `${total} ${total === 1 ? 'bird' : 'birds'}`;
+    const msg = $('#avMsg', el);
+    msg.classList.toggle('hide', total > 0);
+    msg.textContent = `No ${names.many.toLowerCase()} yet this week. Every ${POINTS_PER_BIRD} points anyone earns brings one in.`;
+    if (arriving && total) { const n = $('#avNew', el); n.textContent = `+${arriving} new since you last looked`; n.classList.remove('hide'); n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; }
+    legend();
+  };
+  const legend = () => {
+    const me = state.me?.id;
+    $('#avLegend', el).innerHTML = members.map(m => {
+      const p = state.profiles.get(m.userId);
+      return `<button class="av-who${m.userId === me ? ' me' : ''}" data-who="${esc(m.userId)}" style="--band:${m.band}">${avatar(p)}<span><b>${esc(p?.name ?? 'Someone')}</b><small>${m.birds} ${m.birds === 1 ? 'bird' : 'birds'} · ${m.toNext} ${m.toNext === 1 ? 'pt' : 'pts'} to the next</small></span></button>`;
+    }).join('') || '<p class="sub" style="margin:0">Nobody has trained yet this week.</p>';
+  };
+  sync(true);
+  if (navigator.onLine) refreshShared().catch(() => {}); // pick up the crew's latest sessions; bf:sessions-changed re-syncs
+
+  // ---- the loop ----
+  const frame = (now: number) => {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    world.step(dt);
+    if (ctx) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawWorld(ctx, world, sky, land, light); }
+    raf = requestAnimationFrame(frame);
+  };
+  raf = requestAnimationFrame(frame);
+
+  // ---- input and housekeeping ----
+  cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); world.tap(e.clientX - r.left, e.clientY - r.top); });
+  $('#avLegend', el).addEventListener('click', e => { const b = (e.target as HTMLElement).closest('[data-who]') as HTMLElement | null; if (b) world.highlight(b.dataset.who!); });
+  const ro = new ResizeObserver(() => fit()); ro.observe(stage);
+  const onChange = () => sync(false);
+  document.addEventListener('bf:sessions-changed', onChange);
+  const tick = setInterval(() => {
+    if (weekIndex() !== week) { close(); openAviary(); return; } // a new week: a new flock
+    if (Math.abs(hourNow() - hourPainted) > 0.1) paint();
+  }, 30e3);
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.modal')) back(); };
+  addEventListener('keydown', onKey);
+  const onPop = () => close();
+  addEventListener('popstate', onPop);
+  const back = () => { if (history.state?.aviary) history.back(); else close(); };
+  $('.av-back', el).addEventListener('click', back);
+  function close() {
+    if (!isOpen) return;
+    isOpen = false;
+    cancelAnimationFrame(raf); ro.disconnect(); clearInterval(tick);
+    removeEventListener('keydown', onKey); removeEventListener('popstate', onPop); document.removeEventListener('bf:sessions-changed', onChange);
+    el.remove(); paintFlockButton();
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+  }
+  ($('.av-back', el) as HTMLElement).focus({ preventScroll: true });
+}

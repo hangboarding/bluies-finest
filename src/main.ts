@@ -15,6 +15,7 @@ import { maybeWelcome, pageTour } from './views/tour';
 import { queuedSessions, flushOutbox, dropUploaded } from './lib/outbox';
 import { openClimber } from './views/climber';
 import { bellHtml, wireBell } from './views/notifs';
+import { flockBtnHtml, paintFlockButton, openAviary } from './views/aviary';
 import { syncPush, disablePush } from './lib/push';
 import { renderFeed, focusPost } from './views/feed';
 import { checkUnlocks } from './views/unlocks';
@@ -72,17 +73,20 @@ export async function go(page: Page): Promise<boolean> {
   if (page !== 'hang' || !$('#view-hang').childElementCount) await PAGES.find(p => p.id === page)!.render($(`#view-${page}`));
   else refreshHang(); // the Hang page is kept between tabs; bodyweight, workouts or settings may have changed elsewhere
   if (current === page) pageTour(page); // user may have switched tabs while this page loaded
+  paintFlockButton(); // a session saved since may have brought a new bird
   return true;
 }
 
 function shell() {
   $('#app').innerHTML = `
-    <header><img src="${import.meta.env.BASE_URL}logo.svg" alt="" width="30" height="30" class="logo"><h1>Bluies <span>Finest</span></h1>${bellHtml()}</header>
+    <header><img src="${import.meta.env.BASE_URL}logo.svg" alt="" width="30" height="30" class="logo"><h1>Bluies <span>Finest</span></h1>${flockBtnHtml()}${bellHtml()}</header>
     <main>${PAGES.map(p => `<div id="view-${p.id}" class="hide"></div>`).join('')}</main>
     <nav class="tabs" id="tabs" aria-label="Main">${PAGES.map(p => `<button data-v="${p.id}"><b>${ic(p.icon)}</b>${p.label}</button>`).join('')}</nav>`;
   hydrateIcons($('#tabs')); hydrateIcons($('header'));
   wireBell(sid => { if (!(current === 'hang' && hangBusy())) { focusPost(sid); go('feed'); } else toast('Finish or cancel your session first'); }, () => { go('ranks'); });
   $$('#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v as Page)));
+  $('#flockBtn').addEventListener('click', () => { if (current === 'hang' && hangBusy()) toast('Finish or cancel your session first'); else openAviary(); });
+  paintFlockButton();
 }
 
 function errorScreen(msg: string) {
@@ -161,7 +165,9 @@ navigator.serviceWorker?.addEventListener('message', e => {
   if (UUID.test(id)) { if (!(current === 'hang' && hangBusy())) { focusPost(id); go('feed'); } else toast('Finish or cancel your session first'); }
 });
 // Re-draw Stats and History when offline sessions finish uploading.
-document.addEventListener('bf:sessions-changed', () => { if (current === 'stats') renderStats($('#view-stats')); if (current === 'workouts') renderWorkouts($('#view-workouts')); });
+document.addEventListener('bf:sessions-changed', () => { if (current === 'stats') renderStats($('#view-stats')); if (current === 'workouts') renderWorkouts($('#view-workouts')); paintFlockButton(); });
+// the header bird: a dot when new birds arrive, and a new species when the week turns over
+setInterval(() => { if (!document.hidden) paintFlockButton(); }, 60e3);
 // Tap any climber's name or photo to open their profile.
 document.addEventListener('click', e => {
   const el = (e.target as HTMLElement).closest('[data-uid]') as HTMLElement | null;

@@ -24,6 +24,8 @@ export function buildSteps(v: Values): Step[] {
 let ac: AudioContext | null = null;
 export let soundOn = true;
 export const setSound = (on: boolean) => { soundOn = on; };
+/** The shared audio context, once unlockAudio() has made it (inside a tap). */
+export const audio = () => ac;
 export function unlockAudio() {
   try {
     ac ??= new (window.AudioContext || (window as any).webkitAudioContext)();
