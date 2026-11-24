@@ -578,3 +578,5 @@ html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
 /* The leaderboard keeps its shape as the carousel moves on: two lines are kept for what the board measures and who
    rules it, so a one-line period after a two-line one doesn't shift everything (the podium holds its height too) */
 .t10card #catDesc{min-height:2.9em}.t10card .champ{min-height:2.9em}
+/* the podium crown sits just clear of the winner's photo and its gold ring (7px outside the photo), in front of it */
+.podium .crown{position:relative;z-index:1;margin-bottom:4px}.podium .crown .crown-svg{margin-bottom:0}

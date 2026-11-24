@@ -4,7 +4,7 @@
 import type { ChallengeRow, Comment, FeedItem, InviteCode, Issue, IssueCategory, NewSession, Notif, PrivateData, Profile, SeasonChampion, Session, Store } from './types';
 import { championsFrom } from './seasons';
 import { sessionPoints } from './scoring';
-import { PROTOCOLS, sessionName } from './protocols';
+import { PROTOCOLS, sessionName, currentName } from './protocols';
 // the same rules the notify server function uses, so demo mode gets top-3 alerts too
 import { overtaken, sydneyDay } from '../../supabase/functions/notify/rank';
 
@@ -119,7 +119,8 @@ export class LocalStore implements Store {
   async savePrivate(d: Partial<PrivateData>) { const me = this.need(); this.db.priv[me] = structuredClone({ ...(this.db.priv[me] ?? { bodyweightKg: null, settings: {} }), ...d }); this.save(); } // a copy, like a real upload
 
   async listSessions(o: { userId?: string; sinceIso?: string } = {}) {
-    return structuredClone(this.db.sessions.filter(s => (!o.userId || s.userId === o.userId) && (!o.sinceIso || s.createdAt >= o.sinceIso)));
+    return structuredClone(this.db.sessions.filter(s => (!o.userId || s.userId === o.userId) && (!o.sinceIso || s.createdAt >= o.sinceIso)))
+      .map(s => ({ ...s, protocolName: currentName(s.protocolName) })); // built-in protocols renamed since show their new name
   }
   async addSession(s: NewSession) {
     const given = (s as any).id as string | undefined, dup = given && this.db.sessions.find(x => x.id === given);
@@ -158,7 +159,7 @@ export class LocalStore implements Store {
   async feed(limit = 50): Promise<FeedItem[]> {
     const me = this.db.me;
     return this.db.sessions.slice(0, limit).map(s => ({
-      session: structuredClone(s), likes: this.db.likes.filter(l => l.s === s.id).length, likedByMe: this.db.likes.some(l => l.s === s.id && l.u === me),
+      session: { ...structuredClone(s), protocolName: currentName(s.protocolName) }, likes: this.db.likes.filter(l => l.s === s.id).length, likedByMe: this.db.likes.some(l => l.s === s.id && l.u === me),
       comments: this.db.comments.filter(c => c.sessionId === s.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     }));
   }

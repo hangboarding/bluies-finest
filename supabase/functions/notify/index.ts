@@ -215,8 +215,8 @@ Deno.serve(async (req) => {
     if (!subs?.length) return json(200, { skipped: 'owner has no push subscriptions' });
 
     const who = (actor?.name as string | undefined)?.trim() || 'Someone';
-    // the climber's own name for it, or else its protocol's (JUST LET ME HANG has been renamed since)
-    const what = (session.title as string | undefined)?.trim() || ((session.protocol_name as string)?.trim() || 'session').replace(/^JUST LET ME HANG$/, 'QUICK SESH');
+    // the climber's own name for it, or else its protocol's (JUST LET ME HANG, then QUICK SESH, are Quick Sesh now)
+    const what = (session.title as string | undefined)?.trim() || ((session.protocol_name as string)?.trim() || 'session').replace(/^(JUST LET ME HANG|QUICK SESH)$/, 'Quick Sesh');
     const isComment = payload.table === 'comments';
     return json(200, await pushTo(db, subs as SubRow[], {
       title: isComment ? `${who} commented on your ${what}` : `${who} ❤️ hearted your ${what}`,

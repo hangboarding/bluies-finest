@@ -232,7 +232,7 @@ describe('earned in the app', () => {
     expect(flags().slowBurn).toBeFalsy();
   });
 
-  it('Let It Go, Speedrun and Feelings Valid: a QUICK SESH, 😭 beforehand, letting go of every hang', async () => {
+  it('Let It Go, Speedrun and Feelings Valid: a Quick Sesh, 😭 beforehand, letting go of every hang', async () => {
     await openHang();
     const sel = $<HTMLSelectElement>('#proto'); sel.value = 'jlmh'; sel.dispatchEvent(new Event('change'));
     for (const [k, v] of [['sets', '5'], ['rest', '5'], ['hang', '10']]) { const i = $<HTMLInputElement>(`#i-${k}`); i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }

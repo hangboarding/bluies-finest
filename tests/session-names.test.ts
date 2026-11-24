@@ -365,6 +365,6 @@ describe('a database without the update for names (Supabase)', () => {
       return b;
     };
     const ns = await st.notifications();
-    expect(ns.map((n: any) => n.protocolName)).toEqual(['QUICK SESH', 'Birthday hang']);
+    expect(ns.map((n: any) => n.protocolName)).toEqual(['Quick Sesh', 'Birthday hang']);
   });
 });

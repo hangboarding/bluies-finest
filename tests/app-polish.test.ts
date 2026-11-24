@@ -1,5 +1,5 @@
 // Sheets (✕ to close, typing prompts above the keyboard), swipes, renaming boards, the fuller session editor,
-// achievement pop-ups and the QUICK SESH rename, through the real views.
+// achievement pop-ups and the Quick Sesh rename, through the real views.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Session } from '../src/lib/types';
 import { session } from './helpers';
@@ -256,11 +256,12 @@ describe('achievement pop-ups', () => {
   });
 });
 
-describe('⚡ QUICK SESH', () => {
-  it('is the new name, and older sessions saved as JUST LET ME HANG show it too', async () => {
+describe('⚡ Quick Sesh', () => {
+  it('is the new name, and older sessions saved as JUST LET ME HANG or QUICK SESH show it too', async () => {
     const P = await import('../src/lib/protocols');
-    expect(P.PROTOCOLS.jlmh!.n).toBe('QUICK SESH');
-    expect(P.currentName('JUST LET ME HANG')).toBe('QUICK SESH');
+    expect(P.PROTOCOLS.jlmh!.n).toBe('Quick Sesh');
+    expect(P.currentName('JUST LET ME HANG')).toBe('Quick Sesh');
+    expect(P.currentName('QUICK SESH')).toBe('Quick Sesh');
     expect(P.currentName('Max Hangs')).toBe('Max Hangs');
   });
 });
@@ -334,7 +335,7 @@ describe('no-hang lifts count only the weight lifted', () => {
     hang.renderHang($('#view-hang'));
     const sel = $<HTMLSelectElement>('#proto'); sel.value = 'jlmh'; sel.dispatchEvent(new Event('change'));
   };
-  it('QUICK SESH can be a lift: it starts at 0 kg, and 10 kg in one hand is 14% of bodyweight on one arm', async () => {
+  it('Quick Sesh can be a lift: it starts at 0 kg, and 10 kg in one hand is 14% of bodyweight on one arm', async () => {
     await pickQuick();
     expect($('#modeWrap').classList.contains('hide')).toBe(false);
     $('[data-k="mode"] [data-v="lift"]').click();
@@ -364,7 +365,7 @@ describe('no-hang lifts count only the weight lifted', () => {
     expect([asLift.mode, asLift.liftKg, asLift.addedKg, asLift.loadPct]).toEqual(['lift', 10, 0, 29]);
     expect(asLift.points).toBeLessThan(asHang.points / 4);
   });
-  it('the workout exercise editor offers hang or lift for QUICK SESH too', async () => {
+  it('the workout exercise editor offers hang or lift for Quick Sesh too', async () => {
     const WP = await import('../src/views/workout-parts');
     const W = await import('../src/lib/workouts');
     const P = (await import('../src/lib/protocols')).PROTOCOLS;
@@ -377,7 +378,7 @@ describe('no-hang lifts count only the weight lifted', () => {
   });
   it('a session logged as a hang by mistake can be switched to a lift in Edit session', async () => {
     const hangs = Array.from({ length: 6 }, (_, i) => ({ set: i + 1, rep: 1, hand: 'L' as const, target: 10, held: 10, full: true }));
-    const s = session({ id: 'm1', protocolKey: 'jlmh', protocolName: 'QUICK SESH', mode: 'hang', hands: 'L', addedKg: 10, loadPct: 114, hangs, tutS: 60, fullHangs: 6, totalHangs: 6, points: 0 });
+    const s = session({ id: 'm1', protocolKey: 'jlmh', protocolName: 'Quick Sesh', mode: 'hang', hands: 'L', addedKg: 10, loadPct: 114, hangs, tutS: 60, fullHangs: 6, totalHangs: 6, points: 0 });
     const { sessionPoints } = await import('../src/lib/scoring');
     s.points = sessionPoints(s, [s]);
     await openApp([s]);

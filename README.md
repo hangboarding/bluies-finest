@@ -6,9 +6,9 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 
 ## Features
 
-- **Hang timer:** 12 protocols (Max Hangs, Repeaters, Abrahangs, 7/53…), or save your own, plus ⚡ Quick sesh.
+- **Hang timer:** 12 protocols (Max Hangs, Repeaters, Abrahangs, 7/53…), or save your own, plus ⚡ Quick Sesh.
   - Picking a protocol loads its recommended settings; your load (added weight or assist) is remembered for each one. Pick it again to reset it. Your own protocols keep whatever you last set.
-  - Every protocol (⚡ Quick sesh too) can be a hang or a no-hang lift. A lift counts only the weight lifted (plates, a dumbbell), never your bodyweight.
+  - Every protocol (⚡ Quick Sesh too) can be a hang or a no-hang lift. A lift counts only the weight lifted (plates, a dumbbell), never your bodyweight.
   - Get-ready countdown, beeps, let-go logging and left/right one-arm hangs.
   - The screen stays awake while you hang.
 - **Workouts:** queue several protocols (built-in or your own) with a rest between each, then save the list or just start it.

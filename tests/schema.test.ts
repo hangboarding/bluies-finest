@@ -126,7 +126,7 @@ test('a lift counts only the weight lifted, and a session logged as a hang by mi
   await db.exec(`set test.uid = '${U}'`);
   const hangs = JSON.stringify(Array.from({ length: 6 }, (_, i) => ({ set: i + 1, rep: 1, hand: 'L', target: 10, held: 10, full: true })));
   const row = async (sql: string, args: unknown[]) => (await db.query<any>(sql, args)).rows[0];
-  // the report: a one-arm QUICK SESH with "10 kg" meant as a dumbbell, logged as a hang (bodyweight + 10 kg on one arm)
+  // the report: a one-arm Quick Sesh with "10 kg" meant as a dumbbell, logged as a hang (bodyweight + 10 kg on one arm)
   const hang = await row(`insert into public.sessions (protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, added_kg, hangs) values ('jlmh','hang','L',10,60,6,1,180,20,10,$1) returning id, load_pct, points`, [hangs]);
   expect(hang.load_pct).toBe(114);
   // the same, as a lift: only the 10 kg counts (per hand × 2 ÷ bodyweight)
