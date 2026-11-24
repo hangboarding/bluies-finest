@@ -7,7 +7,7 @@ import { FACTS } from '../aviary/facts';
 import { SPECIES } from '../aviary/species';
 import { drawBird, restPose } from '../aviary/rig';
 import { World } from '../aviary/sim';
-import { paintSky, paintLand, paintCanopy, paintProps, skyAt, type Sprite } from '../aviary/scene';
+import { paintSky, paintBack, paintForest, paintLand, paintCanopy, paintProps, skyAt, type Sprite, type Swayer } from '../aviary/scene';
 import { drawWorld } from '../aviary/render';
 import { birdSound, owlHoot, birdsMuted, setBirdsMuted } from '../aviary/sound';
 import { unlockAudio, soundOn } from '../lib/timer';
@@ -104,23 +104,33 @@ export function openAviary() {
   });
 
   const stage = $('.av-stage', el), cv = $('canvas', stage) as HTMLCanvasElement, ctx = cv.getContext('2d');
-  const sky = document.createElement('canvas'), land = document.createElement('canvas'), canopy = document.createElement('canvas');
-  let sprites: (Sprite | null)[] = [];
+  const sky = document.createElement('canvas'), far = document.createElement('canvas'), land = document.createElement('canvas'), canopy = document.createElement('canvas');
+  let sprites: (Sprite | null)[] = [], forest: Swayer[] = [], leaves: Swayer[] = [];
   const world = new World();
   let dpr = 1, hourPainted = -1, light = 1, raf = 0, last = performance.now();
   world.onSound = (b, k) => birdSound(b.sp.id, k, (b.x / world.w) * 1.4 - 0.7, 0.45 + 0.55 * Math.min(1, Math.max(0, (b.y - world.hor) / world.gh)));
   world.onOwl = x => owlHoot((x / world.w) * 1.4 - 0.7, 0.8);
+  world.onFly = (k, x) => { if (k !== 'bat') birdSound(k, 'song', (x / world.w) * 1.4 - 0.7, 0.3); }; // a flock calling as it passes over
+  // while developing: the world, and how long each frame's step and drawing take (ms, summed), in the console
+  const probe = import.meta.env.DEV ? { world, step: 0, draw: 0, frames: 0 } : null;
+  if (probe) (window as unknown as { __aviary: typeof probe }).__aviary = probe;
 
   // the real time of day; while developing, ?hour=22 (say) shows another time
   const fakeHour = import.meta.env.DEV ? new URLSearchParams(location.search).get('hour') : null;
   const hourNow = () => { if (fakeHour) return +fakeHour; const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
   const paint = () => {
     const h = hourNow(); hourPainted = h; const s = skyAt(h); light = s.light; world.night = light < 0.25; world.hour = h;
-    for (const [cvx, f] of [[sky, paintSky], [land, paintLand], [canopy, paintCanopy]] as const) {
-      cvx.width = Math.round(world.w * dpr); cvx.height = Math.round(world.h * dpr);
-      const c = cvx.getContext('2d'); if (!c) continue;
-      c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, world.w, world.h); f(c, world, h);
-    }
+    // each layer only as tall as what's in it: the sky and the far distance stop at the horizon, the crowns near the top
+    const layer = (cvx: HTMLCanvasElement, tall: number) => {
+      cvx.width = Math.round(world.w * dpr); cvx.height = Math.round(Math.min(world.h, tall) * dpr);
+      const c = cvx.getContext('2d'); if (c) { c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, world.w, world.h); }
+      return c;
+    };
+    let c = layer(sky, world.hor + 10); if (c) paintSky(c, world, h);
+    c = layer(far, world.hor + 10); if (c) paintBack(c, world, h);
+    c = layer(land, world.h); if (c) paintLand(c, world, h);
+    c = layer(canopy, world.h * 0.26); leaves = c ? paintCanopy(c, world, dpr) : [];
+    forest = paintForest(world, h, dpr);
     sprites = paintProps(world, dpr);
   };
   const fit = () => {
@@ -176,8 +186,11 @@ export function openAviary() {
   // ---- the loop ----
   const frame = (now: number) => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const t0 = probe ? performance.now() : 0;
     world.step(dt);
-    if (ctx) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawWorld(ctx, world, { sky, land, canopy, props: sprites }, light); }
+    const t1 = probe ? performance.now() : 0;
+    if (ctx) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawWorld(ctx, world, { sky, back: far, land, canopy, props: sprites, forest, leaves, dpr }, light); }
+    if (probe) { probe.step += t1 - t0; probe.draw += performance.now() - t1; probe.frames++; }
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);

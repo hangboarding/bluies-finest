@@ -235,6 +235,44 @@ describe('the clearing', () => {
     expect(w.critters.includes(r)).toBe(false);
   });
 
+  it('white cockatoos fly over by day, black cockatoos at dusk, and microbats flit about at night', () => {
+    const seen = (hour: number, night: boolean, secs: number) => {
+      const w = new World(seeded(31)); w.resize(375, 560); w.hour = hour; w.night = night;
+      const n = { cockatoo: 0, blackcockatoo: 0, bat: 0 }, calls: string[] = []; w.onFly = k => calls.push(k);
+      run(w, secs, () => {
+        for (const f of w.flyers) {
+          n[f.k]++;
+          expect(Number.isFinite(f.x) && Number.isFinite(f.y)).toBe(true);
+          if (f.k === 'bat') { expect(f.y).toBeGreaterThan(0); expect(f.y).toBeLessThan(560); } else expect(f.y).toBeLessThan(w.hor); // flocks stay up in the sky
+        }
+      });
+      return { n, calls, w };
+    };
+    const day = seen(11, false, 300);
+    expect(day.n.cockatoo).toBeGreaterThan(0); expect(day.n.blackcockatoo + day.n.bat).toBe(0); expect(day.calls).toContain('cockatoo');
+    const dusk = seen(18.5, false, 200);
+    expect(dusk.n.blackcockatoo).toBeGreaterThan(0); expect(dusk.n.cockatoo + dusk.n.bat).toBe(0);
+    const night = seen(23, true, 120);
+    expect(night.n.bat).toBeGreaterThan(0); expect(night.n.cockatoo + night.n.blackcockatoo).toBe(0);
+    // the flocks pass right over and are gone; the bats leave when morning comes
+    expect(day.w.flyers.length).toBeLessThan(14);
+    night.w.night = false; night.w.hour = 6.5; run(night.w, 60);
+    expect(night.w.flyers.filter(f => f.k === 'bat')).toHaveLength(0);
+  });
+
+  it('plants lean into a gust and spring back smoothly, the far side a moment after the near side', () => {
+    const w = new World(seeded(8)); w.resize(375, 560);
+    run(w, 1); w.gust = 0; run(w, 6); // settle
+    w.windDir = 1; w.gust = 1.8;
+    let last = w.bend, maxStep = 0, peak = 0, lagged = false;
+    run(w, 6, () => { maxStep = Math.max(maxStep, Math.abs(w.bend - last)); last = w.bend; peak = Math.max(peak, w.bend); if (w.bendAt(0) > w.bendAt(375) + 0.05) lagged = true; w.gust = Math.min(w.gust, 1.8); });
+    expect(peak).toBeGreaterThan(0.8); // it really bends
+    expect(maxStep).toBeLessThan(0.15); // but never jumps from one frame to the next
+    expect(lagged).toBe(true); // the gust crosses the clearing
+    w.gust = 0; run(w, 8);
+    expect(Math.abs(w.bend)).toBeLessThan(0.05); // and it settles again
+  });
+
   it('the wombat comes out of its burrow at night, grazes nearby, and goes back underground by morning', () => {
     const w = fresh(9, 23);
     const b = of(w, 'wombat')[0] ?? (run(w, 0.1), of(w, 'wombat')[0]!);

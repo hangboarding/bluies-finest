@@ -8,6 +8,10 @@ import { lookOf, SPECIES, type Behaviour, type Look, type Species } from './spec
 import { restPose, billTip, type Pose, type PoseKey } from './rig';
 import type { SpeciesId } from '../lib/flock';
 import { stepCritters, tapCritter, type Critter } from './critters';
+import { stepFlyers, type Flyer, type FlyerKind } from './flyers';
+
+/** Drops the ones that fail `ok`, in place, so there's no new array every frame. */
+function keep<T>(a: T[], ok: (v: T) => boolean) { let n = 0; for (const v of a) if (ok(v)) a[n++] = v; a.length = n; }
 
 export type Act = Behaviour | 'faceoff' | 'flee' | 'chase' | 'perched' | 'sleep' | 'forage' | 'arrive' | 'depart' | 'startle' | 'notice' | 'eat' | 'roost';
 export type SoundKind = 'song' | 'alarm' | 'squabble';
@@ -94,6 +98,12 @@ export class World {
   winds: Wind[] = []; motes: Mote[] = [];
   /** Seconds left of a gust (birds' feathers ruffle, leaves and dust blow about). */
   gust = 0; windDir = 1; private windT = 2; private leafT = 3;
+  /** How far the wind is bending the plants (+ when blowing right). It eases into a gust and springs back after, rather
+   *  than snapping, and a log of it lets a gust reach the far side of the clearing a moment after the near side. */
+  bend = 0; private bendV = 0; private bendLog = new Float32Array(48); private bendI = 0; private bendClock = 0;
+  /** Flocks passing over and bats about at night (see flyers.ts), and when the next flock might come. */
+  flyers: Flyer[] = []; flockT = 10; batN = 0;
+  onFly?: (k: FlyerKind, x: number) => void;
   /** The species the perch slots are sized for, and the crowd size they were built at. */
   private ref: Species | null = null; private builtCrowd = 1;
   /** Things due to happen later (birds arriving one after another), with the climber they're for. */
@@ -291,7 +301,7 @@ export class World {
     }
     this.buildPerches(ow);
     for (const f of this.food) { f.x = (f.x / ow) * w; f.y = hor + ((f.y - ohor) / ogh) * gh; }
-    this.parts = []; this.winds = []; this.critters = []; // the animals start afresh where the new size puts their homes
+    this.parts = []; this.winds = []; this.critters = []; this.flyers = []; // the animals start afresh where the new size puts their homes
     if (!this.bugs.length) for (const k of ['midge', 'midge', 'midge', 'butterfly', 'butterfly', 'dragonfly', 'dragonfly', 'moth', 'moth', 'moth', 'hopper', 'hopper', 'hopper', 'beetle', 'beetle'] as BugKind[]) this.bugs.push(this.spawnBug(k));
     else for (const g of this.bugs) Object.assign(g, this.spawnBug(g.k));
     this.motes = Array.from({ length: Math.round(w / 14) }, () => ({ x: this.rand() * w, y: this.rand() * h * 0.95, ph: this.rand() * 9, s: this.r(0.5, 1.4), v: this.r(0.5, 1.5) }));
@@ -750,9 +760,12 @@ export class World {
     if (Math.abs(this.crowdT - this.builtCrowd) > 0.1) this.buildPerches();
     // wind, drifting dust and falling leaves
     this.gust = Math.max(0, this.gust - dt);
+    // the plants lean into a gust on a soft spring, overshoot a little as it passes, and settle
+    this.bendV += ((Math.min(1.5, this.gust) * this.windDir - this.bend) * 9 - this.bendV * 3.2) * dt; this.bend += this.bendV * dt;
+    for (this.bendClock += dt; this.bendClock >= 1 / 30; this.bendClock -= 1 / 30) { this.bendI = (this.bendI + 1) % 48; this.bendLog[this.bendI] = this.bend; }
     if ((this.windT -= dt) <= 0) { this.windT = this.r(3, 7.5); this.blow(); }
     for (const d of this.winds) d.t += dt;
-    this.winds = this.winds.filter(d => d.t < d.T);
+    keep(this.winds, d => d.t < d.T);
     for (const m of this.motes) {
       m.ph += dt;
       m.x += (this.windDir * (4 + this.gust * 30) * m.v + Math.sin(m.ph * 0.8) * 3) * dt; m.y += Math.cos(m.ph * 0.6) * 2.5 * dt;
@@ -770,9 +783,10 @@ export class World {
       f.age += dt;
       if (f.a > 0 || f.va > 0) { f.va -= 320 * dt; f.a += f.va * dt; if (f.a <= 0) { f.a = 0; f.va = Math.abs(f.va) > 50 ? -f.va * 0.3 : 0; } }
     }
-    this.food = this.food.filter(f => f.left > 0 && f.age < 90);
+    keep(this.food, f => f.left > 0 && f.age < 90);
     this.moveBugs(dt);
     stepCritters(this, dt);
+    stepFlyers(this, dt);
     for (const p of this.parts) {
       p.life += dt;
       if (p.k === 'ripple') { p.r += 16 * dt; continue; }
@@ -787,7 +801,13 @@ export class World {
         if (p.k === 'leaf' && this.inPond(p.x, p.y)) p.vx *= 0.98; // floats
       }
     }
-    this.parts = this.parts.filter(p => p.life < p.max);
+    keep(this.parts, p => p.life < p.max);
+  }
+  /** The wind's bend as felt at x: a gust reaches the downwind side about half a second after the upwind side. */
+  bendAt(x: number) {
+    const f = this.windDir > 0 ? x / this.w : 1 - x / this.w, d = Math.max(0, Math.min(1, f)) * 16, i = Math.floor(d), u = d - i;
+    const a = this.bendLog[(this.bendI - i + 48) % 48]!, b = this.bendLog[(this.bendI - i - 1 + 48) % 48]!;
+    return a + (b - a) * u;
   }
 
   private update(b: Bird, dt: number) {

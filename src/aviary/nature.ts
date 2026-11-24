@@ -132,14 +132,16 @@ export function drawVine(c: Ctx, r: () => number, trunk: Stalk, limbs: Stalk[], 
   }
 }
 /** A eucalypt, grown: a trunk that bends a little and forks, limbs that fork again and taper, angled upward the way
- *  gums grow, with open clumps of leaves at the ends. Different every seed. */
+ *  gums grow, with open clumps of leaves at the ends. Different every seed. Returns the box it was drawn in. */
 export function growTree(c: Ctx, r: () => number, o: TreeOpts) {
   const bark = (o.bark ?? BARKS[0]!).map(s => tint(s, o.haze, o.hazeK ?? 0)) as [string, string];
   const leaves = (o.leaves ?? LEAVES).map(s => tint(s, o.haze, o.hazeK ?? 0));
   const levels = o.levels ?? 4, spread = o.spread ?? 1, tips: [number, number, number][] = [], stalks: [number, Stalk][] = [];
+  const box = { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
+  const fit = (x: number, y: number, m: number) => { box.l = Math.min(box.l, x - m); box.r = Math.max(box.r, x + m); box.t = Math.min(box.t, y - m); box.b = Math.max(box.b, y + m); };
   const seg = (x: number, y: number, a: number, len: number, w0: number, lv: number) => {
     const w1 = w0 * (lv === 0 ? 0.62 : 0.6), ex = x + Math.cos(a) * len, ey = y + Math.sin(a) * len, bow = (r() - 0.5) * len * 0.22;
-    taper(c, x, y, ex, ey, w0, w1, bow, bark);
+    taper(c, x, y, ex, ey, w0, w1, bow, bark); fit(x, y, w0 + 1); fit(ex, ey, w0 + Math.abs(bow) + 1);
     if (o.vine && lv < 2) stalks.push([lv, quadStalk(x, y, ex, ey, w0, w1, bow)]); // the trunk and first limbs, for the vine
     if (lv >= levels || w1 < 0.7) { tips.push([ex, ey, len]); return; }
     const n = lv === 0 ? 2 + (r() < 0.6 ? 1 : 0) : r() < 0.7 ? 2 : 3;
@@ -156,12 +158,14 @@ export function growTree(c: Ctx, r: () => number, o: TreeOpts) {
     const vr = rng(o.vine.seed), limbs = stalks.filter(s => s[0] === 1).map(s => s[1]);
     drawVine(c, vr, stalks[0]![1], limbs.slice(0, 1 + (vr() < 0.6 ? 1 : 0)), clamp(o.w / 7, 0.6, 1.3), o.vine.kind, 0.97);
   }
-  if (o.leafy === 0) return;
+  if (o.leafy === 0) return box;
   // open, drooping clumps rather than balls: a few small ones scattered round each tip
   for (const [x, y, len] of tips) {
     const rad = Math.max(3, len * 0.34 * (o.leafy ?? 1));
     for (let k = 0; k < 2; k++) foliage(c, r, x + (r() - 0.5) * rad * 1.2, y - 1 + (r() - 0.3) * rad * 0.8, rad * (0.7 + r() * 0.4), leaves, 10 + Math.round(len * 0.25));
+    fit(x, y, rad * 2 + 6);
   }
+  return box;
 }
 
 /** The outline of a tree hollow's opening: taller than wide, narrowing to a point at the top, the edge uneven. */

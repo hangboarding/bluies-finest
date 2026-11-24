@@ -102,8 +102,23 @@ export function paintSky(c: Ctx, w: World, hour: number) {
   }
 }
 
-export function paintLand(c: Ctx, w: World, hour: number) {
-  const W = w.w, H = w.h, hor = w.hor, gh = w.gh, sky = skyAt(hour), r = rng(11);
+/** Something drawn once and then swayed every frame: a whole tree leaning from its foot (`skew`, x and y its foot), or a
+ *  clump of leaves shifting about (x and y its middle). `amp` is how far it moves, in px; 0 holds it still. */
+export interface Swayer { s: Sprite; x: number; y: number; amp: number; ph: number; skew: boolean }
+/** A sprite of whatever `draw` paints within [l, t, r, b] (in screen units), at the screen's pixel density. */
+function makeSprite(dpr: number, l: number, t: number, r: number, b: number, draw: (c: Ctx) => void): Sprite | null {
+  const cw = Math.ceil((r - l) * dpr), ch = Math.ceil((b - t) * dpr);
+  if (cw <= 0 || ch <= 0) return null;
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+  const c = cv.getContext('2d'); if (!c) return null;
+  c.scale(dpr, dpr); c.translate(-l, -t); draw(c);
+  return { cv, ox: l, oy: t, w: r - l, h: b - t };
+}
+
+/** The far distance, behind the forest: hazy ridges, the escarpment, valley mist and a distant treeline. Nothing here
+ *  reaches below the horizon, so its canvas can stop there. */
+export function paintBack(c: Ctx, w: World, hour: number) {
+  const W = w.w, H = w.h, hor = w.hor, sky = skyAt(hour);
   // hazy blue ridges, furthest first
   ridge(c, W, H, hor - H * 0.1, H * 0.05, mix(sky.haze, sky.hor, 0.5), 1, 0.8);
   ridge(c, W, H, hor - H * 0.065, H * 0.045, mix(sky.haze, '#3d5b7c', 0.3), 2, 1.2);
@@ -119,18 +134,40 @@ export function paintLand(c: Ctx, w: World, hour: number) {
     const h = H * (0.03 + fr() * 0.06);
     growTree(c, fr, { x, base: hor + 2, h, w: 1 + fr() * 1.6, bark: BARKS[Math.floor(fr() * 2)], haze: sky.haze, hazeK: 0.6, levels: 2, spread: 1.1, leafy: 1.3 });
   }
-  // the forest behind the clearing: gums of every size, further ones hazier; one has a branch to perch on
-  // (tall ones mostly towards the sides, smaller ones between, with gaps, so the escarpment and the ridges stay in view)
-  const bg = rng(53), forest: { x: number; h: number; w: number; k: number; b: number }[] = [];
+}
+
+/** The forest behind the clearing: gums of every size, further ones hazier (tall ones mostly towards the sides, smaller
+ *  ones between, with gaps, so the escarpment and the ridges stay in view). Each is its own sprite, so it can sway, the
+ *  tall ones furthest at the top; the one with a branch to perch on holds still. */
+export function paintForest(w: World, hour: number, dpr: number): Swayer[] {
+  const W = w.w, H = w.h, hor = w.hor, sky = skyAt(hour), out: Swayer[] = [];
+  const bg = rng(53), forest: { x: number; h: number; w: number; k: number; b: number; perch?: boolean }[] = [];
   for (let i = 0; i < 20; i++) {
     const x = bg() * W, edge = Math.min(x, W - x) / W, far = bg(), tall = edge < 0.2 && bg() < 0.65;
     if (!tall && edge > 0.3 && bg() < 0.4) continue; // a gap
     const h = H * (tall ? 0.2 + bg() * 0.16 : 0.06 + bg() * 0.11) * (1 - far * 0.3);
     forest.push({ x, h, w: Math.max(1.4, h * (0.022 + bg() * 0.022)), k: 0.38 + far * 0.32, b: Math.floor(bg() * 3) });
   }
-  for (const t of w.trees.filter(t => t.far)) forest.push({ x: t.x, h: t.base - t.top, w: t.w, k: 0.4, b: 0 });
+  for (const t of w.trees.filter(t => t.far)) forest.push({ x: t.x, h: t.base - t.top, w: t.w, k: 0.4, b: 0, perch: true });
   forest.sort((a, b) => b.k - a.k); // furthest first
-  for (const t of forest) growTree(c, bg, { x: t.x, base: hor + 4, h: t.h, w: t.w, bark: BARKS[t.b], haze: sky.haze, hazeK: t.k, lean: (bg() - 0.5) * 0.15, spread: 0.8 + bg() * 0.5, levels: t.h > H * 0.25 ? 4 : 3 });
+  // each tree is grown on a scratch canvas, then cut out to the box it filled
+  const scratch = document.createElement('canvas'); scratch.width = Math.ceil(W * dpr); scratch.height = Math.ceil(H * dpr);
+  const sc = scratch.getContext('2d'); if (!sc) return out;
+  for (const t of forest) {
+    sc.setTransform(1, 0, 0, 1, 0, 0); sc.clearRect(0, 0, scratch.width, scratch.height); sc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const b = growTree(sc, bg, { x: t.x, base: hor + 4, h: t.h, w: t.w, bark: BARKS[t.b], haze: sky.haze, hazeK: t.k, lean: (bg() - 0.5) * 0.15, spread: 0.8 + bg() * 0.5, levels: t.h > H * 0.25 ? 4 : 3 });
+    const l = Math.max(0, Math.floor(b.l)), tp = Math.max(0, Math.floor(b.t)), r = Math.min(W, Math.ceil(b.r)), bt = Math.min(H, Math.ceil(b.b));
+    if (r <= l || bt <= tp) continue;
+    const cv = document.createElement('canvas'); cv.width = Math.ceil((r - l) * dpr); cv.height = Math.ceil((bt - tp) * dpr);
+    cv.getContext('2d')?.drawImage(scratch, l * dpr, tp * dpr, cv.width, cv.height, 0, 0, cv.width, cv.height);
+    out.push({ s: { cv, ox: l, oy: tp, w: cv.width / dpr, h: cv.height / dpr }, x: t.x, y: hor + 4, amp: t.perch ? 0 : Math.min(3.2, 0.8 + t.h * 0.009), ph: t.x * 0.05 + t.h * 0.01, skew: true });
+  }
+  return out;
+}
+
+/** The clearing and everything lying in it, the bush along its far edge, and the branches birds perch on. */
+export function paintLand(c: Ctx, w: World, hour: number) {
+  const W = w.w, H = w.h, hor = w.hor, gh = w.gh, sky = skyAt(hour), r = rng(11);
   limb(c, w.branches[0]!, mix('#cfc8b8', sky.haze, 0.3), sky.haze, 0.35);
   // bush at the back of the clearing, with a few wattles in flower among it
   const wr = rng(83);
@@ -256,7 +293,9 @@ function escarpment(c: Ctx, W: number, H: number, hor: number, sky: Sky) {
 }
 
 /** The near gums' leaves, over everything (birds high in the trees sit among them). */
-export function paintCanopy(c: Ctx, w: World) {
+/** The near gums' crowns, over everything: their upper limbs (painted into `c`, holding still) and clumps of leaves,
+ *  returned as sprites to sway. */
+export function paintCanopy(c: Ctx, w: World, dpr = 1): Swayer[] {
   const W = w.w, H = w.h, r = rng(23), lt = w.trees[3]!, rt = w.trees[4]!, bark: [string, string] = ['#e2dbcc', '#b2a994'];
   // the near gums' upper limbs, forking up into their crowns
   const fork = (x0: number, y0: number, x1: number, y1: number, wd: number, depth: number) => {
@@ -268,10 +307,16 @@ export function paintCanopy(c: Ctx, w: World) {
   fork(lt.x, H * 0.09, -W * 0.03, -H * 0.03, lt.w * 0.45, 1);
   fork(rt.x - rt.w * 0.25, H * 0.15, W * 0.85, H * 0.05, rt.w * 0.45, 2);
   fork(rt.x - rt.w * 0.1, H * 0.07, W * 0.91, -H * 0.04, rt.w * 0.4, 1);
-  canopy(c, r, W * 0.03, H * 0.06, 46, ['#5b6c40', '#6f7f50', '#4a5a34']);
-  canopy(c, r, W * 0.1, H * 0.015, 30, ['#5b6c40', '#6f7f50', '#4a5a34']);
+  const leaves: Swayer[] = [];
+  const clump = (x: number, y: number, rad: number, cols: string[]) => {
+    const mx = rad * 1.15 + 8, my = rad * 0.85 + 8, s = makeSprite(dpr, x - mx, y - my, x + mx, y + my, cc => canopy(cc, r, x, y, rad, cols));
+    if (s) leaves.push({ s, x, y, amp: 1 + rad * 0.035, ph: x * 0.07 + y * 0.05, skew: false });
+  };
+  clump(W * 0.03, H * 0.06, 46, ['#5b6c40', '#6f7f50', '#4a5a34']);
+  clump(W * 0.1, H * 0.015, 30, ['#5b6c40', '#6f7f50', '#4a5a34']);
   for (const [x, y, rad] of [[W * 0.9, H * 0.02, 58], [W * 0.98, H * 0.12, 48], [W * 0.78, -6, 44], [W * 1.02, -4, 60]] as [number, number, number][])
-    canopy(c, r, x, y, rad, ['#5d6d41', '#73834f', '#4b5a35', '#66774a']);
+    clump(x, y, rad, ['#5d6d41', '#73834f', '#4b5a35', '#66774a']);
+  return leaves;
 }
 
 /** The pond: a muddy bank, water that reflects the sky, lily pads, reeds and cumbungi. */
@@ -582,14 +627,7 @@ function burrow(c: Ctx, r: () => number, w: World) {
 }
 /** A sprite per prop (none for rocks, which are drawn as they go), at the screen's pixel density. */
 export function paintProps(w: World, dpr: number): (Sprite | null)[] {
-  return w.props.map(p => {
-    const [l, t, rr, b] = box(p, w), cw = Math.ceil((rr - l) * dpr), ch = Math.ceil((b - t) * dpr);
-    if (cw <= 0 || ch <= 0) return null;
-    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
-    const c = cv.getContext('2d'); if (!c) return null;
-    c.scale(dpr, dpr); c.translate(-l, -t); drawProp(c, p, w);
-    return { cv, ox: l, oy: t, w: rr - l, h: b - t };
-  });
+  return w.props.map(p => { const [l, t, rr, b] = box(p, w); return makeSprite(dpr, l, t, rr, b, c => drawProp(c, p, w)); });
 }
 
 /** Rough tree fern: a short dark trunk and a crown of arching fronds. */
