@@ -131,6 +131,7 @@ export async function loadUserData() {
   state.challenges = challenges;
   state.loaded = true;
   if (localNewer || migrate || restored) saveSettings();
+  void syncProtoNames();
 }
 
 /** Re-fetch what other people change (profiles, recent sessions, challenges) without touching my
@@ -173,6 +174,32 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 export const allProtos = (): Record<string, Protocol> => ({ ...PROTOCOLS, ...state.settings.customProtos });
 
 export const mySessions = () => state.sessions.filter(s => s.userId === state.me?.id);
+
+/** The protocol a session was, by name. One of my own protocols renamed since goes by its new name. */
+export const protoName = (s: Session) => (s.userId === state.me?.id && state.settings.customProtos?.[s.protocolKey]?.n) || s.protocolName;
+/** What a session is called on screen: the name it was given, or else its protocol's. */
+export const shownName = (s: Session) => s.title?.trim() || protoName(s);
+/** The protocol's name, shown under a session that has a name of its own (none when they're the same). */
+export const protoLine = (s: Session) => { const p = protoName(s); return s.title?.trim() && s.title.trim() !== p ? p : ''; };
+
+/** My sessions of a protocol of mine that's been renamed (here, or on another device) still have the old name saved
+ *  with them: rename them in the database too, so everyone else sees the new name. Run after loading and after a
+ *  rename. A database that doesn't allow it yet (supabase/schema.sql not updated), or no signal, is left for next
+ *  time; this device shows the new name meanwhile (see protoName). */
+export async function syncProtoNames() {
+  const me = state.me?.id; if (!me || !state.loaded) return;
+  const stale = new Map<string, string>();
+  for (const s of state.sessions) {
+    const n = s.userId === me && !s.pendingUpload ? state.settings.customProtos?.[s.protocolKey]?.n : undefined;
+    if (n && n !== s.protocolName) stale.set(s.protocolKey, n);
+  }
+  for (const [k, n] of stale) {
+    try {
+      await state.store.renameProtocol(k, n);
+      for (const s of state.sessions) if (s.userId === me && s.protocolKey === k && !s.pendingUpload) s.protocolName = n;
+    } catch { /* next time */ }
+  }
+}
 export const profileOf = (id: string) => state.profiles.get(id);
 
 export function achievementCtx(sessions = mySessions()): Ctx {

@@ -74,7 +74,8 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
 
   // session names: saved with it or given later, up to 60 characters; the protocol it was stays as it was
   expect(await can('authenticated', 'title')).toBe(true);
-  expect(await can('authenticated', 'protocol_name')).toBe(false);
+  // renaming one of my own protocols renames it on my sessions too
+  expect(await can('authenticated', 'protocol_name')).toBe(true);
   expect(rows.every(r => r.title === '')).toBe(true); // sessions from before names have none
   const named = (await db.query<any>(`insert into public.sessions (protocol_name, title, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, hangs) values ('Max Hangs','Birthday hang','hang','both',10,180,5,1,180,20,$1) returning id, title, points`, [hangs(5, 10)])).rows[0];
   expect(named.title).toBe('Birthday hang');
@@ -82,6 +83,9 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
   const renamed = (await db.query<any>(`update public.sessions set title = 'Deload day' where id = $1 returning title, points, protocol_name`, [named.id])).rows[0];
   expect(renamed).toEqual({ title: 'Deload day', points: before, protocol_name: 'Max Hangs' }); // a name never changes points
   await expect(db.query(`update public.sessions set title = $2 where id = $1`, [named.id, 'x'.repeat(61)])).rejects.toThrow(/sessions_title_len/);
+  const proto = (await db.query<any>(`update public.sessions set protocol_name = 'Big Hangs' where id = $1 returning protocol_name, points`, [named.id])).rows[0];
+  expect(proto).toEqual({ protocol_name: 'Big Hangs', points: before });
+  await expect(db.query(`update public.sessions set protocol_name = $2 where id = $1`, [named.id, 'x'.repeat(81)])).rejects.toThrow(/sessions_protocol_name_len/);
   await db.query(`delete from public.sessions where id = $1`, [named.id]);
 
   // top-3 alerts: members read their own, only the notify function writes them

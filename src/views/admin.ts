@@ -2,10 +2,9 @@
 // invite codes, members overview, and removing sessions or comments.
 import { esc, avatar, sheet, toast, confirmSheet, promptSheet, relTime, closeSheet } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { state } from '../lib/state';
+import { state, shownName } from '../lib/state';
 import type { ChallengeRow, Comment, InviteCode, Issue } from '../lib/types';
 import { ISSUE_CATS } from './report';
-import { sessionName } from '../lib/protocols';
 import { forgetClimber } from './climber';
 import { METRICS, todayISO, type Metric } from '../lib/challenges';
 import { rescoreDay, scoringDay } from '../lib/scoring';
@@ -28,7 +27,7 @@ async function draw() {
   else codeErr = 'Run supabase/schema.sql in the Supabase SQL editor to manage invite codes from here.';
   let issues: Issue[] = [], issueErr = '';
   try { issues = await state.store.listIssues(); } catch { issueErr = 'Run supabase/schema.sql in the Supabase SQL editor to receive problem reports.'; }
-  if (f.status === 'fulfilled') comments = f.value.flatMap(x => x.comments.map(cm => ({ ...cm, protocol: sessionName(x.session) }))).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 25);
+  if (f.status === 'fulfilled') comments = f.value.flatMap(x => x.comments.map(cm => ({ ...cm, protocol: shownName(x.session) }))).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 25);
   if (!root?.isConnected) return;
 
   const who = (id: string) => state.profiles.get(id);
@@ -78,7 +77,7 @@ async function draw() {
     ${[...state.profiles.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(p => `<div class="lrow">${avatar(p)}<span class="nm">${esc(p.name)}${p.isAdmin ? ' · admin' : ''}<small>Joined ${new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · ${counts.get(p.id) ?? 0} recent sessions</small></span></div>`).join('')}
 
     <h3>${ic('calendar')} Recent sessions</h3>
-    ${recent.map(s => `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(who(s.userId)?.name ?? 'Climber')} · ${esc(sessionName(s))}<small>${relTime(s.createdAt)} · ${s.edgeMm}mm · ${s.fullHangs}/${s.totalHangs} full · ${s.points} pts${s.note ? ` · “${esc(s.note.slice(0, 40))}”` : ''}</small></span>
+    ${recent.map(s => `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(who(s.userId)?.name ?? 'Climber')} · ${esc(shownName(s))}<small>${relTime(s.createdAt)} · ${s.edgeMm}mm · ${s.fullHangs}/${s.totalHangs} full · ${s.points} pts${s.note ? ` · “${esc(s.note.slice(0, 40))}”` : ''}</small></span>
       <button class="ed" data-act="delsess" aria-label="Remove session">${ic('trash')}</button></div>`).join('') || '<p class="sub">No sessions yet.</p>'}
 
     <h3>${ic('download')} Backup</h3>
@@ -188,7 +187,7 @@ async function onClick(e: MouseEvent) {
       }
       case 'delsess': {
         const s = state.sessions.find(x => x.id === row!.dataset.sid);
-        if (!await confirmSheet('Remove session?', `This permanently removes ${esc(state.profiles.get(s?.userId ?? '')?.name ?? 'this climber')}’s ${esc(s ? sessionName(s) : '')} session, with its hearts and comments.`, 'Remove')) return;
+        if (!await confirmSheet('Remove session?', `This permanently removes ${esc(state.profiles.get(s?.userId ?? '')?.name ?? 'this climber')}’s ${esc(s ? shownName(s) : '')} session, with its hearts and comments.`, 'Remove')) return;
         await state.store.deleteSession(row!.dataset.sid!); state.sessions = state.sessions.filter(x => x.id !== row!.dataset.sid); if (s) rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); forgetClimber(s?.userId); toast('Session removed'); break;
       }
       case 'delcm':

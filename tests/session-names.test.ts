@@ -113,7 +113,7 @@ describe('renaming it in Edit session', () => {
     expect(Object.keys(updates[0]!.patch).sort()).toEqual(['points', 'title']);
     expect(s.title).toBe('Deload day');
     expect($('#recent .lrow .nm').textContent).toMatch(/^Deload day · 20mm/);
-    expect($('#recent .lrow .nm small').textContent).toContain('Max Hangs');
+    expect($('#recent .lrow .nm small').textContent).toContain('Max Hangs'); // the protocol it was, under it
   });
   it('clearing the name, or typing the protocol’s, goes back to the protocol’s name', async () => {
     const s = session({ id: 'n2', title: 'Deload day' });
@@ -190,6 +190,92 @@ describe('where the name shows', () => {
     expect(sessionName({ title: 'Birthday hang', protocolName: 'Max Hangs' })).toBe('Birthday hang');
     expect(sessionName({ title: '  ', protocolName: 'Max Hangs' })).toBe('Max Hangs');
     expect(sessionName({ protocolName: 'Max Hangs' })).toBe('Max Hangs');
+  });
+});
+
+describe('a custom exercise that’s been renamed', () => {
+  const custom = () => { S.state.settings.customProtos.c_t = { n: 'Tendon 25s', by: 'You', use: '', d: '', int: '', freq: '', hang: 25, rest: 60, sets: 3, reps: 1, edge: 20, custom: true } as any; };
+  const mine = (over: Partial<Session> = {}) => session({ protocolKey: 'c_t', protocolName: 'Long 25s', ...over });
+
+  it('its sessions show its new name, under their own name or as their name', async () => {
+    const named = mine({ id: 'c1', title: 'Birthday hang' }), plain = mine({ id: 'c2' }), theirs = mine({ id: 'c3', userId: 'u2' });
+    await openApp([named, plain, theirs]); custom();
+    const wk = await import('../src/views/workouts');
+    wk.renderWorkouts($('#view-workouts'));
+    const row = (id: string) => $(`#recent .lrow[data-sid="${id}"] .nm`).textContent!;
+    expect(row('c1')).toMatch(/^Birthday hang · /);
+    expect(row('c1')).toContain('Tendon 25s');
+    expect(row('c2')).toMatch(/^Tendon 25s · /);
+    expect(row('c1') + row('c2')).not.toContain('Long 25s');
+    (S.state.store as any).feed = async () => [named, plain, theirs].map(s => ({ session: s, likes: 0, likedByMe: false, comments: [] }));
+    const feed = await import('../src/views/feed');
+    await feed.renderFeed($('#view-feed'));
+    // someone else's protocol with the same key isn't mine to rename
+    expect([...document.querySelectorAll('.post .what')].map(x => x.textContent)).toEqual(['Birthday hangTendon 25s', 'Tendon 25s', 'Long 25s']);
+  });
+  it('Edit session offers its new name', async () => {
+    const s = mine({ id: 'c4' });
+    await openApp([s]); custom();
+    const wk = await import('../src/views/workouts');
+    wk.renderWorkouts($('#view-workouts'));
+    $('#recent .lrow [data-ed]').click(); await flush();
+    expect($<HTMLInputElement>('.modal #seTitle').value).toBe('Tendon 25s');
+    expect($('.modal .sedit-sum b').textContent).toBe('Tendon 25s');
+    $<HTMLTextAreaElement>('.modal [data-f="note"]').value = 'Easy';
+    sheetButtons()[1]!.click(); await flush();
+    expect(updates[0]!.patch).not.toHaveProperty('title'); // still no name of its own
+  });
+  it('renaming it renames the sessions logged with it, in the database too', async () => {
+    const s = mine({ id: 'c5' }), renamed: [string, string][] = [];
+    await openApp([s]);
+    S.state.settings.customProtos.c_t = { n: 'Long 25s', by: 'You', use: '', d: '', int: '', freq: '', hang: 25, rest: 60, sets: 3, reps: 1, edge: 20, custom: true } as any;
+    (S.state.store as any).renameProtocol = async (k: string, n: string) => { renamed.push([k, n]); };
+    const WP = await import('../src/views/workout-parts');
+    const done = WP.renameCustomProto('c_t'); await flush();
+    expect($('.modal').textContent).toContain('get the new name too');
+    $<HTMLInputElement>('.modal input').value = 'Tendon 25s';
+    sheetButtons()[1]!.click();
+    expect(await done).toBe(true);
+    await flush();
+    expect(renamed).toEqual([['c_t', 'Tendon 25s']]);
+    expect(s.protocolName).toBe('Tendon 25s');
+  });
+  it('a rename made before (or on another phone) catches up; a database that refuses is tried again next time', async () => {
+    const s = mine({ id: 'c6' }), pending = mine({ id: 'c7', pendingUpload: true });
+    await openApp([s, pending]); custom();
+    let refuse = true, tries = 0;
+    (S.state.store as any).renameProtocol = async () => { tries++; if (refuse) throw Object.assign(new Error('permission denied'), { code: '42501' }); };
+    await S.syncProtoNames();
+    expect(s.protocolName).toBe('Long 25s');            // not saved, so not marked as done…
+    expect(S.shownName(s)).toBe('Tendon 25s');          // …but shown by its new name meanwhile
+    refuse = false;
+    await S.syncProtoNames();
+    expect(tries).toBe(2);
+    expect(s.protocolName).toBe('Tendon 25s');
+    expect(pending.protocolName).toBe('Long 25s');      // not uploaded yet: caught up after it is
+    await S.syncProtoNames();
+    expect(tries).toBe(2);                              // nothing left to do
+  });
+  it('demo mode renames only my own sessions of it', async () => {
+    const { LocalStore } = await import('../src/lib/local-store');
+    const store = new LocalStore();
+    await store.signUp({ email: 'a@x.test', password: 'password1', name: 'Ann', inviteCode: 'BLUIES' });
+    const a = await store.addSession({ ...mine(), createdAt: new Date().toISOString() } as any);
+    await store.signUp({ email: 'b@x.test', password: 'password1', name: 'Bo', inviteCode: 'BLUIES' });
+    const b = await store.addSession({ ...mine(), createdAt: new Date().toISOString() } as any);
+    await store.signIn('a@x.test', 'password1');
+    await store.renameProtocol('c_t', 'Tendon 25s');
+    const all = await store.listSessions();
+    expect([all.find(x => x.id === a.id)!.protocolName, all.find(x => x.id === b.id)!.protocolName]).toEqual(['Tendon 25s', 'Long 25s']);
+  });
+  it('on Supabase, only my sessions of that protocol are changed', async () => {
+    const { SupabaseStore } = await import('../src/lib/supabase-store');
+    const st: any = Object.create(SupabaseStore.prototype), seen: any[] = [];
+    const b: any = { update(r: any) { seen.push(['update', r]); return b; }, then: (ok: any) => Promise.resolve({ data: null, error: null }).then(ok) };
+    for (const m of ['eq', 'neq']) b[m] = (c: string, v: string) => { seen.push([m, c, v]); return b; };
+    Object.assign(st, { uid: 'u1', client: { from: (t: string) => { seen.push(['from', t]); return b; } } });
+    await st.renameProtocol('c_t', 'Tendon 25s');
+    expect(seen).toEqual([['from', 'sessions'], ['update', { protocol_name: 'Tendon 25s' }], ['eq', 'user_id', 'u1'], ['eq', 'protocol_key', 'c_t'], ['neq', 'protocol_name', 'Tendon 25s']]);
   });
 });
 

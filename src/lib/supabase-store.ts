@@ -436,6 +436,11 @@ export class SupabaseStore implements Store {
     if (!rows?.length) throw new Error("That session doesn't exist or isn't yours to edit.");
   }
 
+  async renameProtocol(key: string, name: string): Promise<void> {
+    const uid = this.requireUid();
+    check(await this.client.from('sessions').update({ protocol_name: name }).eq('user_id', uid).eq('protocol_key', key).neq('protocol_name', name));
+  }
+
   async deleteSession(id: string): Promise<void> {
     this.requireUid();
     const rows = check(await this.client.from('sessions').delete().eq('id', id).select('id')) as any[];

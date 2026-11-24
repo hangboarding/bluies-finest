@@ -95,6 +95,8 @@ export interface Store {
   listSessions(opts?: { userId?: string; sinceIso?: string }): Promise<Session[]>;
   addSession(s: NewSession): Promise<Session>;
   updateSession(id: string, patch: Partial<NewSession>): Promise<void>;
+  /** Give my logged sessions of protocol `key` (one of my own, renamed) its new name. */
+  renameProtocol(key: string, name: string): Promise<void>;
   deleteSession(id: string): Promise<void>;
   // social
   feed(limit?: number): Promise<FeedItem[]>;

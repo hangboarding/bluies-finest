@@ -2,7 +2,7 @@
 // starter workouts, and the history of every session logged.
 import { $, $$, esc, sheet, confirmSheet, promptSheet, toast, relTime, onSwipe, slideIn, pickAllOnFocus } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { state, mySessions, saveSettings, allProtos } from '../lib/state';
+import { state, mySessions, saveSettings, allProtos, protoName } from '../lib/state';
 import { personalVals, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS, TITLE_MAX } from '../lib/protocols';
 import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
 import type { Session } from '../lib/types';
@@ -144,10 +144,10 @@ async function editSession(s: Session) {
   const i = await sheet({
     title: 'Edit session', autofocus: false,
     body: `<div class="bedit sedit">
-      <p class="sedit-sum"><b>${esc(s.protocolName)}</b> · ${esc(when)}<small>${esc([shape, `${s.rest}s rest`, sets, ({ both: 'both hands', L: 'left hand', R: 'right hand', LR: 'left then right' } as const)[s.hands], `${s.tutS}s under tension`, `${s.fullHangs}/${s.totalHangs} full`].join(' · '))}</small>
+      <p class="sedit-sum"><b>${esc(protoName(s))}</b> · ${esc(when)}<small>${esc([shape, `${s.rest}s rest`, sets, ({ both: 'both hands', L: 'left hand', R: 'right hand', LR: 'left then right' } as const)[s.hands], `${s.tutS}s under tension`, `${s.fullHangs}/${s.totalHangs} full`].join(' · '))}</small>
         <small class="sedit-why">Times and hangs come from the timer, so they stay as they were.</small></p>
       <label class="f" for="seTitle">Session name</label>
-      <input class="tx" id="seTitle" maxlength="${TITLE_MAX}" autocomplete="off" enterkeyhint="done" value="${esc(s.title || s.protocolName)}" placeholder="${esc(s.protocolName)}">
+      <input class="tx" id="seTitle" maxlength="${TITLE_MAX}" autocomplete="off" enterkeyhint="done" value="${esc(s.title || protoName(s))}" placeholder="${esc(protoName(s))}">
       <h4>${ic('add')} Load</h4>
       <label class="f">Load method</label>${chips('mode', ['hang', 'lift'], s.mode, 'g2', v => (v === 'hang' ? 'Hang (on board)' : 'No-hang (lift)'))}
       <p class="sub sedit-lift${s.mode === 'lift' ? '' : ' hide'}" data-for="lift">A lift counts only the weight lifted (plates, a dumbbell), not your bodyweight.</p>
@@ -205,7 +205,7 @@ async function editSession(s: Session) {
   const board = $<HTMLSelectElement>('select[data-f="board"]', el).value; if (board !== s.board) patch.board = board;
   const rpe = $<HTMLInputElement>('[data-f="rpe"]', el); if (rpe.dataset.unset == null && +rpe.value !== s.rpe) patch.rpe = +rpe.value;
   const note = $<HTMLTextAreaElement>('[data-f="note"]', el).value.trim().slice(0, 2000); if (note !== s.note) patch.note = note;
-  const title = titleOf($<HTMLInputElement>('#seTitle', el).value, s.protocolName); if (title !== (s.title ?? '')) patch.title = title;
+  const title = titleOf($<HTMLInputElement>('#seTitle', el).value, protoName(s)); if (title !== (s.title ?? '')) patch.title = title;
   if (!Object.keys(patch).length) { toast('Nothing changed'); return; }
   // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have, as the server does).
   const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;

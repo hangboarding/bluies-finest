@@ -1,10 +1,9 @@
 import { $, $$, esc, sheet, bubble } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { state, mySessions, saveSettings, achievementCtx } from '../lib/state';
+import { state, mySessions, saveSettings, achievementCtx, shownName, protoLine } from '../lib/state';
 import { weekStreak, bestDayRun, dayKey, weekStart, addDays, favouriteProtocol } from '../lib/scoring';
 import { TIERED, ONE_OFFS, TIER_NAMES, TIER_COLOURS, shownTier, hasOneOff } from '../lib/achievements';
 import type { Session } from '../lib/types';
-import { sessionName } from '../lib/protocols';
 import { placeOf } from '../lib/leaderboard';
 
 const DAY = 864e5, MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], DW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -96,7 +95,7 @@ function drawPBs(mine: Session[]) {
     heavy && row('add', 'Heaviest hang', `${heavy.edgeMm}mm · ${heavy.grip} · ${heavy.hang}s`, `${heavy.addedKg - heavy.assistKg >= 0 ? '+' : ''}${heavy.addedKg - heavy.assistKg} kg`),
     pct && row('bolt', 'Strength-to-weight', `${pct.edgeMm}mm · ${pct.grip}`, `${pct.loadPct}%`),
     edge && row('edge', 'Smallest edge', `${edge.addedKg ? '+' + edge.addedKg + 'kg' : 'bodyweight'} · ${edge.grip}`, `${edge.edgeMm} mm`),
-    long && row('hang', 'Longest hang', `${long.s.edgeMm}mm · ${sessionName(long.s)}`, `${Math.round(Number(long.h.held) || 0)} s`),
+    long && row('hang', 'Longest hang', `${long.s.edgeMm}mm · ${shownName(long.s)}`, `${Math.round(Number(long.h.held) || 0)} s`),
     lift && row('lift', 'Heaviest lift (no-hang)', `${lift.edgeMm}mm · ${lift.grip}`, `${lift.liftKg} kg`),
   ].filter(Boolean);
   $('#pbs').innerHTML = rows.join('') || '<p class="sub">Your bests will show up here after your first session.</p>';
@@ -106,7 +105,7 @@ function drawPBs(mine: Session[]) {
 export function sessRow(s: Session, actions = true) {
   const load = s.mode === 'lift' ? `lift ${s.liftKg}kg` : s.addedKg ? `+${s.addedKg}kg` : s.assistKg ? `−${s.assistKg}kg` : 'BW';
   const when = new Date(s.createdAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-  return `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(sessionName(s))} · ${s.edgeMm}mm · ${load}${s.pendingUpload ? '<span class="pending-tag">⏳ waiting to upload</span>' : ''}<small>${when}${s.title?.trim() ? ` · ${esc(s.protocolName)}` : ''} · ${s.fullHangs}/${s.totalHangs} full · ${s.tutS}s · ${esc(s.grip)}${s.rpe ? ' · RPE ' + s.rpe : ''} · ${s.points} pts</small></span>
+  return `<div class="lrow" data-sid="${s.id}"><span class="nm">${esc(shownName(s))} · ${s.edgeMm}mm · ${load}${s.pendingUpload ? '<span class="pending-tag">⏳ waiting to upload</span>' : ''}<small>${when}${protoLine(s) ? ` · ${esc(protoLine(s))}` : ''} · ${s.fullHangs}/${s.totalHangs} full · ${s.tutS}s · ${esc(s.grip)}${s.rpe ? ' · RPE ' + s.rpe : ''} · ${s.points} pts</small></span>
     ${actions ? `<button class="ed" data-again aria-label="Do this again">${ic('replay')}</button>` : ''}${actions && !s.pendingUpload ? `<button class="ed" data-ed aria-label="Edit session">${ic('edit')}</button><button class="ed" data-del aria-label="Delete session">${ic('trash')}</button>` : ''}</div>`;
 }
 // ---------- chart ----------

@@ -296,7 +296,7 @@ describe('custom protocols', () => {
     expect(S.state.settings.customProtos[k]).toBeUndefined();
   });
 
-  it('renaming changes the name everywhere it shows, but not on logged sessions', async () => {
+  it('renaming changes the name everywhere it shows', async () => {
     const k = custom();
     const done = WP.renameCustomProto(k);
     await flush();

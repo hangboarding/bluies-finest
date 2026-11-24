@@ -1126,6 +1126,8 @@ create policy "rank_alerts: read own" on public.rank_alerts
 --     in Edit session. Empty means it goes by its protocol's name. protocol_name is kept as it was, so
 --     stats like "Favourite protocol" still know what it was. A name never changes points, so sessions
 --     from a finished season can be renamed too.
+--   • Renaming one of your own protocols renames it on the sessions you've logged with it (protocol_name),
+--     so everyone sees the new name. Points come from protocol_key, never the name.
 -- =====================================================================
 
 alter table public.sessions add column if not exists title text not null default '';
@@ -1134,4 +1136,9 @@ do $$ begin
     alter table public.sessions add constraint sessions_title_len check (char_length(title) <= 60);
   end if;
 end $$;
-grant update (title) on public.sessions to authenticated;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'sessions_protocol_name_len') then
+    alter table public.sessions add constraint sessions_protocol_name_len check (char_length(protocol_name) <= 80) not valid;
+  end if;
+end $$;
+grant update (title, protocol_name) on public.sessions to authenticated;

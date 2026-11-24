@@ -4,7 +4,7 @@
 import { esc, sheet, closeSheet, confirmSheet, promptSheet, toast, vibrate } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { PROTOCOLS, FIELDS, LIMITS, GRIPS, FINGERS, personalVals, type FieldKey, type Protocol, type Values } from '../lib/protocols';
-import { state, saveSettings, allProtos } from '../lib/state';
+import { state, saveSettings, allProtos, syncProtoNames } from '../lib/state';
 import { handsLabel } from '../lib/timer';
 import { checkUnlocks } from './unlocks';
 import {
@@ -79,10 +79,11 @@ function dropCustomProto(k: string) {
 /** Rename a custom protocol. Sessions already logged keep the name they were saved with. */
 export async function renameCustomProto(k: string): Promise<boolean> {
   const p = state.settings.customProtos[k]; if (!p) return false;
-  const n = (await promptSheet('Rename protocol', 'Sessions you’ve already logged keep the old name.', 'Protocol name', 'Save', p.n))?.trim();
+  const n = (await promptSheet('Rename protocol', 'Sessions you’ve logged with it get the new name too.', 'Protocol name', 'Save', p.n))?.trim();
   if (!n || n === p.n) return false;
   p.n = n.slice(0, 60);
   saveSettings(); protosChanged();
+  void syncProtoNames(); // and in the database, so everyone sees it
   return true;
 }
 

@@ -142,6 +142,11 @@ export class LocalStore implements Store {
     const s = this.db.sessions.find(x => x.id === id && x.userId === this.need()); if (!s) throw new Error('Session not found');
     Object.assign(s, patch); this.save();
   }
+  async renameProtocol(key: string, name: string) {
+    const me = this.need();
+    for (const s of this.db.sessions) if (s.userId === me && s.protocolKey === key) s.protocolName = name;
+    this.save();
+  }
   async deleteSession(id: string) {
     const me = this.need(), admin = this.db.profiles.find(p => p.id === me)?.isAdmin;
     const s = this.db.sessions.find(x => x.id === id);
