@@ -10,12 +10,12 @@ export type SpeciesId = typeof SPECIES_ORDER[number];
 export const SPECIES_NAMES: Record<SpeciesId, { one: string; many: string }> = {
   currawong: { one: 'Pied currawong', many: 'Currawongs' },
   galah: { one: 'Galah', many: 'Galahs' },
-  kingparrot: { one: 'King parrot', many: 'King parrots' },
+  kingparrot: { one: 'Australian king parrot', many: 'King parrots' },
   cockatoo: { one: 'Sulphur-crested cockatoo', many: 'Cockatoos' },
   rosella: { one: 'Eastern rosella', many: 'Eastern rosellas' },
-  magpie: { one: 'Magpie', many: 'Magpies' },
-  raven: { one: 'Raven', many: 'Ravens' },
-  woodduck: { one: 'Wood duck', many: 'Wood ducks' },
+  magpie: { one: 'Australian magpie', many: 'Magpies' },
+  raven: { one: 'Australian raven', many: 'Ravens' },
+  woodduck: { one: 'Australian wood duck', many: 'Wood ducks' },
   crimsonrosella: { one: 'Crimson rosella', many: 'Crimson rosellas' },
   wattlebird: { one: 'Red wattlebird', many: 'Red wattlebirds' },
 };

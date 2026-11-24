@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { speciesOfWeek, weekIndex, crewFlock, flockSize, newBirds, markSeen, flockEnds, SPECIES_ORDER, BANDS } from '../src/lib/flock';
+import { FACTS } from '../src/aviary/facts';
 import type { Profile } from '../src/lib/types';
 import { sessionAt } from './helpers';
 
@@ -26,6 +27,17 @@ describe('which bird it is this week', () => {
   });
   it('flies off at the start of next Monday', () => {
     expect(+flockEnds(NOW)).toBe(+new Date(2026, 10, 30));
+  });
+});
+
+describe('bird of the week', () => {
+  it('has four short facts about every bird, none repeated', () => {
+    const all = SPECIES_ORDER.flatMap(id => FACTS[id]);
+    for (const id of SPECIES_ORDER) {
+      expect(FACTS[id]).toHaveLength(4);
+      for (const f of FACTS[id]) { expect(f.trim().length).toBeGreaterThan(20); expect(f.length).toBeLessThanOrEqual(110); expect(f).toMatch(/[.!]$/); }
+    }
+    expect(new Set(all).size).toBe(all.length);
   });
 });
 

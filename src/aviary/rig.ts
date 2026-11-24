@@ -28,7 +28,7 @@ export interface Pose {
   fx: number; fy: number;   // near foot: forward offset and lift (units)
   bx: number; by: number;   // far foot
   legs: number;    // 1 standing/perched, 0 tucked away (flying, swimming)
-  hold: 0 | 1 | 2 | 3;      // nothing, a grub, a seed, a crumb
+  hold: 0 | 1 | 2 | 3 | 4;  // nothing, a grub, a seed, a crumb, an insect
   inFoot: number;  // 1: the item is held up in the near foot (parrots)
   wig: number;     // grub wriggle phase
   swim: number;    // 0..1 floating
@@ -161,6 +161,11 @@ function item(c: Ctx, kind: number, wig: number) {
     c.fillStyle = '#a0662c'; c.beginPath(); c.arc(2.5 - b * 0.5, 7.2, 1.5, 0, TAU); c.fill();
   } else if (kind === 2) { c.fillStyle = '#7b5228'; c.beginPath(); c.ellipse(1.2, 0.6, 2, 1.4, 0.4, 0, TAU); c.fill(); }
   else if (kind === 3) { c.fillStyle = '#d8b46a'; c.beginPath(); c.arc(1, 0.6, 1.5, 0, TAU); c.fill(); }
+  else if (kind === 4) { // an insect, legs kicking
+    c.strokeStyle = '#4c5f26'; c.lineWidth = 0.5;
+    for (const k of [-1, 0, 1]) { c.beginPath(); c.moveTo(2.2 + k, 1); c.lineTo(2.2 + k * 1.8, 2.6 + Math.sin(wig + k) * 0.4); c.stroke(); }
+    c.fillStyle = '#6f8a3a'; c.beginPath(); c.ellipse(2.4, 0.7, 2.8, 1.1, 0.25, 0, TAU); c.fill();
+  }
 }
 
 export interface DrawOpts { band?: string; sil?: string }

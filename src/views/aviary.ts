@@ -2,11 +2,12 @@
 // earns this week brings a bird. See lib/flock.ts for the counting and src/aviary/ for the birds.
 import { $, esc, avatar } from '../lib/ui';
 import { state, refreshShared } from '../lib/state';
-import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, SPECIES_NAMES, SPECIES_ORDER, POINTS_PER_BIRD, type FlockMember, type SpeciesId } from '../lib/flock';
+import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, SPECIES_NAMES, POINTS_PER_BIRD, type FlockMember, type SpeciesId } from '../lib/flock';
+import { FACTS } from '../aviary/facts';
 import { SPECIES } from '../aviary/species';
 import { drawBird, restPose } from '../aviary/rig';
 import { World } from '../aviary/sim';
-import { paintSky, paintLand, skyAt } from '../aviary/scene';
+import { paintSky, paintLand, paintCanopy, paintProps, skyAt, type Sprite } from '../aviary/scene';
 import { drawWorld } from '../aviary/render';
 import { birdSound } from '../aviary/sound';
 import { unlockAudio } from '../lib/timer';
@@ -58,23 +59,44 @@ export function openAviary() {
   isOpen = true;
   unlockAudio();
   const id = speciesOfWeek(), names = SPECIES_NAMES[id], week = weekIndex();
-  const next = SPECIES_NAMES[SPECIES_ORDER[(SPECIES_ORDER.indexOf(id) + 1) % SPECIES_ORDER.length]!].many;
   const opener = document.activeElement as HTMLElement | null;
   const el = document.createElement('div');
   el.className = 'aviary'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', labelOf(id));
+  const facts = FACTS[id];
   el.innerHTML = `
-    <div class="av-top">
-      <button class="av-back" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <div class="av-tt"><b>${esc(names.many)}</b><small>Every ${POINTS_PER_BIRD} points anyone earns brings one. They fly off when Sunday ends.</small></div>
-      <div class="av-n" id="avN" aria-live="polite"></div>
+    <div class="av-head">
+      <div class="av-top">
+        <button class="av-back" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div class="av-tt"><b>Bird of the week</b><span>${esc(names.one)}</span></div>
+      </div>
+      <div class="av-facts" role="group" aria-roledescription="carousel" aria-label="About the ${esc(names.one.toLowerCase())}">
+        <div class="av-fact-list">${facts.map((f, i) => `<p class="${i ? '' : 'on'}"${i ? ' aria-hidden="true"' : ''}>${esc(f)}</p>`).join('')}</div>
+        <div class="av-dots">${facts.map((_, i) => `<button type="button" class="${i ? '' : 'on'}" data-fact="${i}" aria-label="Fact ${i + 1} of ${facts.length}"></button>`).join('')}</div>
+      </div>
     </div>
     <div class="av-stage"><canvas role="img" aria-label="${esc(names.many)} in a Blue Mountains clearing"></canvas><div class="av-msg hide" id="avMsg"></div><div class="av-new hide" id="avNew"></div></div>
-    <div class="av-foot"><div class="av-legend" id="avLegend"></div><p class="av-hint">Tap the ground to throw some seed, or a bird to startle it. Next week: ${esc(next.toLowerCase())}.</p></div>`;
+    <div class="av-foot"><div class="av-legend" id="avLegend"></div><p class="av-hint">Every ${POINTS_PER_BIRD} points anyone earns brings a bird, and they fly off when Sunday ends. Tap the ground to throw some seed, or a bird to startle it.</p></div>`;
   document.body.append(el);
   history.pushState({ aviary: 1 }, '');
 
+  // ---- the facts: one at a time, moving on slowly; tap for the next one, or a dot for that one ----
+  let fact = 0;
+  const showFact = (i: number) => {
+    fact = (i + facts.length) % facts.length;
+    el.querySelectorAll('.av-fact-list p').forEach((p, j) => { p.classList.toggle('on', j === fact); p.setAttribute('aria-hidden', String(j !== fact)); });
+    el.querySelectorAll('.av-dots button').forEach((d, j) => d.classList.toggle('on', j === fact));
+  };
+  const FACT_MS = 7000;
+  let factT = setInterval(() => showFact(fact + 1), FACT_MS);
+  $('.av-facts', el).addEventListener('click', e => {
+    const d = (e.target as HTMLElement).closest('[data-fact]') as HTMLElement | null;
+    showFact(d ? +d.dataset.fact! : fact + 1);
+    clearInterval(factT); factT = setInterval(() => showFact(fact + 1), FACT_MS);
+  });
+
   const stage = $('.av-stage', el), cv = $('canvas', stage) as HTMLCanvasElement, ctx = cv.getContext('2d');
-  const sky = document.createElement('canvas'), land = document.createElement('canvas');
+  const sky = document.createElement('canvas'), land = document.createElement('canvas'), canopy = document.createElement('canvas');
+  let sprites: (Sprite | null)[] = [];
   const world = new World();
   let dpr = 1, hourPainted = -1, light = 1, raf = 0, last = performance.now();
   world.onSound = (b, k) => birdSound(b.sp.id, k, (b.x / world.w) * 1.4 - 0.7, 0.45 + 0.55 * Math.min(1, Math.max(0, (b.y - world.hor) / world.gh)));
@@ -82,11 +104,12 @@ export function openAviary() {
   const hourNow = () => { const d = new Date(); return d.getHours() + d.getMinutes() / 60; };
   const paint = () => {
     const h = hourNow(); hourPainted = h; const s = skyAt(h); light = s.light; world.night = light < 0.25;
-    for (const [cvx, f] of [[sky, paintSky], [land, paintLand]] as const) {
+    for (const [cvx, f] of [[sky, paintSky], [land, paintLand], [canopy, paintCanopy]] as const) {
       cvx.width = Math.round(world.w * dpr); cvx.height = Math.round(world.h * dpr);
       const c = cvx.getContext('2d'); if (!c) continue;
       c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, world.w, world.h); f(c, world, h);
     }
+    sprites = paintProps(world, dpr);
   };
   const fit = () => {
     const w = Math.max(200, stage.clientWidth), h = Math.max(240, stage.clientHeight);
@@ -122,7 +145,6 @@ export function openAviary() {
     for (const uid of new Set(world.birds.map(b => b.uid))) if (!members.some(m => m.userId === uid)) world.remove(uid, world.count(uid));
     markSeen(members);
     const total = flockSize(members);
-    $('#avN', el).textContent = `${total} ${total === 1 ? 'bird' : 'birds'}`;
     const msg = $('#avMsg', el);
     msg.classList.toggle('hide', total > 0);
     msg.textContent = `No ${names.many.toLowerCase()} yet this week. Every ${POINTS_PER_BIRD} points anyone earns brings one in.`;
@@ -143,7 +165,7 @@ export function openAviary() {
   const frame = (now: number) => {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     world.step(dt);
-    if (ctx) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawWorld(ctx, world, sky, land, light); }
+    if (ctx) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawWorld(ctx, world, { sky, land, canopy, props: sprites }, light); }
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
@@ -167,7 +189,7 @@ export function openAviary() {
   function close() {
     if (!isOpen) return;
     isOpen = false;
-    cancelAnimationFrame(raf); ro.disconnect(); clearInterval(tick);
+    cancelAnimationFrame(raf); ro.disconnect(); clearInterval(tick); clearInterval(factT);
     removeEventListener('keydown', onKey); removeEventListener('popstate', onPop); document.removeEventListener('bf:sessions-changed', onChange);
     el.remove(); paintFlockButton();
     if (opener?.isConnected) opener.focus({ preventScroll: true });

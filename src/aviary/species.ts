@@ -16,7 +16,7 @@ export interface Look {
   wattle?: string; streaks?: string;
 }
 export type Behaviour = 'walk' | 'hop' | 'peck' | 'probe' | 'seed' | 'footfeed' | 'graze' | 'swim' | 'drink' | 'bathe' | 'call' | 'preen'
-  | 'stretch' | 'shake' | 'pester' | 'perch' | 'hang' | 'dance' | 'idle' | 'fly' | 'nectar' | 'hawk';
+  | 'stretch' | 'shake' | 'pester' | 'perch' | 'hang' | 'dance' | 'idle' | 'fly' | 'nectar' | 'hawk' | 'hunt';
 export interface Species {
   id: SpeciesId;
   size: number;            // overall scale
@@ -52,7 +52,7 @@ export const SPECIES: Record<SpeciesId, Species> = {
       body: '#1d1e22', head: '#1d1e22', neck: '#1d1e22', iris: '#f5d63b', billUp: '#141417', billLo: '#1c1c20',
       wing: '#222328', primary: '#16171a', wingPatch: '#f2f2ee', tail: '#1b1c20', tailTip: '#f4f4f0', vent: '#f2f2ee', leg: '#16171a', sheen: '#3a4150',
     },
-    acts: { walk: 5, hop: 3, peck: 4, probe: 5, drink: 1.5, bathe: 1, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 3, perch: 2, idle: 3, fly: 1.5 },
+    acts: { walk: 5, hop: 3, peck: 4, probe: 5, drink: 1.5, bathe: 1, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 3, perch: 2, idle: 3, fly: 1.5, hunt: 3, hawk: 1 },
     chatty: 1, bold: 0.75, song: [[0, 0.2], [0.24, 0.62], [0.9, 1.05]],
   },
   galah: {
@@ -103,7 +103,7 @@ export const SPECIES: Record<SpeciesId, Species> = {
       head: '#e0262b', headPatches: [P(0.08, 0.52, 0.6, 0.48, '#f7f7f2')], neck: '#e0262b', iris: '#3a2a20',
       billUp: '#ecebe3', billLo: '#d8d6cc', wing: '#1f201b', primary: '#2f63c9', shoulder: '#3b8ae0', tail: '#2e7fa8', tailTip: '#9fd2e8', leg: '#8a8d8f', thigh: '#7cc24a', vent: '#e0262b',
     },
-    acts: { walk: 1, hop: 5, peck: 5, seed: 5, drink: 2, bathe: 1.5, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 2.5, perch: 3, idle: 2, fly: 2.5 },
+    acts: { walk: 1, hop: 5, peck: 5, seed: 5, drink: 2, bathe: 1.5, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 2.5, perch: 3, idle: 2, fly: 2.5, hunt: 1 },
     chatty: 1.1, bold: 0.5, song: [[0, 0.1], [0.16, 0.26], [0.4, 0.66]],
   },
   magpie: {
@@ -115,7 +115,7 @@ export const SPECIES: Record<SpeciesId, Species> = {
       wing: '#18181b', primary: '#121214', shoulder: '#f7f7f4', tail: '#141416', tailBase: '#f7f7f4', vent: '#f2f2ee', leg: '#141416',
     },
     female: { nape: '#b9bcbf', shoulder: '#e9e9e6' },
-    acts: { walk: 6, peck: 3, probe: 6, drink: 1.5, bathe: 1, call: 3, preen: 2, stretch: 1.2, shake: 1, pester: 3.5, perch: 1.5, idle: 2.5, fly: 1.5 },
+    acts: { walk: 6, peck: 3, probe: 6, drink: 1.5, bathe: 1, call: 3, preen: 2, stretch: 1.2, shake: 1, pester: 3.5, perch: 1.5, idle: 2.5, fly: 1.5, hunt: 4, hawk: 1.2 },
     chatty: 1.3, bold: 0.95, song: [[0, 0.16], [0.2, 0.36], [0.44, 0.7], [0.78, 0.94], [1, 1.3], [1.38, 1.75]],
   },
   raven: {
@@ -126,7 +126,7 @@ export const SPECIES: Record<SpeciesId, Species> = {
       body: '#111115', head: '#111115', neck: '#121216', iris: '#f2f2f0', billUp: '#0c0c0e', billLo: '#121214',
       wing: '#141419', primary: '#0e0e11', tail: '#121216', leg: '#0f0f12', sheen: '#3b3f6b',
     },
-    acts: { walk: 6, hop: 2, peck: 3, probe: 4, drink: 1.5, bathe: 0.8, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 4, perch: 2, idle: 2.5, fly: 1.5 },
+    acts: { walk: 6, hop: 2, peck: 3, probe: 4, drink: 1.5, bathe: 0.8, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 4, perch: 2, idle: 2.5, fly: 1.5, hunt: 2.5, hawk: 0.5 },
     chatty: 1, bold: 1, song: [[0, 0.3], [0.42, 0.72], [0.86, 1.6]],
   },
   woodduck: {
@@ -139,7 +139,7 @@ export const SPECIES: Record<SpeciesId, Species> = {
       wingPatch: '#2f7d6a', tail: '#1f1f1f', vent: '#1f1f1f', leg: '#3f3f3f', crest: '#2b2019', backLines: '#1f1d1b',
     },
     female: { head: '#7b5e45', neck: '#7b5e45', headPatches: [P(0.15, -0.42, 0.8, 0.12, '#efe8dc'), P(0.15, 0.2, 0.8, 0.12, '#efe8dc')], body: '#8c8176', bodyPatches: [P(0.55, 0.1, 0.5, 0.8, '#b8a58e')] },
-    acts: { walk: 3, graze: 7, swim: 5, drink: 1, call: 1.5, preen: 3.5, stretch: 1, shake: 1.5, pester: 2, idle: 3, fly: 1 },
+    acts: { walk: 3, graze: 7, swim: 5, drink: 1, call: 1.5, preen: 3.5, stretch: 1, shake: 1.5, pester: 2, idle: 3, fly: 1, hunt: 1.5 },
     chatty: 0.8, bold: 0.5, song: [[0, 0.34], [0.5, 0.8]],
   },
   crimsonrosella: {
@@ -153,7 +153,7 @@ export const SPECIES: Record<SpeciesId, Species> = {
     },
     // young ones are mostly green in their first year: plenty of them about in the mountains
     female: { body: '#5f8f3a', scallop: '#7fae4e', bodyPatches: [P(0.62, -0.25, 0.35, 0.45, '#c3172b'), P(-0.6, 0.55, 0.45, 0.45, '#c3172b')], head: '#6a963f', headPatches: [P(0.55, -0.55, 0.55, 0.4, '#c3172b'), P(0.08, 0.55, 0.6, 0.48, '#4f6fd6')], neck: '#5f8f3a', wing: '#4c7a30', thigh: '#5f8f3a' },
-    acts: { walk: 1, hop: 4, peck: 4, seed: 5, nectar: 3, drink: 2, bathe: 1.5, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 2, perch: 4, idle: 2, fly: 2.5 },
+    acts: { walk: 1, hop: 4, peck: 4, seed: 5, nectar: 3, drink: 2, bathe: 1.5, call: 2.5, preen: 2, stretch: 1, shake: 1, pester: 2, perch: 4, idle: 2, fly: 2.5, hunt: 0.8 },
     chatty: 1.1, bold: 0.55, song: [[0, 0.2], [0.3, 0.5], [0.62, 0.95]],
   },
   wattlebird: {
@@ -165,7 +165,7 @@ export const SPECIES: Record<SpeciesId, Species> = {
       neck: '#665a4f', iris: '#c43b3b', billUp: '#141414', billLo: '#1d1d1d', wing: '#5b4f45', primary: '#3d342d', tail: '#54493f', tailTip: '#efe9df',
       leg: '#b7887a', wattle: '#d1323a', vent: '#efe0c4',
     },
-    acts: { walk: 0.5, hop: 3, peck: 2, nectar: 6, hawk: 4, drink: 1.5, bathe: 1.5, call: 3, preen: 2, stretch: 1, shake: 1, pester: 6, perch: 5, idle: 2, fly: 2.5 },
+    acts: { walk: 0.5, hop: 3, peck: 2, nectar: 6, hawk: 4, drink: 1.5, bathe: 1.5, call: 3, preen: 2, stretch: 1, shake: 1, pester: 6, perch: 5, idle: 2, fly: 2.5, hunt: 1 },
     chatty: 1.4, bold: 1, song: [[0, 0.12], [0.18, 0.3], [0.38, 0.62]],
   },
 };

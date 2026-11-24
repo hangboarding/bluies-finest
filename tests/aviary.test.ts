@@ -125,6 +125,46 @@ describe('the clearing', () => {
     for (const m of w.motes) { expect(m.x).toBeGreaterThan(-10); expect(m.x).toBeLessThan(385); }
   });
 
+  it('has a pond running off the left edge towards the horizon, and nobody is set down in the water or inside a bush', () => {
+    const w = new World(seeded(6)); w.resize(375, 560);
+    expect(w.inPond(-5, w.hor + w.gh * 0.76)).toBe(true); // off the left edge
+    expect(w.inPond(375 * 0.52, w.hor + w.gh * 0.31)).toBe(true); // the far end, towards the horizon
+    expect(w.inPond(375 * 0.8, w.hor + w.gh * 0.7)).toBe(false);
+    expect(w.props.filter(p => p.k === 'rock').length).toBeGreaterThan(8);
+    for (let i = 0; i < 300; i++) { const p = w.spot(null); expect(w.okGround(p.x, p.y)).toBe(true); }
+    const b = w.add('magpie', 'u', '#f00', 'place');
+    for (let i = 0; i < 100; i++) {
+      const bank = w.pondEdge(b, 1.1), shallows = w.pondEdge(b, 0.85), out = w.pondPoint(0.7);
+      expect(w.inPond(bank.x, bank.y)).toBe(false); expect(w.inPond(shallows.x, shallows.y)).toBe(true); expect(w.inPond(out.x, out.y)).toBe(true);
+      expect(bank.x).toBeGreaterThan(14); expect(out.x).toBeGreaterThan(14);
+    }
+    for (const p of w.props.filter(p => p.foot > 0)) expect(w.okGround(p.x, p.y)).toBe(false);
+  });
+
+  it('insects of every kind come and go; the birds hunt them on the ground and catch them in the air', () => {
+    const eaten = (id: keyof typeof SPECIES, night = false) => {
+      const w = new World(seeded(12)); w.resize(375, 560); w.night = night;
+      for (let i = 0; i < 12; i++) w.add(id, 'u', '#f00', 'place');
+      const n: Record<string, number> = {}, was = new Map(w.bugs.map(g => [g, g.dead]));
+      run(w, 180, () => {
+        for (const g of w.bugs) { if (g.dead > 0 && !(was.get(g)! > 0)) n[g.k] = (n[g.k] ?? 0) + 1; was.set(g, g.dead); expect([g.x, g.y, g.a].every(Number.isFinite)).toBe(true); }
+      });
+      return { n, kinds: new Set(w.bugs.map(g => g.k)) };
+    };
+    const mag = eaten('magpie');
+    expect(mag.kinds.size).toBe(6);
+    expect((mag.n.hopper ?? 0) + (mag.n.beetle ?? 0)).toBeGreaterThan(0); // hunted on the ground
+    const wat = eaten('wattlebird');
+    expect((wat.n.midge ?? 0) + (wat.n.butterfly ?? 0) + (wat.n.dragonfly ?? 0)).toBeGreaterThan(0); // caught in the air
+    const galahs = eaten('galah');
+    expect(Object.keys(galahs.n).length).toBe(0); // seed-eaters leave them be
+    const w = new World(seeded(1)); w.resize(375, 560);
+    expect(w.bugs.filter(g => w.bugAwake(g)).every(g => g.k !== 'moth')).toBe(true); // moths only come out at night
+    w.night = true;
+    expect(w.bugs.some(g => g.k === 'moth' && w.bugAwake(g))).toBe(true);
+    expect(w.bugs.some(g => g.k === 'butterfly' && w.bugAwake(g))).toBe(false);
+  });
+
   it('keeps birds where they were when the screen changes size', () => {
     const w = new World(seeded(11)); w.resize(375, 560);
     for (let i = 0; i < 8; i++) w.add('magpie', 'u', '#f00', 'place');

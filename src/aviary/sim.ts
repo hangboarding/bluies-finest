@@ -19,16 +19,24 @@ export interface Bird {
   pose: Pose; want: Pose; rate: number;
   act: Act; at: number; s: any; then: Act | null; last: Act | null;
   fl: Flight | null; perch: number; swim: boolean; hang: number; hangT: number; swing: number; jit: number;
-  hold: 0 | 1 | 2 | 3; blink: number; ph: number; gone: boolean; leaving: boolean;
+  hold: 0 | 1 | 2 | 3 | 4; blink: number; ph: number; gone: boolean; leaving: boolean;
 }
 export type PartKind = 'dust' | 'grass' | 'feather' | 'drop' | 'husk' | 'ripple' | 'petal' | 'leaf';
 export interface Part { k: PartKind; x: number; y: number; a: number; vx: number; va: number; life: number; max: number; c: string; r: number; rot: number; vr: number }
 export interface Food { x: number; y: number; a: number; va: number; left: number; age: number }
-export interface Bug { x: number; y: number; a: number; ph: number; dead: number }
+/** Insects: midges, butterflies, dragonflies over the pond and moths at night fly; grasshoppers and Christmas beetles stay on the ground. */
+export type BugKind = 'midge' | 'butterfly' | 'dragonfly' | 'moth' | 'hopper' | 'beetle';
+export interface Bug { k: BugKind; x: number; y: number; a: number; ph: number; dead: number; vx: number; vy: number; va: number; tx: number; ty: number; ta: number; rest: number; c: string }
+export const FLYING = new Set<BugKind>(['midge', 'butterfly', 'dragonfly', 'moth']);
 /** A spot on a branch. Slots are packed a bird's width apart: by day birds keep a slot between them, at night they cuddle up. */
 export interface Perch { x: number; y: number; gy: number; by: Bird | null; br: number; i: number }
-/** A branch to perch on: a curve from the trunk out to its tip, `gy` being how far forward its tree stands. */
-export interface Branch { x0: number; y0: number; cx: number; cy: number; x1: number; y1: number; th: number; gy: number; from: number; to: number }
+/** A branch to perch on: a wavering curve from the trunk out to its tip, `gy` being how far forward its tree stands. */
+export interface Branch { x0: number; y0: number; c1x: number; c1y: number; c2x: number; c2y: number; x1: number; y1: number; th: number; gy: number; from: number; to: number; seed: number; wob: number; dead?: boolean }
+/** The pond is a run of overlapping ellipses: from off the left edge, winding away towards the horizon. */
+export interface Pool { x: number; y: number; rx: number; ry: number }
+export type PropKind = 'gum' | 'fern' | 'sheoak' | 'sapling' | 'wattle' | 'teatree' | 'banksia' | 'grevillea' | 'waratah' | 'heath' | 'bracken' | 'tussock' | 'rock';
+/** Something standing in the clearing, drawn in depth order with the birds. `foot` is how much ground it takes up (0: birds can stand right by it). */
+export interface Prop { k: PropKind; x: number; y: number; s: number; flex: number; foot: number; seed: number }
 export interface Tree { x: number; w: number; base: number; top: number; far: boolean }
 /** Something in flower the honeyeaters and parrots feed at. */
 export interface Flower { x: number; y: number; r: number; h: number; kind: 'grevillea' | 'waratah' }
@@ -37,11 +45,20 @@ export interface Wind { x: number; y: number; t: number; T: number; len: number;
 /** A speck of dust drifting in the light. */
 export interface Mote { x: number; y: number; ph: number; s: number; v: number }
 
-/** Where a branch's curve is at t (0 at the trunk, 1 at the tip). */
-export const onBranch = (B: Branch, t: number): [number, number] =>
-  [(1 - t) ** 2 * B.x0 + 2 * (1 - t) * t * B.cx + t * t * B.x1, (1 - t) ** 2 * B.y0 + 2 * (1 - t) * t * B.cy + t * t * B.y1];
-/** The branch's thickness (each side of its centre line) at t: it tapers to the tip. */
-export const branchTh = (B: Branch, t: number) => B.th * (1 - 0.65 * t);
+/** Where a branch is at t (0 at the trunk, 1 at the tip): a curve with a little irregular waver that grows towards the tip. */
+export function onBranch(B: Branch, t: number): [number, number] {
+  const u = 1 - t;
+  const x = u * u * u * B.x0 + 3 * u * u * t * B.c1x + 3 * u * t * t * B.c2x + t * t * t * B.x1;
+  const y = u * u * u * B.y0 + 3 * u * u * t * B.c1y + 3 * u * t * t * B.c2y + t * t * t * B.y1;
+  const dx = 3 * u * u * (B.c1x - B.x0) + 6 * u * t * (B.c2x - B.c1x) + 3 * t * t * (B.x1 - B.c2x);
+  const dy = 3 * u * u * (B.c1y - B.y0) + 6 * u * t * (B.c2y - B.c1y) + 3 * t * t * (B.y1 - B.c2y);
+  const l = Math.hypot(dx, dy) || 1, off = B.wob * (Math.sin(t * 9.3 + B.seed) * 0.6 + Math.sin(t * 23.1 + B.seed * 1.7) * 0.25) * (0.3 + t);
+  return [x - (dy / l) * off, y + (dx / l) * off];
+}
+/** The branch's thickness (each side of its centre line) at t: tapering, and a bit knobbly. */
+export const branchTh = (B: Branch, t: number) => B.th * (1 - 0.68 * t) * (1 + 0.1 * Math.sin(t * 37 + B.seed));
+/** A repeatable random sequence, so the scenery is laid out the same every time. */
+export function seeded(seed: number) { let s = seed >>> 0 || 1; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
 /** Where a wind line is at u (0 → 1 along it). */
 export function windPt(d: Wind, u: number): [number, number] {
   const wave = Math.sin(u * Math.PI * 2) * 2.5;
@@ -68,8 +85,8 @@ const songLen = (sp: Species) => sp.song[sp.song.length - 1]![1];
 
 export class World {
   w = 360; h = 560; hor = 230; gh = 330; U = 0.56; crowd = 1; crowdT = 1;
-  pond = { x: 0, y: 0, rx: 1, ry: 1 };
-  trees: Tree[] = []; branches: Branch[] = []; flowers: Flower[] = [];
+  pools: Pool[] = [];
+  trees: Tree[] = []; branches: Branch[] = []; flowers: Flower[] = []; props: Prop[] = [];
   perches: Perch[] = [];
   birds: Bird[] = []; parts: Part[] = []; food: Food[] = []; bugs: Bug[] = [];
   winds: Wind[] = []; motes: Mote[] = [];
@@ -92,7 +109,13 @@ export class World {
     this.w = w; this.h = h; this.hor = Math.round(h * 0.42); this.gh = h - this.hor;
     const hor = this.hor, gh = this.gh, tw = Math.max(18, w * 0.065);
     this.U = Math.min(w, 720) / 640;
-    this.pond = { x: w * 0.25, y: hor + gh * 0.68, rx: Math.max(48, w * 0.17), ry: Math.max(14, gh * 0.075) };
+    // the pond: wide where it runs off the left edge, narrowing as it winds away towards the horizon
+    const spine: [number, number, number, number][] = [[-0.08, 0.76, 0.34, 0.12], [0.17, 0.63, 0.25, 0.09], [0.34, 0.51, 0.16, 0.06], [0.45, 0.4, 0.09, 0.036], [0.52, 0.31, 0.044, 0.019]];
+    this.pools = [];
+    for (let i = 0; i <= 24; i++) {
+      const f = (i / 24) * (spine.length - 1), j = Math.min(spine.length - 2, Math.floor(f)), t = f - j, a = spine[j]!, b = spine[j + 1]!, s = t * t * (3 - 2 * t);
+      this.pools.push({ x: w * lerp(a[0], b[0], t), y: hor + gh * lerp(a[1], b[1], t), rx: Math.max(10, w * lerp(a[2], b[2], s)), ry: Math.max(4, gh * lerp(a[3], b[3], s)) });
+    }
     this.trees = [
       { x: w * 0.33, w: 5, base: hor + 3, top: hor - h * 0.25, far: true },
       { x: w * 0.62, w: 7, base: hor + 4, top: hor - h * 0.31, far: true },
@@ -100,16 +123,45 @@ export class World {
       { x: w * 0.035, w: tw * 0.55, base: hor + gh * 0.07, top: -10, far: false },
       { x: w - tw * 0.15, w: tw, base: hor + gh * 0.26, top: -10, far: false },
     ];
+    const X = (f: number) => w * f, Y = (f: number) => hor - h * f;
     this.branches = [
-      { x0: w * 0.62, y0: hor - h * 0.15, cx: w * 0.53, cy: hor - h * 0.135, x1: w * 0.44, y1: hor - h * 0.17, th: 2.4, gy: hor + gh * 0.01, from: 0.15, to: 0.92 }, // the far gum
-      { x0: w * 0.04, y0: hor - h * 0.165, cx: w * 0.17, cy: hor - h * 0.13, x1: w * 0.31, y1: hor - h * 0.175, th: 3.6, gy: hor + gh * 0.07, from: 0.12, to: 0.9 }, // the left gum
-      { x0: w * 1.0, y0: hor - h * 0.215, cx: w * 0.86, cy: hor - h * 0.19, x1: w * 0.69, y1: hor - h * 0.24, th: 4.5, gy: hor + gh * 0.2, from: 0.12, to: 0.9 }, // the scribbly gum, up high
-      { x0: w * 1.0, y0: hor - h * 0.055, cx: w * 0.8, cy: hor - h * 0.03, x1: w * 0.55, y1: hor - h * 0.095, th: 5.5, gy: hor + gh * 0.2, from: 0.1, to: 0.92 }, // its dead limb
+      // the far gum's: out to the left, dipping, then lifting at the tip
+      { x0: X(0.62), y0: Y(0.15), c1x: X(0.57), c1y: Y(0.125), c2x: X(0.5), c2y: Y(0.14), x1: X(0.44), y1: Y(0.178), th: 2.4, gy: hor + gh * 0.01, from: 0.15, to: 0.9, seed: 1.3, wob: 1.2 },
+      // the left gum's: rising off the trunk, then sagging towards the tip
+      { x0: X(0.04), y0: Y(0.15), c1x: X(0.12), c1y: Y(0.205), c2x: X(0.22), c2y: Y(0.14), x1: X(0.31), y1: Y(0.165), th: 3.8, gy: hor + gh * 0.07, from: 0.12, to: 0.88, seed: 4.1, wob: 1.6 },
+      // the scribbly gum's, up high: sweeping up and out
+      { x0: X(1), y0: Y(0.2), c1x: X(0.9), c1y: Y(0.205), c2x: X(0.8), c2y: Y(0.255), x1: X(0.7), y1: Y(0.232), th: 4.6, gy: hor + gh * 0.2, from: 0.12, to: 0.88, seed: 2.7, wob: 1.8 },
+      // and its long dead limb, sagging, with a kink
+      { x0: X(1), y0: Y(0.055), c1x: X(0.85), c1y: Y(0.012), c2x: X(0.68), c2y: Y(0.095), x1: X(0.54), y1: Y(0.085), th: 5.6, gy: hor + gh * 0.2, from: 0.1, to: 0.92, seed: 7.9, wob: 2.4, dead: true },
     ];
     this.flowers = [
       { x: w * 0.8, y: hor + gh * 0.17, r: Math.max(24, w * 0.065), h: Math.max(24, w * 0.065) * 1.25, kind: 'grevillea' },
       { x: w * 0.135, y: hor + gh * 0.15, r: 9, h: 30, kind: 'waratah' },
     ];
+    // everything standing in the clearing, drawn in depth order with the birds
+    const P = (k: PropKind, fx: number, fy: number, s: number, flex: number, foot: number): Prop => ({ k, x: w * fx, y: hor + gh * fy, s, flex, foot, seed: Math.round(fx * 997 + fy * 131) });
+    const [g, wa] = this.flowers as [Flower, Flower];
+    this.props = [
+      P('gum', 0.035, 0.07, tw * 0.55, 0, tw * 0.4), { ...P('gum', 0, 0.26, tw, 0, tw * 0.7), x: w - tw * 0.15 },
+      P('fern', 0.22, 0.05, 1, 0.5, 6), P('fern', 0.93, 0.36, 1.3, 0.5, 8),
+      P('sheoak', 0.31, 0.25, h * 0.17, 0.3, 5), P('sapling', 0.74, 0.36, h * 0.2, 0.25, 4), P('wattle', 0.88, 0.66, h * 0.14, 0.35, 10),
+      P('teatree', 0.61, 0.56, 15, 0.25, 12), P('banksia', 0.5, 0.07, Math.max(16, w * 0.045), 0.15, 10),
+      { ...P('grevillea', 0, 0, g.r, 0.2, g.r * 0.7), x: g.x, y: g.y }, { ...P('waratah', 0, 0, 1, 0.5, 4), x: wa.x, y: wa.y },
+      P('heath', 0.39, 0.04, 1, 0.2, 0), P('heath', 0.69, 0.1, 1, 0.2, 0), P('heath', 0.57, 0.13, 1, 0.2, 0),
+      P('bracken', 0.66, 0.05, 46, 0.4, 0), P('bracken', 0.72, 0.92, 36, 0.4, 0),
+    ];
+    const rr = seeded(77), clearOf = (x: number, y: number, d: number) => !this.inPond(x, y, 1.4) && this.props.every(p => Math.hypot(p.x - x, (p.y - y) * 2) > d);
+    for (let i = 0, n = 0; i < 60 && n < 9; i++) { // tussocks dotted about
+      const z = rr(), x = rr() * w, y = hor + gh * (0.12 + z * 0.84);
+      if (clearOf(x, y, 30)) { this.props.push({ k: 'tussock', x, y, s: 0.6 + z * 0.9, flex: 1, foot: 0, seed: i + 5 }); n++; }
+    }
+    for (const e of this.pools) for (let i = 0; i < 5; i++) { // sandstone rocks round the water's edge
+      const a = rr() * Math.PI * 2, x = e.x + Math.cos(a) * e.rx * 1.03, y = e.y + Math.sin(a) * e.ry * 1.1;
+      if (x < -6 || x > w + 6 || this.inPond(x, y, 0.995)) continue;
+      if (this.props.some(p => p.k === 'rock' && Math.hypot(p.x - x, (p.y - y) * 2) < 11)) continue;
+      const big = rr() < 0.15;
+      this.props.push({ k: 'rock', x, y: y + 1, s: (big ? 6 + rr() * 3 : 2.2 + rr() * 3.5) * this.scaleAt(y) * 1.4, flex: 0, foot: big ? 8 : 0, seed: i });
+    }
     // keep everyone in the same place relative to the new size
     for (const b of this.birds) {
       b.x = (b.x / ow) * w;
@@ -120,7 +172,8 @@ export class World {
     this.buildPerches(ow);
     for (const f of this.food) { f.x = (f.x / ow) * w; f.y = hor + ((f.y - ohor) / ogh) * gh; }
     this.parts = []; this.winds = [];
-    if (!this.bugs.length) for (let i = 0; i < 4; i++) this.bugs.push(this.newBug());
+    if (!this.bugs.length) for (const k of ['midge', 'midge', 'midge', 'butterfly', 'butterfly', 'dragonfly', 'dragonfly', 'moth', 'moth', 'moth', 'hopper', 'hopper', 'hopper', 'beetle', 'beetle'] as BugKind[]) this.bugs.push(this.spawnBug(k));
+    else for (const g of this.bugs) Object.assign(g, this.spawnBug(g.k));
     this.motes = Array.from({ length: Math.round(w / 14) }, () => ({ x: this.rand() * w, y: this.rand() * h * 0.95, ph: this.rand() * 9, s: this.r(0.5, 1.4), v: this.r(0.5, 1.5) }));
   }
 
@@ -159,16 +212,25 @@ export class World {
   scaleAt(y: number) { return 0.5 + 0.62 * clamp((y - this.hor) / this.gh, 0, 1); }
   /** Screen px per rig unit for this bird. */
   px(b: Bird) { return this.U * this.crowd * b.sp.size * b.size * this.scaleAt(b.y); }
-  inPond(x: number, y: number, m = 1) { const P = this.pond; return ((x - P.x) / (P.rx * m)) ** 2 + ((y - P.y) / (P.ry * m)) ** 2 < 1; }
+  private poolAt(x: number, y: number, m = 1) { return this.pools.find(e => ((x - e.x) / (e.rx * m)) ** 2 + ((y - e.y) / (e.ry * m)) ** 2 < 1); }
+  inPond(x: number, y: number, m = 1) { return !!this.poolAt(x, y, m); }
   inBounds(x: number, y: number) { return x > 14 && x < this.w - 14 && y > this.top && y < this.bottom; }
-  okGround(x: number, y: number) { return this.inBounds(x, y) && !this.inPond(x, y, 1.15); }
+  /** Somewhere a bird can stand: in the clearing, out of the water, and not inside a bush or a trunk. */
+  okGround(x: number, y: number) {
+    return this.inBounds(x, y) && !this.inPond(x, y, 1.12) && !this.props.some(p => p.foot > 0 && ((x - p.x) / p.foot) ** 2 + ((y - p.y) / (p.foot * 0.45)) ** 2 < 1);
+  }
   crossesPond(x0: number, y0: number, x1: number, y1: number) {
     for (let i = 1; i < 10; i++) if (this.inPond(lerp(x0, x1, i / 10), lerp(y0, y1, i / 10), 1.05)) return true;
     return false;
   }
   clampGround(x: number, y: number) {
     x = clamp(x, 18, this.w - 18); y = clamp(y, this.top + 2, this.bottom - 2);
-    if (this.inPond(x, y, 1.15)) { const P = this.pond, a = Math.atan2((y - P.y) / P.ry, (x - P.x) / P.rx); x = P.x + Math.cos(a) * P.rx * 1.2; y = clamp(P.y + Math.sin(a) * P.ry * 1.2, this.top + 2, this.bottom - 2); }
+    for (let i = 0; i < 6; i++) { // step out of the water, away from the middle of whichever part of the pond it's in
+      const e = this.poolAt(x, y, 1.15); if (!e) break;
+      const a = Math.atan2((y - e.y) / e.ry, (x - e.x) / e.rx);
+      x = clamp(e.x + Math.cos(a) * e.rx * 1.2, 18, this.w - 18); y = clamp(e.y + Math.sin(a) * e.ry * 1.2, this.top + 2, this.bottom - 2);
+    }
+    if (this.inPond(x, y, 1.15)) return this.spot(null);
     return { x, y };
   }
   /** A free bit of ground: near the bird (min–max body lengths away) or anywhere, as far from the others as can be. */
@@ -187,11 +249,26 @@ export class World {
     }
     return best;
   }
-  pondEdge(b: Bird, m: number) { // a spot at the pond's left or right side, so a bird there faces the water
-    const P = this.pond, a = (b.x < P.x ? Math.PI : 0) + this.r(-0.5, 0.5);
-    return { x: P.x + Math.cos(a) * P.rx * m, y: clamp(P.y + Math.sin(a) * P.ry * m, this.top + 2, this.bottom - 2) };
+  /** A spot at the water's edge (m > 1: on the bank; m < 1: just in the shallows), at the side of a stretch of the pond near
+   *  the bird, so a bird there faces the water. `cx` is the middle of that stretch, to face. */
+  pondEdge(b: Bird, m: number) {
+    const near = [...this.pools].filter(e => e.x > 10).sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y));
+    for (let i = 0; i < 16; i++) {
+      const e = near[Math.floor(this.rand() * Math.min(5, near.length))]!, a = (b.x < e.x && e.x - e.rx > 16 ? Math.PI : 0) + this.r(-0.5, 0.5);
+      const x = e.x + Math.cos(a) * e.rx * m, y = e.y + Math.sin(a) * e.ry * m;
+      if (this.inBounds(x, y) && (m > 1 ? !this.inPond(x, y) : this.inPond(x, y))) return { x, y, cx: e.x };
+    }
+    const e = this.pools[8]!; return { x: e.x + e.rx * m, y: e.y, cx: e.x };
   }
-  pondPoint(f: number) { const P = this.pond, a = this.rand() * Math.PI * 2, r = Math.sqrt(this.rand()) * f; return { x: P.x + Math.cos(a) * P.rx * r, y: P.y + Math.sin(a) * P.ry * r }; }
+  /** A point out on the water, `f` of the way from the middle of a stretch to its edge. */
+  pondPoint(f: number) {
+    for (let i = 0; i < 20; i++) {
+      const e = this.pools[Math.floor(this.rand() * this.pools.length)]!, a = this.rand() * Math.PI * 2, r = Math.sqrt(this.rand()) * f;
+      const x = e.x + Math.cos(a) * e.rx * r, y = e.y + Math.sin(a) * e.ry * r;
+      if (x > 16 && x < this.w - 16) return { x, y };
+    }
+    const e = this.pools[10]!; return { x: e.x, y: e.y };
+  }
   grounded(o: Bird) { return o.alt < 1 && o.perch < 0 && !o.swim && !o.gone && !o.leaving && !o.fl && !AIRY.has(o.act) && !BUSY.has(o.act); }
   nearest(b: Bird, ok: (o: Bird) => boolean, max: number) {
     let best: Bird | null = null, d0 = max;
@@ -236,9 +313,9 @@ export class World {
         const x = s.x + dx * gap, y = s.y + dy * gap; if (free(x, y, gap)) return { x, y, face: s.face };
       }
     }
-    const P = this.pond, f = this.flowers[0], t = this.trees[4];
+    const f = this.flowers[0], t = this.trees[4];
     const shelters = b.sp.id === 'woodduck'
-      ? [{ x: P.x - P.rx * 1.25, y: P.y }, { x: P.x + P.rx * 1.25, y: P.y }]
+      ? [this.pondEdge(b, 1.3), this.pondEdge(b, 1.3)]
       : [f && { x: f.x - f.r * 1.15, y: f.y + 5 }, f && { x: f.x + f.r * 1.15, y: f.y + 5 }, t && { x: t.x - t.w * 1.4, y: t.base + 6 }];
     for (const s of shelters.filter(Boolean).sort(() => this.rand() - 0.5) as { x: number; y: number }[]) if (free(s.x, s.y, b.sp.rx * 1.5 * this.px(b))) return { ...s, face: this.rand() < 0.5 ? 1 : -1 };
     return { ...this.spot(b, 0.3, 2), face: b.face };
@@ -282,7 +359,7 @@ export class World {
   decide(b: Bird) {
     if (b.leaving) return this.go(b, 'depart');
     if (b.then) { const t = b.then; b.then = null; return this.go(b, t); }
-    if (b.hold) return this.go(b, b.sp.acts.footfeed && b.hold !== 1 ? 'footfeed' : 'eat', { held: 1 });
+    if (b.hold) return this.go(b, b.sp.acts.footfeed && (b.hold === 2 || b.hold === 3) ? 'footfeed' : 'eat', { held: 1 });
     if (b.swim) return this.go(b, 'swim');
     if (b.perch >= 0) return this.go(b, 'perched');
     const food = this.food.some(f => f.left > 0);
@@ -294,7 +371,8 @@ export class World {
       if (k === 'hang') continue; // only from a perch
       if (k === 'pester') { wt *= b.bold; if (!this.nearest(b, o => this.grounded(o), this.w * 0.45)) wt = 0; }
       if (k === 'perch' && this.freePerch(b) < 0) wt = 0;
-      if (k === 'hawk' && (this.night || !this.bugs.some(g => g.dead <= 0))) wt = 0;
+      if (k === 'hawk' && !this.nearestBug(b, true, this.w * 0.6)) wt = 0;
+      if (k === 'hunt' && !this.nearestBug(b, false, this.w * 0.5)) wt = 0;
       if (k === 'call') wt *= sp.chatty;
       if (k === b.last) wt *= 0.4;
       ws.push([k, wt]);
@@ -368,6 +446,11 @@ export class World {
     b.rate = 14; W.legs = u < 0.08 ? 1 : 0; W.wing = 1; W.crouch = 0; W.crest = 0;
     W.flap = gliding ? 0.14 + 0.05 * Math.sin(b.ph * 0.3) : Math.sin(b.ph);
     W.pitch = 0.05 + (u < 0.3 ? 0.18 : 0); W.nAng = 0.4; W.nExt = 0.9; W.hAng = -0.05; W.tail = 0; W.fan = 0.3; W.fx = -3; W.bx = -5; W.fy = W.by = 4;
+    if ((b.sp.acts.hawk || b.sp.acts.hunt) && b.alt > 6) { // an insect-eater snaps up anything it flies past
+      const p = this.tip(b);
+      for (const g of this.bugs) if (FLYING.has(g.k) && this.bugAwake(g) && Math.abs(p.x - g.x) < 8 && Math.abs(p.y - (g.y - g.a)) < 8 && this.rand() < 0.08) { this.eatBug(g); b.s.snapT = this.t; break; }
+    }
+    if (this.t - (b.s.snapT ?? -9) < 0.16) W.gape = 1;
     if (u > 0.8 && !f.away) { // flare and reach for the landing
       W.legs = 1; W.pitch = 0.6; W.flap = Math.sin(b.ph * 1.3) * 0.75 + 0.25; W.fan = 1; W.fx = 7; W.bx = 4; W.fy = W.by = 3; W.tail = 0.3;
     }
@@ -406,7 +489,60 @@ export class World {
     this.ripple(x, y, 3);
     for (let i = 0; i < n; i++) this.part('drop', x + this.r(-6, 6), y, this.r(2, 8), { vx: this.r(-40, 40), va: this.r(60, 140), max: 0.8, c: '#d8ecf5', r: this.r(0.8, 1.5) });
   }
-  newBug(): Bug { return { x: this.r(this.w * 0.1, this.w * 0.9), y: this.r(this.top, this.bottom), a: this.r(30, this.h * 0.35), ph: this.rand() * 9, dead: 0 }; }
+  // ---------- insects ----------
+  /** Eaten: another of its kind turns up a while later. */
+  eatBug(g: Bug) { g.dead = this.r(8, 20); }
+  spawnBug(k: BugKind): Bug {
+    const g: Bug = { k, x: 0, y: 0, a: 0, ph: this.rand() * 9, dead: 0, vx: 0, vy: 0, va: 0, tx: 0, ty: 0, ta: 0, rest: 0, c: '#262626' };
+    switch (k) {
+      case 'midge': { const f = this.flowers[Math.floor(this.rand() * this.flowers.length)]; g.x = (f?.x ?? this.w / 2) + this.r(-50, 50); g.y = this.r(this.top, this.bottom); g.a = this.r(25, this.h * 0.3); break; }
+      case 'butterfly': g.x = this.rand() < 0.5 ? -10 : this.w + 10; g.y = this.r(this.top, this.bottom); g.a = this.r(30, 90); g.c = ['#d0812c', '#3e74d6', '#f1eee4', '#e9b632'][Math.floor(this.rand() * 4)]!; this.bugTarget(g); break;
+      case 'dragonfly': { const p = this.pondPoint(0.9); g.x = p.x; g.y = p.y; g.a = this.r(10, 30); g.c = this.rand() < 0.6 ? '#2f8fd3' : '#c4392b'; this.bugTarget(g); break; }
+      case 'moth': g.x = this.r(0, this.w); g.y = this.r(this.top, this.bottom); g.a = this.r(20, 120); g.c = '#d9cfb8'; this.bugTarget(g); break;
+      default: { const p = this.spot(null); g.x = p.x; g.y = p.y; g.c = k === 'hopper' ? (this.rand() < 0.6 ? '#6f8f3a' : '#8a7a4a') : '#c08a2c'; g.rest = this.r(1, 5); } // grasshoppers, Christmas beetles
+    }
+    return g;
+  }
+  private bugTarget(g: Bug) {
+    if (g.k === 'dragonfly') { const p = this.pondPoint(0.95); g.tx = p.x; g.ty = p.y; g.ta = this.r(6, 34); return; }
+    const f = g.k === 'butterfly' && this.rand() < 0.55 ? this.flowers[Math.floor(this.rand() * this.flowers.length)] : null;
+    if (f) { g.tx = f.x + this.r(-0.6, 0.6) * f.r; g.ty = f.y + 1; g.ta = f.h * this.r(0.6, 1); }
+    else { g.tx = this.r(10, this.w - 10); g.ty = this.r(this.top, this.bottom); g.ta = this.r(15, g.k === 'moth' ? 140 : 100); }
+  }
+  /** Moths come out at night, the other fliers by day; grasshoppers and beetles are always about. */
+  bugAwake(g: Bug) { return g.dead <= 0 && (g.k === 'moth' ? this.night : FLYING.has(g.k) ? !this.night : true); }
+  nearestBug(b: Bird, flying: boolean, max: number) {
+    let best: Bug | null = null, d0 = max;
+    for (const g of this.bugs) { if (!this.bugAwake(g) || FLYING.has(g.k) !== flying) continue; const d = Math.hypot(g.x - b.x, (g.y - b.y) * 1.3, g.a - b.alt); if (d < d0) { d0 = d; best = g; } }
+    return best;
+  }
+  /** A grasshopper springs away from a bird. */
+  hopAway(g: Bug, from: Bird) { if (g.a > 0) return; g.vx = (Math.sign(g.x - from.x) || 1) * this.r(50, 90); g.vy = this.r(-14, 14); g.va = this.r(70, 120); g.a = 0.01; g.rest = this.r(2, 5); }
+  private moveBugs(dt: number) {
+    for (const g of this.bugs) {
+      if (g.dead > 0) { g.dead -= dt; if (g.dead <= 0) Object.assign(g, this.spawnBug(g.k)); continue; }
+      if (!this.bugAwake(g)) continue;
+      g.ph += dt;
+      if (g.k === 'midge') { // dancing about in one spot
+        g.x = clamp(g.x + Math.cos(g.ph * 4) * 22 * dt + Math.sin(g.ph * 9.3) * 14 * dt, 10, this.w - 10);
+        g.a = clamp(g.a + Math.sin(g.ph * 5.1) * 16 * dt, 20, this.h * 0.4);
+      } else if (g.k === 'hopper') {
+        if (g.a > 0) {
+          g.va -= 320 * dt; g.a += g.va * dt; g.x += g.vx * dt; g.y = clamp(g.y + g.vy * dt, this.top, this.bottom);
+          if (g.a <= 0) { g.a = 0; g.va = 0; if (this.inPond(g.x, g.y) || g.x < 4 || g.x > this.w - 4) Object.assign(g, this.spawnBug('hopper')); }
+        } else if ((g.rest -= dt) <= 0) { g.vx = this.r(-40, 40); g.vy = this.r(-10, 10); g.va = this.r(55, 100); g.a = 0.01; g.rest = this.r(2, 7); }
+      } else if (g.k === 'beetle') { // trundling through the grass
+        const a = Math.sin(g.ph * 0.7) * 2.5 + g.rest, nx = g.x + Math.cos(a) * 6 * dt, ny = g.y + Math.sin(a) * 3 * dt;
+        if (this.okGround(nx, ny)) { g.x = nx; g.y = ny; } else g.rest += 1.3;
+      } else { // butterflies, dragonflies and moths fly to a spot, maybe settle or hover there, then off again
+        if (g.rest > 0) { g.rest -= dt; if (g.k === 'dragonfly') g.a += Math.sin(g.ph * 20) * 2 * dt; if (g.rest <= 0) this.bugTarget(g); continue; }
+        const sp = g.k === 'dragonfly' ? 110 : g.k === 'moth' ? 30 : 26, dx = g.tx - g.x, dy = g.ty - g.y, da = g.ta - g.a, d = Math.hypot(dx, dy, da);
+        if (d < 3) { g.rest = g.k === 'dragonfly' ? this.r(0.3, 1.4) : g.k === 'butterfly' && this.rand() < 0.5 ? this.r(1, 3) : 0; if (!g.rest) this.bugTarget(g); continue; }
+        const k = Math.min(1, (sp * dt) / d), wob = g.k === 'dragonfly' ? 0 : 1;
+        g.x += dx * k + Math.sin(g.ph * 7) * 18 * dt * wob; g.y += dy * k; g.a = Math.max(3, g.a + da * k + Math.sin(g.ph * 11) * 22 * dt * wob);
+      }
+    }
+  }
   private leafCol() { return ['#7d8a4c', '#a39a55', '#b78a4a', '#6f7d46'][Math.floor(this.rand() * 4)]!; }
   /** A breath of wind: a white line or two that loops or curls away; sometimes a gust that blows leaves and dust about. */
   blow(gusty = this.rand() < 0.35) {
@@ -489,13 +625,7 @@ export class World {
       if (f.a > 0 || f.va > 0) { f.va -= 320 * dt; f.a += f.va * dt; if (f.a <= 0) { f.a = 0; f.va = Math.abs(f.va) > 50 ? -f.va * 0.3 : 0; } }
     }
     this.food = this.food.filter(f => f.left > 0 && f.age < 90);
-    for (const g of this.bugs) {
-      if (g.dead > 0) { g.dead -= dt; if (g.dead <= 0) Object.assign(g, this.newBug()); continue; }
-      g.ph += dt * 3;
-      g.x = clamp(g.x + Math.cos(g.ph * 1.3) * 22 * dt + Math.sin(g.ph * 3.1) * 14 * dt, 10, this.w - 10);
-      g.a = clamp(g.a + Math.sin(g.ph * 1.7) * 16 * dt, 20, this.h * 0.4);
-      g.y = clamp(g.y + Math.cos(g.ph * 0.9) * 6 * dt, this.top, this.bottom);
-    }
+    this.moveBugs(dt);
     for (const p of this.parts) {
       p.life += dt;
       if (p.k === 'ripple') { p.r += 16 * dt; continue; }
@@ -527,7 +657,7 @@ export class World {
       if (b.sp.crest === 'cockatoo' || b.sp.crest === 'galah') W.crest = Math.max(W.crest, 0.35 * g * (1 + Math.sin(this.t * 13 + b.id)) / 2);
     }
     if (W.eye > 0) { b.blink -= dt; if (b.blink < 0) { W.eye = 0; if (b.blink < -0.13) b.blink = this.r(1.5, 5.5); } }
-    if (b.hold === 1) W.wig = this.t * 9;
+    if (b.hold === 1 || b.hold === 4) W.wig = this.t * 9;
     const k = 1 - Math.exp(-b.rate * dt), P = b.pose as any, Wa = W as any;
     for (const key of SMOOTH) P[key] += (Wa[key] - P[key]) * k;
     for (const key of DIRECT) P[key] = Wa[key];
@@ -623,7 +753,7 @@ export const ACTS: Record<Act, ActFn> = {
 
   eat(w, b) { // bash a grub on the ground, then toss it back and gulp
     const S = b.s, W = b.want;
-    if (!S.ok) { S.ok = 1; S.bash = b.hold === 1 ? 2 : 0; S.T = 0.32; }
+    if (!S.ok) { S.ok = 1; S.bash = b.hold === 1 ? 2 : b.hold === 4 ? 1 : 0; S.T = 0.32; }
     const bashEnd = S.bash * S.T;
     if (b.at < bashEnd) { const u = (b.at % S.T) / S.T; w.reach(b, Math.sin(u * Math.PI) * 0.8); b.rate = 26; if (u > 0.45 && u < 0.55 && w.rand() < 0.4) w.dust(b, 1); return false; }
     const t = b.at - bashEnd;
@@ -725,9 +855,13 @@ export const ACTS: Record<Act, ActFn> = {
 
   drink(w, b, dt) { // stand at the water's edge, dip, and tip the head back to swallow
     const S = b.s, W = b.want;
-    if (!S.ok) { S.ok = 1; const p = w.pondEdge(b, 1.08); S.x = p.x; S.y = p.y; S.st = 'go'; S.n = 2 + Math.floor(w.rand() * 2); }
+    if (!S.ok) {
+      S.ok = 1; const p = w.pondEdge(b, 1.08); S.x = p.x; S.y = p.y; S.cx = p.cx; S.n = 2 + Math.floor(w.rand() * 2);
+      S.st = w.crossesPond(b.x, b.y, S.x, S.y) || b.alt > 1 ? 'fly' : 'go'; if (S.st === 'fly') w.flyStart(b, S.x, S.y, 0);
+    }
+    if (S.st === 'fly') { if (w.flyStep(b, dt)) { S.st = 'sip'; S.t0 = b.at; } return false; }
     if (S.st === 'go') { if (w.walkTo(b, S.x, S.y, dt, 1.1)) { S.st = 'sip'; S.t0 = b.at; } return b.at > 14; }
-    b.face = w.pond.x > b.x ? 1 : -1;
+    b.face = S.cx > b.x ? 1 : -1;
     const t = b.at - S.t0, T = 1.1, i = Math.floor(t / T), u = (t % T) / T;
     if (i >= S.n) return true;
     if (u < 0.45) { w.reach(b, Math.min(1, u / 0.2)); W.nExt += 0.25; if (u > 0.2 && !S['r' + i]) { S['r' + i] = 1; const p = w.tip(b); w.ripple(p.x, b.y); } }
@@ -739,10 +873,11 @@ export const ACTS: Record<Act, ActFn> = {
   bathe(w, b, dt) { // wade in, crouch, and thrash the wings about
     const S = b.s, W = b.want;
     if (!S.ok) {
-      S.ok = 1; const P = w.pond, a = (b.x < P.x ? Math.PI : 0) + w.r(-0.45, 0.45);
-      S.x = P.x + Math.cos(a) * P.rx * 0.88; S.y = P.y + Math.sin(a) * P.ry * 0.88; S.ox = P.x + Math.cos(a) * P.rx * 1.25; S.oy = clamp(P.y + Math.sin(a) * P.ry * 1.25, w.top + 2, w.bottom - 2);
-      S.st = 'go'; S.dur = w.r(1.8, 3.2);
+      S.ok = 1; const p = w.pondEdge(b, 0.86), o = w.clampGround(p.x + (p.x - p.cx) * 0.3, p.y);
+      S.x = p.x; S.y = p.y; S.ox = o.x; S.oy = o.y; S.dur = w.r(1.8, 3.2);
+      S.st = w.crossesPond(b.x, b.y, o.x, o.y) || b.alt > 1 ? 'fly' : 'go'; if (S.st === 'fly') w.flyStart(b, o.x, o.y, 0);
     }
+    if (S.st === 'fly') { if (w.flyStep(b, dt)) S.st = 'go'; return false; }
     if (S.st === 'go') { if (w.inPond(b.x, b.y)) W.swim = 0.3; if (w.walkTo(b, S.x, S.y, dt, 1)) { S.st = 'bathe'; S.t0 = b.at; } return b.at > 14; }
     if (S.st === 'bathe') {
       const t = b.at - S.t0;
@@ -775,17 +910,19 @@ export const ACTS: Record<Act, ActFn> = {
     return false;
   },
 
-  hawk(w, b, dt) { // red wattlebirds: fly up, snap an insect out of the air, and come back down
+  hawk(w, b, dt) { // fly up, snap an insect out of the air (wattlebirds are best at it), and come back down
     const S = b.s, W = b.want;
     if (!S.ok) {
-      S.ok = 1; let g: Bug | null = null, d0 = Infinity;
-      for (const x of w.bugs) { const d = Math.hypot(x.x - b.x, x.a - b.alt); if (x.dead <= 0 && d < d0) { d0 = d; g = x; } }
+      S.ok = 1; const g = w.nearestBug(b, true, Infinity);
       if (!g) return true;
       S.g = g; w.flyStart(b, g.x, g.y, g.a, 14, true); S.st = 'up';
     }
     if (S.st === 'up') {
-      const g: Bug = S.g; if (b.fl && g.dead <= 0) { b.fl.x1 = g.x; b.fl.y1 = g.y; b.fl.a1 = g.a; }
-      if (w.flyStep(b, dt)) { S.st = 'snap'; S.t0 = b.at; if (g.dead <= 0) g.dead = w.r(3, 8); }
+      const g: Bug = S.g; if (b.fl && w.bugAwake(g)) { b.fl.x1 = g.x; b.fl.y1 = g.y; b.fl.a1 = g.a; }
+      if (w.flyStep(b, dt)) { // a dragonfly is harder to catch than a midge; a miss sends it darting off
+        S.st = 'snap'; S.t0 = b.at;
+        if (w.bugAwake(g)) { if (w.rand() < (g.k === 'dragonfly' ? 0.45 : b.sp.id === 'wattlebird' ? 0.9 : 0.7)) w.eatBug(g); else { g.rest = 0; g.tx = g.x + w.r(-80, 80); g.ta = g.a + w.r(20, 50); } }
+      }
       return false;
     }
     if (S.st === 'snap') {
@@ -798,6 +935,31 @@ export const ACTS: Record<Act, ActFn> = {
       return false;
     }
     return w.flyStep(b, dt);
+  },
+
+  hunt(w, b, dt) { // stalk a grasshopper or a Christmas beetle, then pounce
+    const S = b.s, W = b.want;
+    if (!S.ok) { S.ok = 1; S.g = w.nearestBug(b, false, w.w * 0.5); S.tries = 0; if (!S.g) return true; }
+    const g: Bug = S.g;
+    if (!w.bugAwake(g) || b.at > 10) return true;
+    const k = w.px(b), reach = 30 * k, dir = g.x >= b.x ? 1 : -1;
+    if (S.st !== 'pounce') {
+      W.pitch -= 0.15; W.nAng -= 0.35; W.nExt = 1.2; W.hAng = -0.6; W.tail += 0.1; // head low and forward, creeping up
+      const d = Math.hypot(g.x - b.x, g.y - b.y);
+      if (g.k === 'hopper' && d < 48 * k + 10 && !S.spooked) { S.spooked = 1; if (w.rand() < 0.5) w.hopAway(g, b); }
+      const p = w.clampGround(g.x - dir * reach, g.y);
+      if (w.walkTo(b, p.x, p.y, dt, g.k === 'hopper' ? 1.5 : 1.05) && g.a < 1) { S.st = 'pounce'; S.t0 = b.at; b.face = dir; S.gx = g.x; S.gy = g.y; }
+      return false;
+    }
+    const t = b.at - S.t0;
+    w.reach(b, Math.min(1, t / 0.12)); if (t < 0.15) W.lift += 3; b.rate = 30;
+    if (t > 0.14 && !S.bit) {
+      S.bit = 1;
+      if (w.bugAwake(g) && g.a < 2 && Math.hypot(g.x - S.gx, g.y - S.gy) < 6 && w.rand() < (g.k === 'hopper' ? 0.65 : 0.9)) { w.eatBug(g); b.hold = 4; w.go(b, 'eat'); return false; }
+      w.dust(b, 2); if (g.k === 'hopper') w.hopAway(g, b);
+    }
+    if (t > 0.45) { if (++S.tries > 2) return true; S.st = 'stalk'; S.bit = 0; S.spooked = 0; }
+    return false;
   },
 
   call(w, b) {
