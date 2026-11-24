@@ -4,7 +4,7 @@
 import type { ChallengeRow, Comment, FeedItem, InviteCode, Issue, IssueCategory, NewSession, Notif, PrivateData, Profile, SeasonChampion, Session, Store } from './types';
 import { championsFrom } from './seasons';
 import { sessionPoints } from './scoring';
-import { PROTOCOLS } from './protocols';
+import { PROTOCOLS, sessionName } from './protocols';
 // the same rules the notify server function uses, so demo mode gets top-3 alerts too
 import { overtaken, sydneyDay } from '../../supabase/functions/notify/rank';
 
@@ -172,8 +172,8 @@ export class LocalStore implements Store {
   async notifications(limit = 40): Promise<Notif[]> {
     const me = this.need(), mine = new Map(this.db.sessions.filter(s => s.userId === me).map(s => [s.id, s]));
     const out: Notif[] = [
-      ...this.db.likes.filter(l => mine.has(l.s) && l.u !== me).map(l => ({ kind: 'like' as const, sessionId: l.s, protocolName: mine.get(l.s)!.protocolName, fromUserId: l.u, createdAt: (l as any).at ?? mine.get(l.s)!.createdAt })),
-      ...this.db.comments.filter(c => mine.has(c.sessionId) && c.userId !== me).map(c => ({ kind: 'comment' as const, sessionId: c.sessionId, protocolName: mine.get(c.sessionId)!.protocolName, fromUserId: c.userId, body: c.body, createdAt: c.createdAt })),
+      ...this.db.likes.filter(l => mine.has(l.s) && l.u !== me).map(l => ({ kind: 'like' as const, sessionId: l.s, protocolName: sessionName(mine.get(l.s)!), fromUserId: l.u, createdAt: (l as any).at ?? mine.get(l.s)!.createdAt })),
+      ...this.db.comments.filter(c => mine.has(c.sessionId) && c.userId !== me).map(c => ({ kind: 'comment' as const, sessionId: c.sessionId, protocolName: sessionName(mine.get(c.sessionId)!), fromUserId: c.userId, body: c.body, createdAt: c.createdAt })),
     ];
     out.push(...(((this.db as any).rankAlerts ?? []) as any[]).filter(a => a.userId === me).map(a => ({ kind: 'rank' as const, sessionId: a.sessionId, protocolName: '', fromUserId: a.byUserId, was: a.was, now: a.now, createdAt: a.createdAt })));
     if (this.db.profiles.find(p => p.id === me)?.isAdmin)

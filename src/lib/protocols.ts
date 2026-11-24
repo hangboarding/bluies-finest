@@ -10,6 +10,10 @@ export interface Protocol {
 /** Sessions keep the protocol name they were saved with; built-in protocols renamed since show their new name. */
 const RENAMED: Record<string, string> = { 'JUST LET ME HANG': 'QUICK SESH' };
 export const currentName = (name: string) => RENAMED[name] ?? name;
+/** What a session is called: the name the climber gave it, or else its protocol's. */
+export const sessionName = (s: { title?: string | null; protocolName: string }) => s.title?.trim() || s.protocolName;
+/** Longest session name. The database allows the same (see "Session names" in schema.sql). */
+export const TITLE_MAX = 60;
 
 export const PROTOCOLS: Record<string, Protocol> = {
   jlmh: { n: 'QUICK SESH', simple: true, by: 'No theory, no fuss', use: 'Quick hangs, minimal setup', hang: 10, rest: 60, sets: 6, reps: 1, edge: 20, int: 'Whatever feels right', freq: 'Any time', d: 'Just the basics: hang, rest, repeat.' },

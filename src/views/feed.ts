@@ -3,6 +3,7 @@ import { ic, hydrateIcons } from '../lib/icons';
 import { state, profileOf, refreshShared } from '../lib/state';
 import { refreshNotifs } from './notifs';
 import type { FeedItem } from '../lib/types';
+import { sessionName } from '../lib/protocols';
 import { weeklyRecap } from '../lib/recap';
 import { challengeCard, championBanner, maybeCelebrate } from './challenge-card';
 import { checkUnlocks } from './unlocks';
@@ -110,7 +111,7 @@ function drawFeed() {
     const p = profileOf(s.userId), mine = s.userId === me;
     return `<div class="card post" data-id="${s.id}">
       <div class="who" data-uid="${s.userId}">${avatar(p)}<span><b>${esc(p?.name ?? 'Climber')}${mine ? ' (you)' : ''}</b><small>${relTime(s.createdAt)}</small></span>${s.isPb ? `<span class="badge" style="margin-left:auto">${ic('medal')} PB</span>` : ''}</div>
-      <div class="what">${esc(s.protocolName)}</div><div class="meta">${meta(s).map(m => `<span>${esc(m)}</span>`).join('')}</div>
+      <div class="what">${esc(sessionName(s))}${s.title?.trim() ? `<small>${esc(s.protocolName)}</small>` : ''}</div><div class="meta">${meta(s).map(m => `<span>${esc(m)}</span>`).join('')}</div>
       ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
       <div class="acts"><button class="${likedByMe ? 'on' : ''}" data-like aria-label="Heart, ${likes}" aria-pressed="${likedByMe}">${ic(likedByMe ? 'hearted' : 'heart')} ${likes}</button><button data-cm aria-label="Comments, ${comments.length}" aria-expanded="${open === s.id}">${ic('comment')} ${comments.length}</button></div>
       <div class="cmts ${open === s.id ? '' : 'hide'}">${comments.map(c => {

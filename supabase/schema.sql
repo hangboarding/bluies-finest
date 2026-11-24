@@ -1117,3 +1117,21 @@ grant select, insert, delete on public.rank_alerts to service_role;
 drop policy if exists "rank_alerts: read own" on public.rank_alerts;
 create policy "rank_alerts: read own" on public.rank_alerts
   for select to authenticated using (user_id = (select auth.uid()));
+
+
+-- =====================================================================
+-- Bluies Finest: session names (November 2026). Part of schema.sql, safe to run again.
+--
+--   • A session can have its own name ("Birthday hang"), given on the summary when it's saved or later
+--     in Edit session. Empty means it goes by its protocol's name. protocol_name is kept as it was, so
+--     stats like "Favourite protocol" still know what it was. A name never changes points, so sessions
+--     from a finished season can be renamed too.
+-- =====================================================================
+
+alter table public.sessions add column if not exists title text not null default '';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'sessions_title_len') then
+    alter table public.sessions add constraint sessions_title_len check (char_length(title) <= 60);
+  end if;
+end $$;
+grant update (title) on public.sessions to authenticated;

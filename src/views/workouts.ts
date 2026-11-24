@@ -1,15 +1,15 @@
 // Workouts tab: the saved workouts (with a builder to make and change them), custom protocols,
 // starter workouts, and the history of every session logged.
-import { $, $$, esc, sheet, confirmSheet, promptSheet, toast, relTime, onSwipe, slideIn } from '../lib/ui';
+import { $, $$, esc, sheet, confirmSheet, promptSheet, toast, relTime, onSwipe, slideIn, pickAllOnFocus } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, allProtos } from '../lib/state';
-import { personalVals, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS } from '../lib/protocols';
+import { personalVals, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS, TITLE_MAX } from '../lib/protocols';
 import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
 import type { Session } from '../lib/types';
 import { TEMPLATES, fromTemplate, cloneWorkout, newId, workoutTotals, fmtLength, protoValues, blockLine, type Workout } from '../lib/workouts';
 import { drawQueue, addExercise, libWorkouts, findWorkout, upsertWorkout, removeWorkout, totalsLine, getReadySecs, workoutsUsing, deleteCustomProto, renameCustomProto } from './workout-parts';
 import { sessRow } from './stats';
-import { beginWorkout, repeatSession } from './hang';
+import { beginWorkout, repeatSession, titleOf } from './hang';
 import { go } from '../main';
 import { checkUnlocks } from './unlocks';
 
@@ -129,7 +129,7 @@ async function deleteSession(s: Session) {
   } catch (err: any) { toast(err.message); }
 }
 
-/** Edit a logged session: its load and edge, how it was done (grip, fingers, board, edge, feel) and how it felt.
+/** Edit a logged session: its name, its load and edge, how it was done (grip, fingers, board, edge, feel) and how it felt.
  *  The timings and the hang-by-hang log come from the timer, so they're shown but can't be changed. */
 async function editSession(s: Session) {
   let el!: HTMLElement;
@@ -146,6 +146,8 @@ async function editSession(s: Session) {
     body: `<div class="bedit sedit">
       <p class="sedit-sum"><b>${esc(s.protocolName)}</b> · ${esc(when)}<small>${esc([shape, `${s.rest}s rest`, sets, ({ both: 'both hands', L: 'left hand', R: 'right hand', LR: 'left then right' } as const)[s.hands], `${s.tutS}s under tension`, `${s.fullHangs}/${s.totalHangs} full`].join(' · '))}</small>
         <small class="sedit-why">Times and hangs come from the timer, so they stay as they were.</small></p>
+      <label class="f" for="seTitle">Session name</label>
+      <input class="tx" id="seTitle" maxlength="${TITLE_MAX}" autocomplete="off" enterkeyhint="done" value="${esc(s.title || s.protocolName)}" placeholder="${esc(s.protocolName)}">
       <h4>${ic('add')} Load</h4>
       <label class="f">Load method</label>${chips('mode', ['hang', 'lift'], s.mode, 'g2', v => (v === 'hang' ? 'Hang (on board)' : 'No-hang (lift)'))}
       <p class="sub sedit-lift${s.mode === 'lift' ? '' : ' hide'}" data-for="lift">A lift counts only the weight lifted (plates, a dumbbell), not your bodyweight.</p>
@@ -166,7 +168,7 @@ async function editSession(s: Session) {
     </div>`,
     buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Save', kind: 'primary' }],
     onMount: e => {
-      el = e; hydrateIcons(el);
+      el = e; hydrateIcons(el); pickAllOnFocus(el, '#seTitle');
       const rpe = $<HTMLInputElement>('[data-f="rpe"]', el), out = $('#seRpeV', el);
       const label = () => { out.innerHTML = rpe.dataset.unset != null ? '<small>Not rated</small>' : `<small>${RPE_WORDS[+rpe.value]}</small><b>${rpe.value}</b>`; };
       rpe.addEventListener('input', () => { delete rpe.dataset.unset; label(); }); label();
@@ -192,34 +194,42 @@ async function editSession(s: Session) {
     if (!isFinite(n) || n < lo || n > hi) { toast(`Check that value. It must be ${lo}–${hi}`); return; }
     if (n !== (s as any)[k]) patch[k] = n;
   }
-  for (const g of $$('[data-sk]', el)) { const v = ($('.chip.on', g) as HTMLElement | null)?.dataset.v ?? ''; if (v !== (s as any)[g.dataset.sk!]) patch[g.dataset.sk!] = v; }
+  for (const g of $$('[data-sk]', el)) {
+    const k = g.dataset.sk!, v = ($('.chip.on', g) as HTMLElement | null)?.dataset.v ?? '', was = (s as any)[k] ?? '';
+    // a saved value that isn't one of the chips (so none showed as picked) stays as it was unless one is picked
+    if (v !== was && (v || $$<HTMLElement>('.chip', g).some(c => c.dataset.v === was))) patch[k] = v;
+  }
   if (mode === 'lift' && !(patch.liftKg ?? s.liftKg)) { toast('Enter the weight you lifted: just the plates or dumbbell.'); return; }
   // a lift has no added weight or assist (it's only the weight lifted), and a hang has no weight lifted
   if (mode === 'lift') { if (s.addedKg) patch.addedKg = 0; if (s.assistKg) patch.assistKg = 0; } else if (s.liftKg) patch.liftKg = 0;
   const board = $<HTMLSelectElement>('select[data-f="board"]', el).value; if (board !== s.board) patch.board = board;
   const rpe = $<HTMLInputElement>('[data-f="rpe"]', el); if (rpe.dataset.unset == null && +rpe.value !== s.rpe) patch.rpe = +rpe.value;
   const note = $<HTMLTextAreaElement>('[data-f="note"]', el).value.trim().slice(0, 2000); if (note !== s.note) patch.note = note;
+  const title = titleOf($<HTMLInputElement>('#seTitle', el).value, s.protocolName); if (title !== (s.title ?? '')) patch.title = title;
   if (!Object.keys(patch).length) { toast('Nothing changed'); return; }
   // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have, as the server does).
   const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;
   if (next.mode !== s.mode || next.addedKg !== s.addedKg || next.assistKg !== s.assistKg || next.liftKg !== s.liftKg)
     patch.loadPct = next.loadPct = next.mode === 'lift' ? liftPct(bw, next.liftKg) : loadPct(bw, next.addedKg, next.assistKg);
   patch.points = next.points = sessionPoints(next, state.sessions.filter(x => x.userId === s.userId));
-  let skipped = false;
-  try {
+  const skipped: string[] = [];
+  // A database that hasn't had the latest supabase/schema.sql can't take everything: save what it can, and say what's left.
+  const save = async (): Promise<void> => {
     try { await state.store.updateSession(s.id, patch); }
     catch (e: any) {
-      // A database that hasn't had the latest supabase/schema.sql only lets load, edge, effort rating and note change:
-      // save those, and say what's left.
-      if (e?.code === '42501' && 'mode' in patch) throw new Error('Switching a session between a hang and a lift needs the latest database update. Ask an admin to run supabase/schema.sql.');
-      if (e?.code !== '42501' || !DESCRIPTIVE.some(k => k in patch)) throw e;
-      for (const k of DESCRIPTIVE) delete patch[k];
-      skipped = true;
-      await state.store.updateSession(s.id, patch);
+      if (e?.code === 'no_title' && 'title' in patch) { delete patch.title; skipped.push('the name'); }
+      else if (e?.code === '42501' && 'mode' in patch) throw new Error('Switching a session between a hang and a lift needs the latest database update. Ask an admin to run supabase/schema.sql.');
+      else if (e?.code === '42501' && DESCRIPTIVE.some(k => k in patch)) { for (const k of DESCRIPTIVE) delete patch[k]; skipped.push('grip, board, edge and feel'); }
+      else throw e;
+      if (!Object.keys(patch).some(k => k !== 'points')) throw e; // nothing left it can save
+      return save();
     }
+  };
+  try {
+    await save();
     Object.assign(s, patch); // apply locally only once the save succeeded
     rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); // later sessions that day change too (the server does the same)
-    toast(skipped ? 'Load and note saved. Grip, board, edge and feel can be changed once an admin runs the latest supabase/schema.sql.' : 'Session updated', skipped ? 6000 : 2200);
+    toast(skipped.length ? `Saved, except ${skipped.join(' and ')}: those can be changed once an admin runs the latest supabase/schema.sql.` : 'Session updated', skipped.length ? 6000 : 2200);
     drawHistory(); checkUnlocks();
   } catch (e: any) { toast(e.message ?? 'Could not save'); }
 }

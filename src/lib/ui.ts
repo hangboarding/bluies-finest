@@ -83,6 +83,19 @@ export async function promptSheet(title: string, body: string, placeholder: stri
   return i === 1 ? input.value.trim() : null;
 }
 
+/** Text fields under `root` matching `sel` pick all their text when tapped into, so typing replaces it (a name to rename). */
+export function pickAllOnFocus(root: HTMLElement, sel: string) {
+  let fresh: EventTarget | null = null;
+  root.addEventListener('focusin', e => {
+    const n = (e.target as HTMLElement).closest(sel) as HTMLInputElement | null; if (!n) return;
+    const was = n.value; fresh = n; n.select();
+    setTimeout(() => { if (document.activeElement === n && n.value === was) n.setSelectionRange(0, n.value.length); }, 0); // iOS (unless typing's begun)
+    setTimeout(() => { if (fresh === n) fresh = null; }, 600);
+  });
+  // the mouseup that ends the tap would otherwise drop the caret where it landed
+  root.addEventListener('mouseup', e => { if (e.target === fresh) e.preventDefault(); fresh = null; });
+}
+
 /** A sideways swipe on `el` (a touch, or a mouse drag on the page itself). Mostly-vertical moves (scrolling), short ones,
  *  ones held for ages, and ones that start on a text field, slider, number stepper or drag handle don't count. */
 export function onSwipe(el: HTMLElement, on: (dir: 'left' | 'right') => void) {

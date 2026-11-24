@@ -72,6 +72,18 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
   for (const c of ['grip', 'fingers', 'board', 'edge_material', 'edge_profile', 'feel', 'effort_pct', 'edge_mm', 'added_kg', 'rpe', 'note', 'mode']) expect(await can('authenticated', c), c).toBe(true);
   for (const c of ['hang', 'rest', 'sets', 'hangs', 'tut_s', 'created_at', 'user_id', 'hands', 'protocol_key', 'is_pb']) expect(await can('authenticated', c), c).toBe(false);
 
+  // session names: saved with it or given later, up to 60 characters; the protocol it was stays as it was
+  expect(await can('authenticated', 'title')).toBe(true);
+  expect(await can('authenticated', 'protocol_name')).toBe(false);
+  expect(rows.every(r => r.title === '')).toBe(true); // sessions from before names have none
+  const named = (await db.query<any>(`insert into public.sessions (protocol_name, title, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, hangs) values ('Max Hangs','Birthday hang','hang','both',10,180,5,1,180,20,$1) returning id, title, points`, [hangs(5, 10)])).rows[0];
+  expect(named.title).toBe('Birthday hang');
+  const before = named.points;
+  const renamed = (await db.query<any>(`update public.sessions set title = 'Deload day' where id = $1 returning title, points, protocol_name`, [named.id])).rows[0];
+  expect(renamed).toEqual({ title: 'Deload day', points: before, protocol_name: 'Max Hangs' }); // a name never changes points
+  await expect(db.query(`update public.sessions set title = $2 where id = $1`, [named.id, 'x'.repeat(61)])).rejects.toThrow(/sessions_title_len/);
+  await db.query(`delete from public.sessions where id = $1`, [named.id]);
+
   // top-3 alerts: members read their own, only the notify function writes them
   const priv = async (role: string, what: string) => (await db.query<any>(`select has_table_privilege($1, 'public.rank_alerts', $2) ok`, [role, what])).rows[0].ok;
   expect([await priv('authenticated', 'SELECT'), await priv('authenticated', 'INSERT'), await priv('anon', 'SELECT')]).toEqual([true, false, false]);

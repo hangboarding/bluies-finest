@@ -109,6 +109,25 @@ describe('running a workout', () => {
     expect(hang.hangPending()).toBe(false);
   });
 
+  it('each exercise can be named on the summary, and the name survives a reload', async () => {
+    await hang.beginWorkout(W.cloneWorkout(S.state.settings.workouts[0]!));
+    sec(2 + 3 + 2 + 3); sec(0.2); sec(5.2); sec(4 + 2 + 4 + 1);
+    expect(visible('#v-done')).toBe(true);
+    expect(visible('#sTitleW')).toBe(false); // one name per exercise instead
+    const names = [...document.querySelectorAll<HTMLInputElement>('#wkRes input[data-tj]')];
+    expect(names.map(n => n.value)).toEqual(['Warm-up', 'Density Hangs']);
+    names[0]!.value = 'Easy laps'; names[0]!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(JSON.parse(localStorage.getItem('bf.wip')!).done[0].s.title).toBe('Easy laps'); // kept in case the app closes
+
+    // the app closes before it's saved, and comes back
+    await openApp(S.state.settings.workouts);
+    sec(1);
+    sheetButtons()[1]!.click(); await flush(); // Review and save
+    expect($<HTMLInputElement>('#wkRes input[data-tj="0"]').value).toBe('Easy laps');
+    $('#saveSess').click(); await flush();
+    expect(saved.map(s => [s.protocolName, s.title])).toEqual([['Warm-up', 'Easy laps'], ['Density Hangs', '']]);
+  });
+
   it('ending early during the rest keeps the finished exercise', async () => {
     await hang.beginWorkout(W.cloneWorkout(S.state.settings.workouts[0]!));
     sec(10.2); // warm-up done, now resting

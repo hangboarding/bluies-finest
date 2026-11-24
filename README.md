@@ -17,7 +17,8 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
   - Each exercise is saved as its own session (so points, PBs and leaderboards work as before). Rate each one at the end and its load in that workout adjusts next time.
   - Finished exercises are kept on the phone until saved, so closing the app mid-workout loses nothing.
   - Workouts and your own protocols sync between your devices; rename or delete protocols under **My protocols**.
-- **History:** every session you've logged (in the Workouts tab), with delete, "do it again" and edit (hang or lift, load and edge, grip, fingers, board, edge, feel, effort rating and note; the timings come from the timer and stay as they were).
+- **Session names:** a session goes by its protocol's name unless you give it your own ("Birthday hang"), on the summary when you save it or later in History. The feed and History show your name with the protocol under it.
+- **History:** every session you've logged (in the Workouts tab), with delete, "do it again" and edit (name, hang or lift, load and edge, grip, fingers, board, edge, feel, effort rating and note; the timings come from the timer and stay as they were).
 - **Smart prompts:** warm-up and overtraining reminders, and next time's load adjusted from how hard the session felt.
 - **Offline-safe saving:** sessions saved with no signal upload automatically later.
 - **Seasons:** Summer, Autumn, Winter and Spring leaderboards (Blue Mountains time). The winner is crowned season champion and joins the Hall of champions.
@@ -32,7 +33,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 316 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
+npm test         # 335 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.

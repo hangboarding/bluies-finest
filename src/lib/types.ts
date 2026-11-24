@@ -30,6 +30,8 @@ export interface Session {
   createdAt: string;      // ISO timestamp the session finished
   protocolKey: string;
   protocolName: string;
+  /** The climber's own name for it ("Birthday hang"). Empty or missing: it goes by protocolName (see sessionName). */
+  title?: string;
   mode: Mode;
   hang: number; rest: number; sets: number; reps: number; setRest: number;
   edgeMm: number;
@@ -60,7 +62,7 @@ export type IssueCategory = 'bug' | 'idea' | 'account' | 'other';
 export interface Issue { id: string; userId: string; category: IssueCategory; body: string; context: string; status: 'open' | 'resolved'; createdAt: string; }
 /** kind 'issue' only reaches admins: sessionId is then the issue id.
  *  kind 'rank': fromUserId's session knocked me from place `was` (top 3 on the Overall board) to `now`. */
-export interface Notif { kind: 'like' | 'comment' | 'issue' | 'rank'; sessionId: string; protocolName: string; fromUserId: string; body?: string; createdAt: string; was?: number; now?: number; }
+export interface Notif { kind: 'like' | 'comment' | 'issue' | 'rank'; sessionId: string; /** what the session is called (its name, or its protocol's) */ protocolName: string; fromUserId: string; body?: string; createdAt: string; was?: number; now?: number; }
 /** Admin-only view of a sign-up code. */
 export interface SeasonChampion { seasonStart: string; userId: string; points: number; }
 export interface ChallengeRow { id: string; title: string; metric: 'hangs' | 'sessions' | 'minutes' | 'pbs' | 'climbers'; target: number; startsOn: string; endsOn: string; }

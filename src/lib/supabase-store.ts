@@ -1,6 +1,6 @@
 // Real multi-user backend on Supabase. See docs/SUPABASE.md and supabase/schema.sql.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { currentName } from './protocols';
+import { currentName, sessionName } from './protocols';
 import type { Issue, IssueCategory, Comment, FeedItem, NewSession, PrivateData, Profile, Session, Store, Notif, InviteCode, SeasonChampion, ChallengeRow } from './types';
 
 // ---------------------------------------------------------------------------
@@ -14,6 +14,7 @@ const SESSION_COLUMNS = {
   createdAt: 'created_at',
   protocolKey: 'protocol_key',
   protocolName: 'protocol_name',
+  title: 'title',
   mode: 'mode',
   hang: 'hang',
   rest: 'rest',
@@ -44,14 +45,24 @@ const SESSION_COLUMNS = {
 } as const satisfies Record<Exclude<keyof Session, 'pendingUpload'>, string>; // pendingUpload is client-only
 
 const SESSION_SELECT = Object.values(SESSION_COLUMNS).join(',');
+/** Sessions' `title` (the climber's own name for one) came with the November 2026 schema update. A database that
+ *  hasn't had it yet is read and written without it, so the app keeps working until an admin runs schema.sql. */
+const SESSION_SELECT_OLD = Object.entries(SESSION_COLUMNS).filter(([k]) => k !== 'title').map(([, c]) => c).join(',');
+/** Postgres (42703) or PostgREST (PGRST204) saying there's no `title` column. */
+const missingTitle = (e: any) => !!e && ['42703', 'PGRST204'].includes(String(e.code ?? '')) && /\btitle\b/.test(String(e.message ?? ''));
+const noTitleError = () => Object.assign(new Error('Naming sessions needs the latest database update. Ask an admin to run supabase/schema.sql.'), { code: 'no_title' });
 const COMMENT_SELECT = 'id,session_id,user_id,body,created_at';
 const PAGE = 1000; // PostgREST default max rows per request
+
+/** What a joined `sessions(protocol_name,title)` row is called. */
+const called = (r: any) => sessionName({ title: r?.title, protocolName: currentName(r?.protocol_name ?? '') });
 
 function rowToSession(r: any): Session {
   const s: any = {};
   for (const [key, col] of Object.entries(SESSION_COLUMNS)) s[key] = r[col];
   s.hangs = Array.isArray(s.hangs) ? s.hangs : [];
   s.note = s.note ?? '';
+  s.title = s.title ?? '';
   s.protocolName = currentName(s.protocolName ?? '');
   return s as Session;
 }
@@ -363,19 +374,33 @@ export class SupabaseStore implements Store {
 
   // ---------------------------------------------------------------- sessions
 
+  /** False once the database has said it has no `title` column (see SESSION_SELECT_OLD). */
+  private hasTitle = true;
+  private get cols() { return this.hasTitle ? SESSION_SELECT : SESSION_SELECT_OLD; }
+  /** Runs a query that reads or writes `title`, and once more without it if the database doesn't have it yet
+   *  (`q` must build its query from this.cols and leave title out when !this.hasTitle). */
+  private async orOld<T extends { error: any }>(q: () => PromiseLike<T>): Promise<T> {
+    const res = await q();
+    if (!this.hasTitle || !missingTitle(res.error)) return res;
+    this.hasTitle = false;
+    return q();
+  }
+
   /** Newest first. Fetches all matching rows (paged past the 1000-row API limit). */
   async listSessions(opts: { userId?: string; sinceIso?: string } = {}): Promise<Session[]> {
     const out: Session[] = [];
     for (let from = 0; ; from += PAGE) {
-      let q = this.client
-        .from('sessions')
-        .select(SESSION_SELECT)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (opts.userId) q = q.eq('user_id', opts.userId);
-      if (opts.sinceIso) q = q.gte('created_at', opts.sinceIso);
-      const rows = check(await q) as any[];
+      const rows = check(await this.orOld(() => {
+        let q = this.client
+          .from('sessions')
+          .select(this.cols)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (opts.userId) q = q.eq('user_id', opts.userId);
+        if (opts.sinceIso) q = q.gte('created_at', opts.sinceIso);
+        return q;
+      })) as any[];
       out.push(...(rows ?? []).map(rowToSession));
       if (!rows || rows.length < PAGE) break;
     }
@@ -387,10 +412,15 @@ export class SupabaseStore implements Store {
     const id = (s as any).id as string | undefined; // set by the offline queue so retries can't duplicate
     const row: Record<string, unknown> = { ...sessionToRow(s), user_id: uid };
     if (id && /^[0-9a-f-]{36}$/i.test(id)) row.id = id;
-    const res = await this.client.from('sessions').insert(row).select(SESSION_SELECT).single();
+    if (!row.title) delete row.title; // no name: it goes by its protocol's
+    // a database without names yet still saves the session, just without its name (it comes back without one)
+    const res = await this.orOld(() => {
+      if (!this.hasTitle) delete row.title;
+      return this.client.from('sessions').insert(row).select(this.cols).single();
+    });
     if (res.error && (res.error as any).code === '23505' && row.id) {
       // Already saved (an earlier attempt reached the server but its reply was lost).
-      return rowToSession(check(await this.client.from('sessions').select(SESSION_SELECT).eq('id', row.id as string).single()));
+      return rowToSession(check(await this.client.from('sessions').select(this.cols).eq('id', row.id as string).single()));
     }
     return rowToSession(check(res));
   }
@@ -399,7 +429,10 @@ export class SupabaseStore implements Store {
     this.requireUid();
     const row = sessionToRow(patch);
     if (!Object.keys(row).length) return;
-    const rows = check(await this.client.from('sessions').update(row).eq('id', id).select('id')) as any[];
+    if ('title' in row && !this.hasTitle) throw noTitleError();
+    const res = await this.client.from('sessions').update(row).eq('id', id).select('id');
+    if ('title' in row && missingTitle(res.error)) { this.hasTitle = false; throw noTitleError(); }
+    const rows = check(res) as any[];
     if (!rows?.length) throw new Error("That session doesn't exist or isn't yours to edit.");
   }
 
@@ -415,12 +448,12 @@ export class SupabaseStore implements Store {
   async feed(limit = 50): Promise<FeedItem[]> {
     const uid = this.requireUid();
     const rows = check(
-      await this.client
+      await this.orOld(() => this.client
         .from('sessions')
-        .select(`${SESSION_SELECT},likes(user_id),comments(${COMMENT_SELECT})`)
+        .select(`${this.cols},likes(user_id),comments(${COMMENT_SELECT})`)
         .order('created_at', { ascending: false })
         .order('created_at', { referencedTable: 'comments', ascending: true })
-        .limit(limit),
+        .limit(limit)),
     ) as any[];
     return (rows ?? []).map((r) => {
       const likes: any[] = r.likes ?? [];
@@ -489,15 +522,16 @@ export class SupabaseStore implements Store {
 
   async notifications(limit = 40): Promise<Notif[]> {
     const uid = this.requireUid();
+    const of = () => `sessions!inner(user_id,protocol_name${this.hasTitle ? ',title' : ''})`;
     const [likes, comments] = await Promise.all([
-      this.client.from('likes')
-        .select('session_id,user_id,created_at,sessions!inner(user_id,protocol_name)')
+      this.orOld(() => this.client.from('likes')
+        .select(`session_id,user_id,created_at,${of()}`)
         .eq('sessions.user_id', uid).neq('user_id', uid)
-        .order('created_at', { ascending: false }).limit(limit),
-      this.client.from('comments')
-        .select('session_id,user_id,body,created_at,sessions!inner(user_id,protocol_name)')
+        .order('created_at', { ascending: false }).limit(limit)),
+      this.orOld(() => this.client.from('comments')
+        .select(`session_id,user_id,body,created_at,${of()}`)
         .eq('sessions.user_id', uid).neq('user_id', uid)
-        .order('created_at', { ascending: false }).limit(limit),
+        .order('created_at', { ascending: false }).limit(limit)),
     ]);
     if (likes.error) throw friendly(likes.error);
     if (comments.error) throw friendly(comments.error);
@@ -509,8 +543,8 @@ export class SupabaseStore implements Store {
     const out: Notif[] = [
       ...((ranks.error ? [] : ranks.data) as any[]).map(r => ({ kind: 'rank' as const, sessionId: r.session_id ?? r.id, protocolName: '', fromUserId: r.by_user_id, was: r.old_place, now: r.new_place, createdAt: r.created_at })),
       ...((issues.error ? [] : issues.data) as any[]).map(r => ({ kind: 'issue' as const, sessionId: r.id, protocolName: '', fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
-      ...(likes.data as any[]).map(r => ({ kind: 'like' as const, sessionId: r.session_id, protocolName: currentName(r.sessions?.protocol_name ?? ''), fromUserId: r.user_id, createdAt: r.created_at })),
-      ...(comments.data as any[]).map(r => ({ kind: 'comment' as const, sessionId: r.session_id, protocolName: currentName(r.sessions?.protocol_name ?? ''), fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
+      ...(likes.data as any[]).map(r => ({ kind: 'like' as const, sessionId: r.session_id, protocolName: called(r.sessions), fromUserId: r.user_id, createdAt: r.created_at })),
+      ...(comments.data as any[]).map(r => ({ kind: 'comment' as const, sessionId: r.session_id, protocolName: called(r.sessions), fromUserId: r.user_id, body: r.body, createdAt: r.created_at })),
     ];
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
   }

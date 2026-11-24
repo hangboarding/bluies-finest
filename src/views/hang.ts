@@ -1,6 +1,6 @@
-import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, vibrate, closeSheet, onSwipe, slideIn } from '../lib/ui';
+import { $, $$, esc, toast, sheet, confirmSheet, promptSheet, bubble, vibrate, closeSheet, onSwipe, slideIn, pickAllOnFocus } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, LIMITS, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS as RW, personalVals, type Values, type Protocol } from '../lib/protocols';
+import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, LIMITS, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS as RW, TITLE_MAX, personalVals, type Values, type Protocol } from '../lib/protocols';
 import { state, saveSettings, mySessions, achievementCtx, allProtos } from '../lib/state';
 import { SessionTimer, buildSteps, beep, fanfare, unlockAudio, keepAwake, handsLabel, type Step } from '../lib/timer';
 import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
@@ -87,6 +87,7 @@ export function renderHang(root: HTMLElement) {
   <section id="v-done" class="hide">
     <div class="hero"><div class="hero-ic">${ic('mountain')}</div><h2 id="cheer"></h2><p id="cheer2"></p></div>
     <div class="card">
+      <label class="tname" id="sTitleW"><input id="sTitle" maxlength="${TITLE_MAX}" autocomplete="off" enterkeyhint="done" aria-label="Session name"><span class="tname-ic">${ic('edit')}</span></label>
       <div class="stats" style="margin:0"><div class="stat"><b id="sTime"></b>under tension</div><div class="stat"><b id="sSets"></b>full hangs</div><div class="stat"><b id="sPts"></b>points</div></div>
       <p class="dnote" id="res"></p>
     </div>
@@ -449,6 +450,13 @@ function wireSetup(root: HTMLElement) {
     const d = run.done[+r.dataset.j!]; if (d) d.s.rpe = +r.value;
     rpeLabel(r);
   });
+  $('#wkRes').addEventListener('change', e => {
+    const n = (e.target as HTMLElement).closest('input[data-tj]') as HTMLInputElement | null; if (!n || !run) return;
+    const d = run.done[+n.dataset.tj!]; if (d) { d.s.title = titleOf(n.value, d.name); backupRun(); }
+  });
+  // a name: tap it and type to replace it, Done to finish
+  pickAllOnFocus($('#v-done'), '.tname input');
+  $('#v-done').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.target as HTMLElement).closest('.tname input')) (e.target as HTMLInputElement).blur(); });
 
   // ---- workouts ----
   const setMode = (m: 'single' | 'workout') => {
@@ -685,6 +693,7 @@ function done(log: HangResult[]) {
   const unlocked = diffUnlocks(achievementCtx(), achievementCtx([{ ...pending, id: 'x', userId: '', createdAt: past ?? new Date().toISOString() } as any, ...mine]));
   drawUnlocks(unlocked);
   $('#rpeOne').classList.remove('hide'); $('#wkRes').classList.add('hide'); $('#saveAsW').classList.add('hide');
+  const t = $<HTMLInputElement>('#sTitle'); t.value = t.placeholder = pending.protocolName; $('#sTitleW').classList.remove('hide');
   $('#saveSess').textContent = 'Save session';
   ($('#rpe') as HTMLInputElement).value = '7'; rpeUpd(); ($('#note') as HTMLInputElement).value = '';
   show('done'); if (!past) { fanfare(); vibrate([100, 50, 100, 50, 300]); } confetti();
@@ -700,17 +709,22 @@ async function saveSession() {
   try {
     pending.rpe = +($('#rpe') as HTMLInputElement).value;
     pending.note = ($('#note') as HTMLInputElement).value.trim();
+    pending.title = titleOf($<HTMLInputElement>('#sTitle').value, pending.protocolName);
     const saved = pending;
     const { session: s, queued } = await saveOrQueue(saved);
     addSaved(s, queued); pending = null;
     applyLoadSuggestion(saved); checkUnlocks();
     const back = state.settings.returnTo;
     if (saved.protocolKey === 'warm' && back && allProtos()[back]) { delete state.settings.returnTo; saveSettings(); loadProto(back); persist(); toast(`Warmed up. ${allProtos()[back]!.n} is ready`, 3500); show('setup'); scrollTo(0, 0); return; }
-    toast(queued ? 'No signal, so it’s saved on this phone. It’ll upload automatically.' : 'Session saved', queued ? 4500 : 2200);
+    // a database without session names yet saves it without its name
+    if (saved.title && !s.title) toast('Session saved, without its name: naming sessions needs the latest database update (supabase/schema.sql).', 6000);
+    else toast(queued ? 'No signal, so it’s saved on this phone. It’ll upload automatically.' : 'Session saved', queued ? 4500 : 2200);
     show('setup'); go('stats');
   } catch (e: any) { toast(e.message ?? 'Could not save. Try again.'); }
   finally { btn.disabled = false; }
 }
+/** A session's name as typed: none if it's left blank or as its protocol's name. */
+export const titleOf = (typed: string, protocolName: string) => { const t = typed.trim().slice(0, TITLE_MAX); return t === protocolName ? '' : t; };
 /** Put a just-saved session into the loaded list. */
 function addSaved(s: Session, queued: boolean) {
   // the server may hand back one it already had (a retried save): replace it rather than list it twice
@@ -942,12 +956,12 @@ function workoutDone(restored = false) {
   ].filter(Boolean).join(' · ');
   const progress = !!findWorkout(r.w.id);
   $('#wkRes').innerHTML = `<div class="rpe-hd"><span>How hard was each one?</span></div>` + r.done.map((d, j) => `<div class="wkr">
-      <div class="wkr-hd"><b>${j + 1}. ${esc(d.name)}</b><span>+${d.s.points}</span></div>
+      <div class="wkr-hd"><label class="tname sm"><b>${j + 1}.</b><input data-tj="${j}" maxlength="${TITLE_MAX}" autocomplete="off" enterkeyhint="done" value="${esc(d.s.title || d.name)}" placeholder="${esc(d.name)}" aria-label="Name for exercise ${j + 1}, ${esc(d.name)}"><span class="tname-ic">${ic('edit')}</span></label><span>+${d.s.points}</span></div>
       <small>${d.s.fullHangs}/${d.s.totalHangs} full · ${d.s.tutS}s${d.s.isPb ? ' · 🏅 PB' : ''}</small>
       <div class="wkr-rpe"><input type="range" min="1" max="10" value="${d.s.rpe ?? 7}" class="rng" data-j="${j}" aria-label="Effort for ${esc(d.name)}, 1 to 10"><span class="rpev"></span></div></div>`).join('')
     + `<p class="dnote">${progress ? 'Rate one 5 or less and it gets 2.5kg heavier in this workout next time; 9 or more and it backs off 2.5kg.' : 'Your ratings are saved with each session.'} The note goes on the last exercise.</p>`;
   $$<HTMLInputElement>('#wkRes input[data-j]').forEach(rpeLabel);
-  $('#rpeOne').classList.add('hide'); $('#wkRes').classList.remove('hide');
+  $('#rpeOne').classList.add('hide'); $('#wkRes').classList.remove('hide'); $('#sTitleW').classList.add('hide'); // each exercise has its own name
   $('#saveAsW').classList.toggle('hide', progress);
   $('#saveSess').textContent = `Save workout (${r.done.length} session${r.done.length > 1 ? 's' : ''})`;
   const fake = all.map((s, j) => ({ ...s, id: `run${j}`, userId: '', createdAt: s.createdAt! }) as Session);
@@ -965,6 +979,7 @@ async function saveRun() {
     for (const [j, d] of r.done.entries()) {
       if (d.savedId) continue; // already saved by an earlier attempt that stopped part-way
       d.s.note = j === r.done.length - 1 ? note : '';
+      const n = $<HTMLInputElement>(`#wkRes input[data-tj="${j}"]`); if (n) d.s.title = titleOf(n.value, d.name);
       let res: Awaited<ReturnType<typeof saveOrQueue>>;
       // Only data the server refuses throws (no signal queues it instead), so retrying can't help:
       // note it and carry on with the rest rather than leaving them stuck behind it.
