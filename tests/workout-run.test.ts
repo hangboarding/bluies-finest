@@ -469,7 +469,7 @@ describe('settings sync', () => {
       kind: 'local', currentUserId: () => 'u1', savePrivate: vi.fn(async () => {}),
       listProfiles: async () => [S.state.me], getPrivate: async () => ({ bodyweightKg: 70, settings: theirs }),
       listSessions: async () => [], socialCounts: async () => ({ heartsReceived: 0, commentsGiven: 0 }),
-      seasonChampions: async () => [], listChallenges: async () => [],
+      seasonChampions: async () => [], listChallenges: async () => [], appSettings: async () => ({}),
     } as any;
     await S.loadUserData();
     expect(S.state.settings.workouts.map(w => w.name)).toEqual(['Test day']); // merged back in
@@ -488,7 +488,7 @@ describe('settings sync', () => {
       kind: 'local', currentUserId: () => 'u1', savePrivate: async () => {},
       listProfiles: async () => [S.state.me], getPrivate: async () => ({ bodyweightKg: 70, settings: theirs }),
       listSessions: async () => [], socialCounts: async () => ({ heartsReceived: 0, commentsGiven: 0 }),
-      seasonChampions: async () => [], listChallenges: async () => [],
+      seasonChampions: async () => [], listChallenges: async () => [], appSettings: async () => ({}),
     } as any;
     await S.loadUserData();
     expect(S.state.settings.workouts).toEqual([]);

@@ -124,4 +124,9 @@ export interface Store {
   /** Admin only. Creates when id is empty, otherwise updates. */
   saveChallenge(c: Omit<ChallengeRow, 'id'> & { id?: string }): Promise<void>;
   deleteChallenge(id: string): Promise<void>;
+  // crew-wide settings: everyone reads them, only admins change them (e.g. bird: the bird an admin picked)
+  /** Every setting (key → value). null = the app_settings table isn't set up on the server yet. */
+  appSettings(): Promise<Record<string, unknown> | null>;
+  /** Admin only. null removes the setting. */
+  saveAppSetting(key: string, value: unknown): Promise<void>;
 }

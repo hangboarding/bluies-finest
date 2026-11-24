@@ -215,6 +215,9 @@ export class LocalStore implements Store {
     this.save();
   }
   async deleteChallenge(id: string) { this.needAdmin(); (this.db as any).challenges = this.challenges().filter(x => x.id !== id); this.save(); }
+  private appSet(): Record<string, unknown> { return ((this.db as any).appSettings ??= {}); }
+  async appSettings() { this.need(); return structuredClone(this.appSet()); }
+  async saveAppSetting(key: string, value: unknown) { this.needAdmin(); const s = this.appSet(); if (value == null) delete s[key]; else s[key] = value; this.save(); }
   async socialCounts() {
     const me = this.need(), mine = new Set(this.db.sessions.filter(s => s.userId === me).map(s => s.id));
     return {

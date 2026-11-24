@@ -8,6 +8,8 @@ import { ISSUE_CATS } from './report';
 import { forgetClimber } from './climber';
 import { METRICS, todayISO, type Metric } from '../lib/challenges';
 import { rescoreDay, scoringDay } from '../lib/scoring';
+import { SPECIES_ORDER, SPECIES_NAMES, chosenBird, rotationOf, speciesOfWeek } from '../lib/flock';
+import { applyAppSettings } from '../lib/state';
 
 let root: HTMLElement | null = null;
 
@@ -17,6 +19,25 @@ export function openAdmin() {
   sheet({ body: '<div class="admin"><p class="sub center">Loading…</p></div>', buttons: [{ label: 'Close', kind: 'ghost' }], onMount: el => { el.classList.add('admin-sheet'); root = el.querySelector('.admin'); } });
   draw();
   root!.addEventListener('click', onClick);
+  root!.addEventListener('change', onChange);
+}
+
+/** Picking the bird of the week: saved for everyone straight away. */
+async function onChange(e: Event) {
+  const sel = e.target as HTMLSelectElement;
+  if (sel.id !== 'birdPick') return;
+  const id = sel.value || null, before = chosenBird();
+  sel.disabled = true;
+  try {
+    await state.store.saveAppSetting('bird', id);
+    applyAppSettings({ ...state.appSettings, bird: id });
+    document.dispatchEvent(new CustomEvent('bf:sessions-changed')); // the button by the bell takes the new bird's shape
+    toast(id ? `${SPECIES_NAMES[speciesOfWeek()].one} it is, every week until you change it` : `Back to the rotation: ${SPECIES_NAMES[speciesOfWeek()].one} this week`, 3500);
+    draw();
+  } catch (err: any) {
+    sel.value = before ?? ''; sel.disabled = false;
+    toast(err.message ?? 'That didn’t work', 4000);
+  }
 }
 
 async function draw() {
@@ -33,6 +54,9 @@ async function draw() {
   const who = (id: string) => state.profiles.get(id);
   let chals: ChallengeRow[] = [];
   try { chals = await state.store.listChallenges(); state.challenges = chals; } catch { /* schema.sql not updated yet */ }
+  let crew: Record<string, unknown> | null = null;
+  try { crew = await state.store.appSettings(); applyAppSettings(crew); } catch { /* offline: show what this phone knows */ }
+  const pick = chosenBird(), rot = rotationOf();
   const today = todayISO(), [ty, tm] = today.split('-').map(Number);
   const monthStart = `${ty}-${String(tm).padStart(2, '0')}-01`, monthEnd = `${ty}-${String(tm).padStart(2, '0')}-${String(new Date(Date.UTC(ty!, tm!, 0)).getUTCDate()).padStart(2, '0')}`;
   const counts = new Map<string, number>(); for (const s of state.sessions) counts.set(s.userId, (counts.get(s.userId) ?? 0) + 1);
@@ -72,6 +96,14 @@ async function draw() {
       <button class="big ghost" data-act="addchal">${ic('plus')} Set challenge</button>
     </div>
     <p class="sub" style="font-size:12px;margin:6px 0 0">Up to 3 months long. Everyone sees the running one at the top of Activity with a shared progress bar.</p>
+
+    <h3>${ic('bird')} Bird of the week</h3>
+    ${crew === null && !pick ? '<p class="sub">Run supabase/schema.sql in the Supabase SQL editor to choose the bird from here.</p>' : `
+      <select id="birdPick" class="adm-bird" aria-label="Bird of the week">
+        <option value=""${pick ? '' : ' selected'}>Automatic: the weekly rotation (${esc(SPECIES_NAMES[rot].one)} this week)</option>
+        ${SPECIES_ORDER.map(id => `<option value="${id}"${pick === id ? ' selected' : ''}>${esc(SPECIES_NAMES[id].one)}</option>`).join('')}
+      </select>
+      <p class="sub" style="font-size:12px;margin:6px 0 0">Everyone sees ${pick ? `the ${esc(SPECIES_NAMES[pick].one.toLowerCase())}` : 'your pick'} on the bird page and the button by the bell, every week until you set it back to Automatic. The birds already in the clearing become the new bird; nobody loses any.</p>`}
 
     <h3>${ic('users')} Members (${state.profiles.size})</h3>
     ${[...state.profiles.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(p => `<div class="lrow">${avatar(p)}<span class="nm">${esc(p.name)}${p.isAdmin ? ' · admin' : ''}<small>Joined ${new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · ${counts.get(p.id) ?? 0} recent sessions</small></span></div>`).join('')}

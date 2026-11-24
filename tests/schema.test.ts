@@ -93,6 +93,15 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
   expect([await priv('authenticated', 'SELECT'), await priv('authenticated', 'INSERT'), await priv('anon', 'SELECT')]).toEqual([true, false, false]);
   expect([await priv('service_role', 'SELECT'), await priv('service_role', 'INSERT')]).toEqual([true, true]);
   expect((await db.query<any>(`select count(*)::int n from pg_policies where tablename = 'rank_alerts' and policyname = 'rank_alerts: read own'`)).rows[0].n).toBe(1);
+
+  // crew settings (the admin's bird pick): every member reads them, only admins write them
+  const app = async (role: string, what: string) => (await db.query<any>(`select has_table_privilege($1, 'public.app_settings', $2) ok`, [role, what])).rows[0].ok;
+  expect([await app('authenticated', 'SELECT'), await app('authenticated', 'INSERT'), await app('anon', 'SELECT')]).toEqual([true, true, false]);
+  const pol = (await db.query<any>(`select policyname, cmd, coalesce(qual, '') || coalesce(with_check, '') rule from pg_policies where tablename = 'app_settings' order by 1`)).rows;
+  expect(pol.map(p => p.policyname)).toEqual(['app settings: admins delete', 'app settings: admins insert', 'app settings: admins update', 'app settings: members read']);
+  for (const p of pol) if (p.cmd !== 'SELECT') expect(p.rule, p.policyname).toMatch(/is_admin/);
+  await db.query(`insert into public.app_settings (key, value) values ('bird', '"galah"')`);
+  expect((await db.query<any>(`select value from public.app_settings where key = 'bird'`)).rows[0].value).toBe('galah');
 }, 60000);
 
 test('a session logged for an earlier day keeps its date, up to 7 days back', async () => {

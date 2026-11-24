@@ -62,7 +62,8 @@ export function openAviary() {
   isOpen = true;
   unlockAudio();
   const devBird = import.meta.env.DEV ? new URLSearchParams(location.search).get('bird') : null; // ?bird=galah to try another week's bird
-  const id = devBird && devBird in SPECIES_NAMES ? devBird as SpeciesId : speciesOfWeek(), names = SPECIES_NAMES[id], week = weekIndex();
+  const birdNow = () => (devBird && devBird in SPECIES_NAMES ? devBird as SpeciesId : speciesOfWeek());
+  const id = birdNow(), names = SPECIES_NAMES[id], week = weekIndex();
   const opener = document.activeElement as HTMLElement | null;
   const el = document.createElement('div');
   el.className = 'aviary'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', labelOf(id));
@@ -199,10 +200,10 @@ export function openAviary() {
   cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); world.tap(e.clientX - r.left, e.clientY - r.top); });
   $('#avLegend', el).addEventListener('click', e => { const b = (e.target as HTMLElement).closest('[data-who]') as HTMLElement | null; if (b) world.highlight(b.dataset.who!); });
   const ro = new ResizeObserver(() => fit()); ro.observe(stage);
-  const onChange = () => sync(false);
+  const onChange = () => { if (birdNow() !== id) { close(); openAviary(); } else sync(false); }; // a refresh may bring an admin's new pick
   document.addEventListener('bf:sessions-changed', onChange);
   const tick = setInterval(() => {
-    if (weekIndex() !== week) { close(); openAviary(); return; } // a new week: a new flock
+    if (weekIndex() !== week || birdNow() !== id) { close(); openAviary(); return; } // a new week, or an admin picked another bird: a new flock
     if (Math.abs(hourNow() - hourPainted) > 0.1) paint();
   }, 30e3);
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.modal')) back(); };

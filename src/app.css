@@ -202,6 +202,7 @@ header{position:relative}
 .chal-done{color:var(--gold);font-weight:800;margin-top:8px;font-size:14px}
 .adm-chal{display:grid;gap:8px;margin-top:8px}.adm-chal .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .adm-chal select,.adm-chal input{height:44px}
+.adm-bird{width:100%;height:44px;margin-top:4px}
 #pushTg.hide{display:none}
 /* never catches taps: a faded toast stays in place, invisible, over whatever is at the bottom of the screen */
 .toast{width:max-content;max-width:calc(100vw - 32px);text-align:center;line-height:1.35;pointer-events:none}

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { speciesOfWeek, weekIndex, crewFlock, flockSize, newBirds, markSeen, flockEnds, SPECIES_ORDER, BANDS } from '../src/lib/flock';
+import { speciesOfWeek, weekIndex, crewFlock, flockSize, newBirds, markSeen, flockEnds, SPECIES_ORDER, BANDS, chooseBird, chosenBird, rotationOf } from '../src/lib/flock';
 import { FACTS } from '../src/aviary/facts';
 import type { Profile } from '../src/lib/types';
 import { sessionAt } from './helpers';
@@ -27,6 +27,46 @@ describe('which bird it is this week', () => {
   });
   it('flies off at the start of next Monday', () => {
     expect(+flockEnds(NOW)).toBe(+new Date(2026, 10, 30));
+  });
+  it('shows the bird an admin picked every week, until they set it back to the rotation', () => {
+    try {
+      expect(chooseBird('galah')).toBe(true);
+      expect(chosenBird()).toBe('galah');
+      for (let i = 0; i < 4; i++) expect(speciesOfWeek(new Date(2026, 10, 25 + i * 7))).toBe('galah');
+      expect(rotationOf(NOW)).toBe('currawong'); // the rotation carries on underneath
+      expect(localStorage.getItem('bf.bird')).toBe('galah'); // remembered on the phone for next time
+      expect(chooseBird('galah')).toBe(false); // nothing changed
+      expect(chooseBird('dodo')).toBe(true); // not one of ours: back to the rotation
+      expect(speciesOfWeek(NOW)).toBe('currawong');
+      chooseBird('magpie'); chooseBird(null);
+      expect(chosenBird()).toBe(null); expect(speciesOfWeek(new Date(2026, 10, 30))).toBe('galah');
+      expect(localStorage.getItem('bf.bird')).toBe(null);
+    } finally { chooseBird(null); }
+  });
+  it('saves the pick for the whole crew, and only an admin can change it', async () => {
+    const { LocalStore } = await import('../src/lib/local-store');
+    const { state, applyAppSettings } = await import('../src/lib/state');
+    try {
+      localStorage.clear();
+      const s = new LocalStore(); await s.ready();
+      await expect(s.appSettings()).rejects.toThrow(/log in/i);
+      // in demo mode the first account to sign up is the admin; the next isn't
+      await s.signUp({ name: 'Ada', email: 'ada@example.test', password: 'pw-123456', inviteCode: 'bluies' });
+      await s.saveAppSetting('bird', 'raven');
+      expect(await s.appSettings()).toEqual({ bird: 'raven' });
+      await s.signUp({ name: 'Bo', email: 'bo@example.test', password: 'pw-123456', inviteCode: 'bluies' });
+      expect(await s.appSettings()).toEqual({ bird: 'raven' }); // everyone sees it
+      await expect(s.saveAppSetting('bird', 'galah')).rejects.toThrow(/admin/i);
+      await s.signIn('ada@example.test', 'pw-123456');
+      await s.saveAppSetting('bird', null);
+      expect(await s.appSettings()).toEqual({});
+      applyAppSettings({ bird: 'woodduck' });
+      expect(state.appSettings).toEqual({ bird: 'woodduck' }); expect(speciesOfWeek(NOW)).toBe('woodduck');
+      applyAppSettings(null); // offline: keeps what it had
+      expect(speciesOfWeek(NOW)).toBe('woodduck');
+      applyAppSettings({}); // the admin set it back to Automatic
+      expect(speciesOfWeek(NOW)).toBe('currawong');
+    } finally { chooseBird(null); }
   });
 });
 

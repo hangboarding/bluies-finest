@@ -630,4 +630,21 @@ export class SupabaseStore implements Store {
     const rows = check(await this.client.from('challenges').delete().eq('id', id).select('id')) as any[];
     if (!rows?.length) throw new Error("Couldn't delete that challenge. Are you an admin?");
   }
+
+  async appSettings(): Promise<Record<string, unknown> | null> {
+    this.requireUid();
+    const { data, error } = await this.client.from('app_settings').select('key,value');
+    if (error) { if (/app_settings|schema cache|relation/i.test(error.message)) return null; throw friendly(error); }
+    return Object.fromEntries(((data ?? []) as any[]).map(r => [r.key, r.value]));
+  }
+
+  async saveAppSetting(key: string, value: unknown): Promise<void> {
+    const uid = this.requireUid();
+    const res = value == null
+      ? await this.client.from('app_settings').delete().eq('key', key).select('key')
+      : await this.client.from('app_settings').upsert({ key, value, updated_by: uid, updated_at: new Date().toISOString() }).select('key');
+    if (res.error && /app_settings|schema cache|relation/i.test(res.error.message)) throw new Error('Run supabase/schema.sql in the Supabase SQL editor first.');
+    const rows = check(res) as any[];
+    if (value != null && !rows?.length) throw new Error("Couldn't save that. Are you an admin?");
+  }
 }

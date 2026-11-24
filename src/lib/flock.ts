@@ -28,10 +28,27 @@ const EPOCH = parseDayKey('2026-11-23');
 export function weekIndex(now = new Date()) {
   return Math.round((+weekStart(now) - +EPOCH) / (7 * 864e5));
 }
-export function speciesOfWeek(now = new Date()): SpeciesId {
+/** The bird the weekly rotation brings, whatever an admin has picked. */
+export function rotationOf(now = new Date()): SpeciesId {
   const n = SPECIES_ORDER.length, i = weekIndex(now);
   return SPECIES_ORDER[((i % n) + n) % n]!;
 }
+/** This week's bird: the one an admin has picked for everyone (see chooseBird), or else the rotation's. */
+export function speciesOfWeek(now = new Date()): SpeciesId { return chosen ?? rotationOf(now); }
+
+/** A bird an admin has picked from the admin page, shown every week in place of the rotation until they set it back
+ *  to automatic. Kept on the phone too, so the right bird is on the button before anything has loaded. */
+const BIRD_KEY = 'bf.bird';
+const validBird = (id: unknown): SpeciesId | null => (typeof id === 'string' && (SPECIES_ORDER as readonly string[]).includes(id) ? id as SpeciesId : null);
+let chosen: SpeciesId | null = (() => { try { return validBird(localStorage.getItem(BIRD_KEY)); } catch { return null; } })();
+/** Sets (or, with null or anything that isn't a bird, clears) the admin's pick. Returns whether it changed. */
+export function chooseBird(id: unknown): boolean {
+  const next = validBird(id), changed = next !== chosen;
+  chosen = next;
+  try { if (next) localStorage.setItem(BIRD_KEY, next); else localStorage.removeItem(BIRD_KEY); } catch { /* storage blocked */ }
+  return changed;
+}
+export const chosenBird = () => chosen;
 /** When this week's flock flies off: next Monday 00:00 (local time). */
 export const flockEnds = (now = new Date()) => addDays(weekStart(now), 7);
 

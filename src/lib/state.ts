@@ -6,6 +6,7 @@ import { LocalStore } from './local-store';
 import { BUILTIN_BOARDS, PROTOCOLS, type Protocol } from './protocols';
 import { mergeWorkouts, mergeDeleted, readWorkouts, type Deleted, type Workout } from './workouts';
 import { mergeSeen, type Ctx } from './achievements';
+import { chooseBird } from './flock';
 
 export interface Settings {
   proto: string;
@@ -58,6 +59,8 @@ export const state = {
   social: { heartsReceived: 0, commentsGiven: 0 },
   champions: [] as SeasonChampion[],
   challenges: [] as ChallengeRow[],
+  /** Settings an admin has set for the whole crew (see Store.appSettings). */
+  appSettings: {} as Record<string, unknown>,
   /** True once the signed-in user's data has fully loaded; gates all settings writes. */
   loaded: false,
 };
@@ -83,8 +86,9 @@ export async function loadUserData() {
   // plus my own full history (for my stats and achievements). Older sessions of others load on demand.
   // …and always back to the start of the current season, so season standings are complete.
   const since = new Date(Math.min(Date.now() - RECENT_DAYS * 864e5, +seasonOf(new Date()).start)).toISOString();
-  const [profiles, priv, mine, recent, social, champions, challenges] = await Promise.all([s.listProfiles(), s.getPrivate(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }), s.socialCounts(),
-    s.seasonChampions().catch(() => [] as SeasonChampion[]), s.listChallenges().catch(() => [])]);
+  const [profiles, priv, mine, recent, social, champions, challenges, crew] = await Promise.all([s.listProfiles(), s.getPrivate(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }), s.socialCounts(),
+    s.seasonChampions().catch(() => [] as SeasonChampion[]), s.listChallenges().catch(() => []), s.appSettings().catch(() => null)]);
+  applyAppSettings(crew);
   const byId = new Map<string, Session>();
   for (const x of [...mine, ...recent]) byId.set(x.id, x);
   const sessions = [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -134,13 +138,22 @@ export async function loadUserData() {
   void syncProtoNames();
 }
 
-/** Re-fetch what other people change (profiles, recent sessions, challenges) without touching my
+/** Takes in the crew-wide settings an admin has set: for now, the bird they've picked (none: the weekly rotation).
+ *  null (offline, or not set up on the server) keeps what this phone last knew. */
+export function applyAppSettings(a: Record<string, unknown> | null) {
+  if (!a) return;
+  state.appSettings = a;
+  chooseBird(a.bird ?? null);
+}
+
+/** Re-fetch what other people change (profiles, recent sessions, challenges, crew settings) without touching my
  *  settings. Sessions still waiting to upload from this phone are kept. Used by pull-to-refresh. */
 export async function refreshShared() {
   const s = state.store, id = s.currentUserId(); if (!id) return;
   const since = new Date(Math.min(Date.now() - RECENT_DAYS * 864e5, +seasonOf(new Date()).start)).toISOString();
-  const [profiles, mine, recent, social, challenges] = await Promise.all([s.listProfiles(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }),
-    s.socialCounts().catch(() => state.social), s.listChallenges().catch(() => state.challenges)]);
+  const [profiles, mine, recent, social, challenges, crew] = await Promise.all([s.listProfiles(), s.listSessions({ userId: id }), s.listSessions({ sinceIso: since }),
+    s.socialCounts().catch(() => state.social), s.listChallenges().catch(() => state.challenges), s.appSettings().catch(() => null)]);
+  applyAppSettings(crew);
   const byId = new Map<string, Session>();
   for (const x of [...mine, ...recent]) byId.set(x.id, x);
   const pending = state.sessions.filter(x => x.pendingUpload && !byId.has(x.id));

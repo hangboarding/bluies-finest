@@ -7,7 +7,7 @@
 -- Sections, in order: tables, security and policies, avatars, invite codes, hardening,
 -- admin page access, seasons and crew challenges, push notifications, server-function
 -- access, problem reports, profile location, hardening 2, fair scoring (points v3),
--- fuller Edit session and top-3 alerts.
+-- fuller Edit session and top-3 alerts, session names, and crew settings (the admin's bird pick).
 -- =====================================================================
 
 create extension if not exists pgcrypto;
@@ -1142,3 +1142,40 @@ do $$ begin
   end if;
 end $$;
 grant update (title, protocol_name) on public.sessions to authenticated;
+
+
+-- =====================================================================
+-- Bluies Finest: crew settings (November 2026). Part of schema.sql, safe to run again.
+--
+--   • Small settings the whole crew shares and only admins change, one row per key. For now there's one:
+--     "bird", the bird an admin has picked on the admin page (a species id such as "galah"). Everyone's
+--     bird page shows it every week in place of the weekly rotation, until an admin sets it back to
+--     Automatic, which removes the row.
+-- =====================================================================
+
+create table if not exists public.app_settings (
+  key         text primary key check (char_length(key) between 1 and 40),
+  value       jsonb not null,
+  updated_by  uuid default auth.uid() references public.profiles (id) on delete set null,
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.app_settings enable row level security;
+grant select on public.app_settings to authenticated;
+grant insert, update, delete on public.app_settings to authenticated;
+
+drop policy if exists "app settings: members read" on public.app_settings;
+create policy "app settings: members read" on public.app_settings
+  for select to authenticated using (true);
+
+drop policy if exists "app settings: admins insert" on public.app_settings;
+create policy "app settings: admins insert" on public.app_settings
+  for insert to authenticated with check ((select public.is_admin()));
+
+drop policy if exists "app settings: admins update" on public.app_settings;
+create policy "app settings: admins update" on public.app_settings
+  for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+
+drop policy if exists "app settings: admins delete" on public.app_settings;
+create policy "app settings: admins delete" on public.app_settings
+  for delete to authenticated using ((select public.is_admin()));
