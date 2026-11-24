@@ -403,9 +403,58 @@ describe('no-hang lifts count only the weight lifted', () => {
     wk.renderWorkouts($('#view-workouts'));
     $('#recent [data-ed]').click(); await flush();
     $('.modal [data-sk="mode"] [data-v="lift"]').click();
+    $<HTMLInputElement>('.modal [data-f="liftKg"]').value = '10';
     sheetButtons()[1]!.click(); await flush();
     expect(updates).toHaveLength(0);
     expect(s.mode).toBe('hang');
     expect($('#toast').textContent).toContain('between a hang and a lift');
+  });
+});
+
+describe('lifts aren’t hangs in personal bests', () => {
+  it('Longest hang on Stats leaves out a long lift hold', async () => {
+    const held = (mode: 'hang' | 'lift', t: number) => session({ mode, hangs: [{ set: 1, rep: 1, hand: 'L', target: t, held: t, full: true }] });
+    await openApp([held('hang', 12), held('lift', 90)]);
+    document.body.insertAdjacentHTML('beforeend', '<div id="view-stats"></div>');
+    const st = await import('../src/views/stats');
+    st.renderStats($('#view-stats'));
+    const row = [...document.querySelectorAll('#pbs .lrow')].find(r => r.textContent!.includes('Longest hang'))!;
+    expect(row.textContent).toContain('12 s');
+    expect(row.textContent).not.toContain('90 s');
+  });
+});
+
+describe('a lift of nothing', () => {
+  it('can’t be started, logged or saved by editing', async () => {
+    Object.assign(S.state.settings.prefs, { warmup: false, nudges: false });
+    const added: any[] = [];
+    (S.state.store as any).addSession = async (x: any) => { added.push(x); return { ...x, userId: 'u1' }; };
+    const hang = await import('../src/views/hang');
+    hang.renderHang($('#view-hang'));
+    $('[data-k="mode"] [data-v="lift"]').click();
+    expect($<HTMLInputElement>('#i-lift').value).toBe('0');
+    $('#start').click(); await flush();
+    expect($('#v-timer').classList.contains('hide')).toBe(true);
+    expect($('#toast').textContent).toContain('Set the weight you’ll lift first');
+    $('#backlog').click(); await flush();
+    expect($('.modal')).toBeNull();
+    // a workout with a weightless lift in it won't start either
+    const W = await import('../src/lib/workouts');
+    const P = (await import('../src/lib/protocols')).PROTOCOLS;
+    const w = { id: 'wl', name: 'Lifts', updatedAt: 0, blocks: [W.makeBlock('rec', P.rec!, undefined)] };
+    expect(await hang.beginWorkout(w)).toBe(false);
+    expect($('#toast').textContent).toContain('no-hang lift with no weight');
+    expect(added).toHaveLength(0);
+  });
+  it('Edit session won’t switch a hang to a lift without a weight', async () => {
+    const s = session({ id: 'z1', mode: 'hang', addedKg: 0, liftKg: 0 });
+    await openApp([s]);
+    const wk = await import('../src/views/workouts');
+    wk.renderWorkouts($('#view-workouts'));
+    $('#recent [data-ed]').click(); await flush();
+    $('.modal [data-sk="mode"] [data-v="lift"]').click();
+    sheetButtons()[1]!.click(); await flush();
+    expect(updates).toHaveLength(0);
+    expect($('#toast').textContent).toContain('Enter the weight you lifted');
   });
 });

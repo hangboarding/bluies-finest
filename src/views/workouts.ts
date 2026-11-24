@@ -193,6 +193,7 @@ async function editSession(s: Session) {
     if (n !== (s as any)[k]) patch[k] = n;
   }
   for (const g of $$('[data-sk]', el)) { const v = ($('.chip.on', g) as HTMLElement | null)?.dataset.v ?? ''; if (v !== (s as any)[g.dataset.sk!]) patch[g.dataset.sk!] = v; }
+  if (mode === 'lift' && !(patch.liftKg ?? s.liftKg)) { toast('Enter the weight you lifted: just the plates or dumbbell.'); return; }
   // a lift has no added weight or assist (it's only the weight lifted), and a hang has no weight lifted
   if (mode === 'lift') { if (s.addedKg) patch.addedKg = 0; if (s.assistKg) patch.assistKg = 0; } else if (s.liftKg) patch.liftKg = 0;
   const board = $<HTMLSelectElement>('select[data-f="board"]', el).value; if (board !== s.board) patch.board = board;

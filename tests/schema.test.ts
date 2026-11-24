@@ -125,4 +125,16 @@ test('a lift counts only the weight lifted, and a session logged as a hang by mi
   const bare = await row(`insert into public.sessions (protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, hangs) values ('jlmh','hang','both',10,60,6,1,180,20,$1) returning id, load_pct`, [hangs]);
   expect(bare.load_pct).toBe(100);
   expect((await row(`update public.sessions set mode = 'lift' where id = $1 returning load_pct`, [bare.id])).load_pct).toBe(10); // the floor
+
+  // a light lift scores only what it lifts (no 40% floor, unlike a hang), exactly as the app works it out
+  const U2 = '22222222-2222-2222-2222-222222222222';
+  await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, 'd@example.test', '{"name":"Dee","invite":"BLUIES","invite_code":"BLUIES","code":"BLUIES"}')`, [U2]);
+  await db.query(`update public.private_data set bodyweight_kg = 70 where id = $1`, [U2]);
+  await db.exec(`set test.uid = '${U2}'`);
+  const light = await row(`insert into public.sessions (protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, lift_kg, hangs) values ('max','lift','both',10,60,6,1,180,20,5,$1) returning *`, [hangs.replace(/"L"/g, '"both"')]);
+  expect(light.load_pct).toBe(14);
+  const asApp = { id: light.id, createdAt: new Date(light.created_at).toISOString(), mode: 'lift', hands: 'both', hang: 10, protocolKey: 'max', edgeMm: 20, addedKg: 0, assistKg: 0, liftKg: 5,
+    tutS: light.tut_s, fullHangs: light.full_hangs, totalHangs: light.total_hangs, loadPct: 14, isPb: light.is_pb };
+  expect(light.points).toBe(sessionPoints(asApp as any, [asApp as any]));
+  expect(light.points).toBeLessThan(sessionPoints({ ...asApp, loadPct: 40 } as any, []));
 }, 60000);

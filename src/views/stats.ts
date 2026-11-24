@@ -83,11 +83,13 @@ document.addEventListener('keydown', e => {
 function drawPBs(mine: Session[]) {
   const best = <T,>(xs: T[], f: (x: T) => number) => xs.reduce<T | null>((m, x) => (m == null || f(x) > f(m) ? x : m), null);
   const hangs = mine.filter(s => s.mode === 'hang' && s.fullHangs > 0);
-  const heavy = best(hangs.filter(s => s.hang <= 15), s => s.addedKg - s.assistKg);
-  const edge = best(hangs.filter(s => s.assistKg === 0), s => -s.edgeMm);
-  const long = best(mine.flatMap(s => s.hangs.map(h => ({ s, h }))), x => x.h.held);
-  const lift = best(mine.filter(s => s.mode === 'lift'), s => s.liftKg);
-  const pct = best(hangs.filter(s => s.loadPct != null && s.hang <= 15), s => s.loadPct!);
+  // the same standards as the Ranks boards: two-arm for load, 5s+ at bodyweight for edges, no assist for time, a lift held
+  const two = hangs.filter(s => s.hands === 'both');
+  const heavy = best(two.filter(s => s.hang <= 15), s => s.addedKg - s.assistKg);
+  const edge = best(hangs.filter(s => s.assistKg === 0 && s.hang >= 5), s => -s.edgeMm);
+  const long = best(mine.filter(s => s.mode === 'hang' && s.assistKg === 0).flatMap(s => s.hangs.map(h => ({ s, h }))), x => x.h.held); // a lift isn't a hang
+  const lift = best(mine.filter(s => s.mode === 'lift' && s.fullHangs > 0), s => s.liftKg);
+  const pct = best(two.filter(s => s.loadPct != null && s.hang <= 15), s => s.loadPct!);
   const row = (icon: string, name: string, sub: string, v: string) => `<div class="lrow"><span>${ic(icon)}</span><span class="nm">${name}<small>${esc(sub)}</small></span><span class="pt">${v}</span></div>`;
   const rows = [
     heavy && row('add', 'Heaviest hang', `${heavy.edgeMm}mm · ${heavy.grip} · ${heavy.hang}s`, `${heavy.addedKg - heavy.assistKg >= 0 ? '+' : ''}${heavy.addedKg - heavy.assistKg} kg`),

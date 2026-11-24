@@ -48,10 +48,11 @@ export async function openClimber(uid: string) {
   // personal bests (no bodyweight-derived numbers)
   const hangs = xs.filter(s => s.mode === 'hang' && s.fullHangs > 0);
   const maxBy = <T,>(a: T[], f: (x: T) => number) => a.reduce<T | null>((m, x) => (m == null || f(x) > f(m) ? x : m), null);
-  const heavy = maxBy(hangs.filter(s => s.hang <= 15), s => s.addedKg - s.assistKg);
-  const edge = maxBy(hangs.filter(s => s.assistKg === 0), s => -s.edgeMm);
-  const long = maxBy(xs.flatMap(s => s.hangs.map(h => ({ s, h }))), x => Number(x.h.held) || 0);
-  const lift = maxBy(xs.filter(s => s.mode === 'lift'), s => s.liftKg);
+  // the same standards as the Ranks boards (see drawPBs in stats.ts)
+  const heavy = maxBy(hangs.filter(s => s.hang <= 15 && s.hands === 'both'), s => s.addedKg - s.assistKg);
+  const edge = maxBy(hangs.filter(s => s.assistKg === 0 && s.hang >= 5), s => -s.edgeMm);
+  const long = maxBy(xs.filter(s => s.mode === 'hang' && s.assistKg === 0).flatMap(s => s.hangs.map(h => ({ s, h }))), x => Number(x.h.held) || 0); // a lift isn't a hang
+  const lift = maxBy(xs.filter(s => s.mode === 'lift' && s.fullHangs > 0), s => s.liftKg);
   const pb = (icon: string, name: string, v: string) => `<div class="cpb">${ic(icon)}<span>${name}</span><b>${v}</b></div>`;
   const kg = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n)} kg`;
   const pbs = [heavy && pb('add', 'Heaviest hang', kg(heavy.addedKg - heavy.assistKg)), edge && pb('edge', 'Smallest edge', `${edge.edgeMm} mm`),

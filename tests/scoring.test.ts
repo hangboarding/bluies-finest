@@ -223,7 +223,9 @@ describe('points', () => {
     expect(intensity(L({ assistKg: 35 }))).toBe(0.5);                       // heavy assist is no longer scored as bodyweight
     expect(intensity(L({ addedKg: 14 }))).toBe(1.2);
     expect(intensity(L({ mode: 'lift', liftKg: 35 }))).toBe(1);
-    expect(intensity(L({ mode: 'lift', liftKg: 5 }))).toBe(0.4);           // a 5kg lift is a 5kg lift, whatever effort was picked
+    expect(intensity(L({ mode: 'lift', liftKg: 5 }))).toBe(0.14);          // a 5kg lift is a 5kg lift, whatever effort was picked
+    expect(intensity(L({ mode: 'lift', liftKg: 0 }))).toBe(0.1);           // and a lift has no 40% floor: only what's lifted counts
+    expect(intensity(L({ assistKg: 60 }))).toBe(0.4);                       // a hang still counts as at least 40%
     expect(pts({ mode: 'lift', loadPct: null, liftKg: 5, effortPct: 100 })).toBeLessThan(pts({ loadPct: null }) - 20);
     expect(pts({ hands: 'LR', loadPct: null, assistKg: 40, tutS: 100, totalHangs: 10, fullHangs: 10 }))
       .toBeLessThan(pts({ hands: 'LR', loadPct: null, tutS: 100, totalHangs: 10, fullHangs: 10 }) - 30);

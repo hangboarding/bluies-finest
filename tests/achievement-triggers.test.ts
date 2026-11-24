@@ -1,7 +1,7 @@
 // Every achievement is earned when its condition is met (and not just before), and the ones earned by doing
 // something in the app (secrets mid-session, accent colours, the leaderboard, boards) really are earned there.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TIERED, ONE_OFFS, earned, shownTier, hasOneOff, type Ctx } from '../src/lib/achievements';
+import { TIERED, ONE_OFFS, earned, shownTier, hasOneOff, keyOf, recheckSeen, newUnlocks, type Ctx } from '../src/lib/achievements';
 import { ctx, hang, session, sessionAt } from './helpers';
 import type { Session } from '../src/lib/types';
 
@@ -19,16 +19,19 @@ const CASES: Record<string, [meets: Partial<Ctx>, misses: Partial<Ctx>]> = {
   'Sessions': [{ sessions: [session()] }, { sessions: [] }],
   'Week streak': [{ sessions: weeksOf(1) }, { sessions: [sessionAt(2026, 11, 17)] }],
   'Total hangs': [{ sessions: [session({ totalHangs: 10 })] }, { sessions: [session({ totalHangs: 9 })] }],
-  'Added weight': [{ sessions: n(3, () => session({ hang: 10, addedKg: 2.5, fullHangs: 1 })) }, { sessions: n(2, () => session({ hang: 10, addedKg: 2.5, fullHangs: 1 })) }],
-  'Smallest edge': [{ sessions: n(3, () => session({ edgeMm: 25, assistKg: 0, fullHangs: 1 })) }, { sessions: n(3, () => session({ edgeMm: 26, assistKg: 0, fullHangs: 1 })) }],
-  'Longest hang': [{ sessions: n(3, () => session({ hangs: hangsOf(1, { held: 10 }) })) }, { sessions: n(3, () => session({ hangs: hangsOf(1, { held: 9, full: false }) })) }],
+  'Added weight': [{ sessions: n(3, () => session({ hang: 10, addedKg: 2.5, fullHangs: 1 })) }, { sessions: [...n(2, () => session({ hang: 10, addedKg: 2.5, fullHangs: 1 })),
+    ...n(3, () => session({ hang: 10, addedKg: 60, edgeMm: 35, fullHangs: 1 })), ...n(3, () => session({ hang: 10, addedKg: 5, hands: 'L', fullHangs: 1 }))] }], // jugs and one-arm hangs aren't the standard
+  'Smallest edge': [{ sessions: n(3, () => session({ edgeMm: 25, assistKg: 0, fullHangs: 1 })) }, { sessions: [...n(3, () => session({ edgeMm: 26, assistKg: 0, fullHangs: 1 })),
+    ...n(3, () => session({ edgeMm: 5, assistKg: 0, hang: 3, fullHangs: 1 }))] }], // a 3-second touch of a tiny edge isn't 5s+
+  'Longest hang': [{ sessions: n(3, () => session({ hangs: hangsOf(1, { held: 10 }) })) }, { sessions: [...n(3, () => session({ hangs: hangsOf(1, { held: 9, full: false }) })), ...n(3, () => session({ mode: 'lift', hangs: hangsOf(1, { held: 180, target: 180 }) })),
+    ...n(3, () => session({ assistKg: 30, hangs: hangsOf(1, { held: 180, target: 180 }) }))] }], // nor is a lift, or an assisted hang, held for ages
   'Abrahang days': [{ sessions: [session({ protocolKey: 'abra', tutS: 15 })] }, { sessions: [session({ protocolKey: 'abra', tutS: 14 })] }],
   'Crimp sessions': [{ sessions: [session({ grip: 'Full crimp' })] }, { sessions: [session({ grip: 'Open' })] }],
   'Open-hand sessions': [{ sessions: [session({ grip: 'Open' })] }, { sessions: [session({ grip: 'Drag' })] }],
   'Drag sessions': [{ sessions: [session({ grip: 'Drag' })] }, { sessions: [session({ grip: 'Open' })] }],
   'Pinch sessions': [{ sessions: [session({ grip: 'Pinch' })] }, { sessions: [session({ grip: 'Sloper' })] }],
   'Sloper sessions': [{ sessions: [session({ grip: 'Sloper' })] }, { sessions: [session({ grip: 'Pinch' })] }],
-  'One-arm hangs': [{ sessions: [session({ hangs: [hang({ hand: 'L' })] })] }, { sessions: [session({ hangs: [hang({ hand: 'L', held: 5, full: false })] })] }],
+  'One-arm hangs': [{ sessions: [session({ hangs: [hang({ hand: 'L' })] })] }, { sessions: [session({ hangs: [hang({ hand: 'L', held: 5, full: false })] }), session({ mode: 'lift', hands: 'L', hangs: hangsOf(10, { hand: 'L' }) })] }], // one-arm lifts don't count
   'No-hang lift': [{ sessions: n(3, () => session({ mode: 'lift', liftKg: 10, fullHangs: 1 })) }, { sessions: n(3, () => session({ mode: 'lift', liftKg: 9.5, fullHangs: 1 })) }],
   'Time on the board': [{ sessions: [session({ tutS: 300 })] }, { sessions: [session({ tutS: 299 })] }],
   'Training days': [{ sessions: [session({ tutS: 15 })] }, { sessions: [session({ tutS: 14 })] }],
@@ -70,8 +73,8 @@ describe('every achievement is earned when its condition is met', () => {
   });
   for (const a of TIERED) it(`${a.name}: reaches the first tier`, () => {
     const [yes, no] = CASES[a.name]!;
-    expect(earned(ctx(yes))[`t:${a.name}`]).toBe(1);
-    expect(earned(ctx(no))[`t:${a.name}`]).toBeUndefined();
+    expect(earned(ctx(yes))[keyOf(a)]).toBe(1);
+    expect(earned(ctx(no))[keyOf(a)]).toBeUndefined();
   });
   for (const o of ONE_OFFS) it(`${o.name}`, () => {
     const [yes, no] = CASES[o.name]!;
@@ -100,7 +103,31 @@ describe('every achievement is earned when its condition is met', () => {
       'Seasons won': { seasonsWon: 20 },
       'Points': { pointsTotal: 100000 },
     };
-    for (const a of TIERED) expect(earned(ctx(top[a.name]))[`t:${a.name}`], a.name).toBe(10);
+    for (const a of TIERED) expect(earned(ctx(top[a.name]))[keyOf(a)], a.name).toBe(10);
+  });
+});
+
+describe('a badge whose rule was tightened (lifts no longer count as hangs)', () => {
+  const onearm = TIERED.find(x => x.name === 'One-arm hangs')!, k = keyOf(onearm);
+  it('drops tiers that only lifts earned, without popping up again what hangs earned', () => {
+    // Silver (10) was shown, but 8 of those 10 one-arm "hangs" were lifts: really Bronze (2)
+    const seen: Record<string, number> = { 't:One-arm hangs': 3 }, now = { [k]: 2 };
+    expect(recheckSeen(seen, now)).toBe(true);
+    expect(seen[k]).toBe(2);
+    expect(seen['t:One-arm hangs']).toBe(3); // left for phones still on the old version
+    expect(newUnlocks(seen, now)).toEqual([]);
+    expect(shownTier(onearm, ctx({ sessions: [session({ hangs: hangsOf(5, { hand: 'L' }) })] }), seen)).toBe(2);
+    expect(recheckSeen(seen, now)).toBe(false); // once
+  });
+  it('a tier earned with hangs after the change still pops up', () => {
+    const seen: Record<string, number> = { 't:One-arm hangs': 1 }, now = { [k]: 3 };
+    recheckSeen(seen, now);
+    expect(newUnlocks(seen, now).map(u => `${u.name} ${u.tier}`)).toEqual(['One-arm hangs Silver']);
+  });
+  it('never earned before: nothing to carry over', () => {
+    const seen: Record<string, number> = {};
+    expect(recheckSeen(seen, { [k]: 1 })).toBe(false);
+    expect(newUnlocks(seen, { [k]: 1 })).toHaveLength(1);
   });
 });
 

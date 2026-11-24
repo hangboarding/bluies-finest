@@ -2,7 +2,7 @@
 // mid-session, hearts from friends), it pops up as soon as the app knows. What's been shown is kept in
 // settings, so each one pops once, on whichever device sees it first.
 import { state, saveSettings, achievementCtx } from '../lib/state';
-import { earned, newUnlocks, mergeSeen, type Unlock } from '../lib/achievements';
+import { earned, newUnlocks, mergeSeen, recheckSeen, type Unlock } from '../lib/achievements';
 import { ic, hydrateIcons } from '../lib/icons';
 import { esc, vibrate } from '../lib/ui';
 import { confetti } from '../lib/confetti';
@@ -20,6 +20,7 @@ function check() {
   const S = state.settings, now = earned(achievementCtx());
   // the first check on this version: what's already earned was celebrated before, so it doesn't pop
   if (!S.achSeen) { S.achSeen = now; saveSettings(); return; }
+  if (recheckSeen(S.achSeen, now)) saveSettings(); // a badge's rule was tightened: re-work what it shows
   const fresh = newUnlocks(S.achSeen, now);
   if (!fresh.length) return;
   S.achSeen = mergeSeen(S.achSeen, now); saveSettings();

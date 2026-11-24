@@ -902,7 +902,7 @@ set search_path = public
 as $$
   select greatest(0, p_tut)
        * case when p_hands = 'both' then 1 else 0.5 end
-       * power(least(case when p_protocol in ('abra', 'warm') then 0.6 else 3 end, greatest(0.4,
+       * power(least(case when p_protocol in ('abra', 'warm') then 0.6 else 3 end, greatest(case when p_mode = 'lift' then 0.1 else 0.4 end, -- a lift counts only what it lifts
            coalesce(p_load_pct,
              least(400, greatest(10, round((case when p_mode = 'lift' then 2 * p_lift / 70.0 * 100
                                                  else (70 + p_added - p_assist) / 70.0 * 100 end)::numeric)))::double precision)
@@ -1087,6 +1087,8 @@ update public.sessions set points = points where created_at >= public.current_se
 --     It can also switch a session between a hang and a no-hang lift (one logged the wrong way): the
 --     load and points are worked out again, as for a new weight. The timings and the hang-by-hang
 --     log still can't be changed.
+--   • No-hang lifts score only the weight lifted: the 40% floor that hangs have no longer applies to them
+--     (it's in session_work, above; running this file re-scores the current season with it).
 --   • rank_alerts: "Sam took your #2 spot" notices. The notify function writes one when a new session
 --     knocks someone down from the top 3 of the Overall board; they show in the app's bell. For phone
 --     notifications too, add the sessions webhook in docs/PUSH.md ("Top-3 alerts").

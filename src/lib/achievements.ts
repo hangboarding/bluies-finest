@@ -13,7 +13,9 @@ export interface Ctx {
   pointsTotal: number;
   seasonsWon?: number;
 }
-export interface Tiered { icon: string; name: string; desc: string; thresholds: number[]; lower?: boolean; value: (c: Ctx) => number | null; }
+export interface Tiered { icon: string; name: string; desc: string; thresholds: number[]; lower?: boolean; value: (c: Ctx) => number | null;
+  /** Raised when the rule is tightened, so tiers earned under the old rule are worked out again (see recheckSeen). */
+  rev?: number; }
 export interface OneOff { icon: string; name: string; desc: string; secret?: boolean; hint?: string; got: (c: Ctx) => boolean; }
 
 /** Sessions needed at a level before a "best" badge counts it: one lucky hang isn't enough. */
@@ -30,16 +32,19 @@ export const TIERED: Tiered[] = [
   { icon: '🧗', name: 'Sessions', desc: 'Complete hangboard sessions.', thresholds: [1, 5, 10, 25, 50, 100, 200, 365, 500, 1000], value: c => c.sessions.length },
   { icon: '🔥', name: 'Week streak', desc: 'Your longest run of consecutive weeks training on at least 2 different days.', thresholds: [1, 2, 4, 8, 12, 20, 26, 40, 52, 104], value: c => bestWeekStreak(c.sessions) },
   { icon: '🏔️', name: 'Total hangs', desc: "Every hang you've logged, all time.", thresholds: [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000], value: c => c.sessions.reduce((a, s) => a + s.totalHangs, 0) },
-  { icon: '🏋️', name: 'Added weight', desc: 'Added weight held full time on a ≤15s hang, in 3 different sessions (kg).', thresholds: [2.5, 5, 10, 15, 20, 25, 30, 40, 50, 60], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.hang <= 15 && s.fullHangs > 0 && s.addedKg > 0).map(s => s.addedKg)) },
-  { icon: '📏', name: 'Smallest edge', desc: 'Smallest edge held full time at bodyweight, in 3 different sessions (mm).', lower: true, thresholds: [25, 20, 18, 15, 14, 12, 10, 8, 6, 5], value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0).map(s => s.edgeMm), true) },
-  { icon: '⏱', name: 'Longest hang', desc: 'Longest hang, any edge, held in 3 different sessions (seconds).', thresholds: [10, 20, 30, 45, 60, 75, 90, 120, 150, 180], value: c => repeated(c.sessions.filter(s => s.hangs.length).map(s => Math.max(...s.hangs.map(h => h.held)))) },
+  { icon: '🏋️', name: 'Added weight', desc: 'Added weight held full time on a two-arm ≤15s hang on an 18–22mm edge (the Added weight board’s standard), in 3 different sessions (kg).', thresholds: [2.5, 5, 10, 15, 20, 25, 30, 40, 50, 60], rev: 1,
+    value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.hands === 'both' && s.hang <= 15 && s.edgeMm >= 18 && s.edgeMm <= 22 && s.fullHangs > 0 && s.addedKg > 0).map(s => s.addedKg)) },
+  { icon: '📏', name: 'Smallest edge', desc: 'Smallest edge held full time for 5s or more at bodyweight, in 3 different sessions (mm).', lower: true, thresholds: [25, 20, 18, 15, 14, 12, 10, 8, 6, 5], rev: 1,
+    value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.hang >= 5 && s.fullHangs > 0).map(s => s.edgeMm), true) },
+  { icon: '⏱', name: 'Longest hang', desc: 'Longest hang at bodyweight or more (no assist), any edge, held in 3 different sessions (seconds). No-hang lifts don’t count.', thresholds: [10, 20, 30, 45, 60, 75, 90, 120, 150, 180], rev: 1,
+    value: c => repeated(c.sessions.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.hangs.length).map(s => Math.max(...s.hangs.map(h => h.held)))) },
   { icon: '🌱', name: 'Abrahang days', desc: "Days you've done Abrahangs.", thresholds: [1, 7, 14, 30, 60, 100, 150, 200, 300, 365], value: c => new Set(c.sessions.filter(s => s.protocolKey === 'abra' && qualifies(s)).map(s => dayKey(new Date(s.createdAt)))).size },
   { icon: '🤏', name: 'Crimp sessions', desc: 'Sessions using half or full crimp.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => isCrimp(s.grip)).length },
   { icon: '✋', name: 'Open-hand sessions', desc: 'Sessions using open hand.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => s.grip === 'Open').length },
   { icon: '🤚', name: 'Drag sessions', desc: 'Sessions using a drag grip.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => s.grip === 'Drag').length },
   { icon: '🤌', name: 'Pinch sessions', desc: 'Sessions using a pinch grip.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => s.grip === 'Pinch').length },
   { icon: '🫳', name: 'Sloper sessions', desc: 'Sessions using a sloper.', thresholds: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300], value: c => c.sessions.filter(s => s.grip === 'Sloper').length },
-  { icon: '☝️', name: 'One-arm hangs', desc: 'Single-arm hangs completed.', thresholds: [1, 5, 10, 25, 50, 100, 150, 250, 400, 600], value: c => c.sessions.reduce((a, s) => a + s.hangs.filter(h => h.hand !== 'both' && h.full).length, 0) },
+  { icon: '☝️', name: 'One-arm hangs', desc: 'Single-arm hangs completed. No-hang lifts don’t count.', thresholds: [1, 5, 10, 25, 50, 100, 150, 250, 400, 600], rev: 1, value: c => c.sessions.filter(s => s.mode === 'hang').reduce((a, s) => a + s.hangs.filter(h => h.hand !== 'both' && h.full).length, 0) },
   { icon: '🪨', name: 'No-hang lift', desc: 'No-hang lift managed in 3 different sessions (kg).', thresholds: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100], value: c => repeated(c.sessions.filter(s => s.mode === 'lift' && s.fullHangs > 0).map(s => s.liftKg)) },
   { icon: '⏳', name: 'Time on the board', desc: 'Total minutes under tension, all time.', thresholds: [5, 15, 30, 60, 120, 240, 500, 1000, 2000, 5000], value: c => Math.floor(c.sessions.reduce((a, s) => a + (s.tutS || 0), 0) / 60) },
   { icon: '📅', name: 'Training days', desc: 'Different days you trained (15s or more under tension).', thresholds: [1, 7, 14, 30, 60, 100, 150, 200, 300, 365], value: c => new Set(c.sessions.filter(qualifies).map(s => dayKey(new Date(s.createdAt)))).size },
@@ -102,10 +107,12 @@ export function diffUnlocks(before: Ctx, after: Ctx): { icon: string; text: stri
   return out;
 }
 
-/** Everything earned so far: `t:<name>` → tier reached for tiered badges, `o:<name>` → 1 for one-offs. */
+/** A tiered badge's key in earned() and Settings.achSeen: `t:<name>`, plus `@<rev>` once its rule has been tightened. */
+export const keyOf = (a: Tiered) => `t:${a.name}${a.rev ? `@${a.rev}` : ''}`;
+/** Everything earned so far: keyOf(badge) → tier reached for tiered badges, `o:<name>` → 1 for one-offs. */
 export function earned(c: Ctx): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const a of TIERED) { const n = tierOf(a.value(c), a.thresholds, a.lower); if (n) out[`t:${a.name}`] = n; }
+  for (const a of TIERED) { const n = tierOf(a.value(c), a.thresholds, a.lower); if (n) out[keyOf(a)] = n; }
   for (const o of ONE_OFFS) if (o.got(c)) out[`o:${o.name}`] = 1;
   return out;
 }
@@ -116,16 +123,30 @@ export function newUnlocks(seen: Record<string, number>, now: Record<string, num
   const out: Unlock[] = [];
   for (const o of ONE_OFFS) if (now[`o:${o.name}`] && !seen[`o:${o.name}`]) out.push({ icon: o.icon, name: o.name, secret: o.secret });
   for (const a of TIERED) {
-    const n = now[`t:${a.name}`] ?? 0;
-    if (n > (seen[`t:${a.name}`] ?? 0)) out.push({ icon: a.icon, name: a.name, tier: TIER_NAMES[n - 1], colour: TIER_COLOURS[n - 1] });
+    const n = now[keyOf(a)] ?? 0;
+    if (n > (seen[keyOf(a)] ?? 0)) out.push({ icon: a.icon, name: a.name, tier: TIER_NAMES[n - 1], colour: TIER_COLOURS[n - 1] });
   }
   return out;
 }
 /** The tier a badge shows: what your sessions say now, but never below one already earned (`seen` is
  *  Settings.achSeen), so deleting a session, comment or custom protocol doesn't take a badge away. */
-export const shownTier = (a: Tiered, c: Ctx, seen: Record<string, number> = {}) => Math.max(tierOf(a.value(c), a.thresholds, a.lower), seen[`t:${a.name}`] ?? 0);
+export const shownTier = (a: Tiered, c: Ctx, seen: Record<string, number> = {}) => Math.max(tierOf(a.value(c), a.thresholds, a.lower), seen[keyOf(a)] ?? 0);
 /** Whether a one-off shows as unlocked: earned now, or earned before (see shownTier). */
 export const hasOneOff = (o: OneOff, c: Ctx, seen: Record<string, number> = {}) => o.got(c) || !!seen[`o:${o.name}`];
+/** A badge whose rule was tightened (a new `rev`) keeps what was shown under the old rule only as far as the new
+ *  rule agrees: tiers it no longer gives are dropped, and ones already celebrated don't pop up again.
+ *  The old key is left alone, so a phone still on an older version can't bring the old tier back. Returns true if
+ *  `seen` changed. */
+export function recheckSeen(seen: Record<string, number>, now: Record<string, number>) {
+  let changed = false;
+  for (const a of TIERED) {
+    const k = keyOf(a); if (!a.rev || k in seen) continue;
+    const before = Math.max(0, ...Object.entries(seen).filter(([x]) => x === `t:${a.name}` || x.startsWith(`t:${a.name}@`)).map(([, v]) => v));
+    if (!before) continue; // never earned: nothing to carry over
+    seen[k] = Math.min(before, now[k] ?? 0); changed = true;
+  }
+  return changed;
+}
 /** The higher tier of each (what's been shown, merged across devices). */
 export function mergeSeen(a: Record<string, number> = {}, b: Record<string, number> = {}) {
   const out = { ...a };

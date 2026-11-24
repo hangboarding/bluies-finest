@@ -32,7 +32,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 310 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
+npm test         # 316 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.
@@ -54,7 +54,7 @@ Every push to `main` runs the tests, then builds and deploys to GitHub Pages via
 Harder training earns more, and there's nothing to gain from gaming it.
 
 - **Work** = time under tension × intensity² × edge factor.
-  - **Intensity:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2. Capped between 0.4 and 3. Squared, so heavier hangs earn clearly more.
+  - **Intensity:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2 (never your bodyweight). Capped at 3; a hang counts as at least 0.4, but a lift counts only what it lifts. Squared, so heavier hangs earn clearly more.
   - **One-arm hangs** count each arm's time at half, so left + right at bodyweight equals a two-arm hang at +100%: the same load on each arm.
   - **Edge factor:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
   - **Abrahangs and Warm-up** are done light (feet on or assisted), which people rarely enter as assist, so they count at most 60% of bodyweight.

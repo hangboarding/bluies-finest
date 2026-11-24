@@ -408,6 +408,7 @@ function wireSetup(root: HTMLElement) {
     unlockAudio();
     if (!run && !(editing && timer) && hangMode() === 'workout') { const w = selWorkout(); if (w) beginWorkout(cloneWorkout(w)); return; }
     readInputs();
+    if (val.mode === 'lift' && !val.lift) return toast('Set the weight you’ll lift first: just the plates or dumbbell, not your bodyweight.', 4000); // a lift of nothing isn't training
     // the server stores at most 1,500 hangs and 2 hours under tension per session
     const hangs = val.sets * val.reps * (val.hands === 'LR' ? 2 : 1);
     if (hangs > 1500 || hangs * val.hang > 7200) return toast(`That's ${hangs.toLocaleString()} hangs${hangs * val.hang > 7200 ? ` and over 2 hours on the board` : ''}. Cut the sets, reps or hang time to log it.`, 5000);
@@ -601,6 +602,7 @@ async function backlog() {
   // mid-session edit: the timer's hangs are still waiting to be resumed, so don't throw them away
   if (editing && timer) return toast('Finish or cancel the current session first');
   readInputs(); persist();
+  if (val.mode === 'lift' && !val.lift) return toast('Set the weight you’ll lift first: just the plates or dumbbell, not your bodyweight.', 4000);
   const hangs = val.sets * val.reps * (val.hands === 'LR' ? 2 : 1);
   if (hangs > 1500 || hangs * val.hang > 7200) return toast(`That's ${hangs.toLocaleString()} hangs. Cut the sets, reps or hang time to log it.`, 5000);
   // The server accepts up to 7 days back. A finished season's results are final, so not before this season began either.
@@ -795,6 +797,8 @@ export async function beginWorkout(w: Workout): Promise<boolean> {
   if (w.blocks.length < all) toast(`${all - w.blocks.length} exercise${all - w.blocks.length > 1 ? 's' : ''} skipped: the protocol was deleted`, 3500);
   if (!w.blocks.length) { toast('Add an exercise first'); return false; }
   // the server stores at most 1,500 hangs and 2 hours under tension per session
+  const none = w.blocks.find(b => { const v = blockValues(b, P[b.proto]!, 0); return v.mode === 'lift' && !v.lift; });
+  if (none) { toast(`${P[none.proto]!.n} is a no-hang lift with no weight. Tap it to set the weight you’ll lift.`, 5000); return false; }
   const big = w.blocks.find(b => hangCount(b.vals) > 1500 || hangCount(b.vals) * b.vals.hang > 7200);
   if (big) { toast(`${P[big.proto]!.n} is too long to log. Cut its sets, reps or hang time.`, 5000); return false; }
   const firstHard = w.blocks.findIndex(b => MAX_EFFORT.has(b.proto));

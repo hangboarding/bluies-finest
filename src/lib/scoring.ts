@@ -4,7 +4,8 @@
 //
 // Intensity  = two-arm-equivalent load as a fraction of bodyweight, always worked out from
 //              the kg entered: bodyweight on two arms = 1.0, +20% added = 1.2, one arm = ×2.
-//              No-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Clamped 0.4–3.
+//              No-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Capped at 3. A hang counts
+//              as at least 0.4; a lift counts only what it lifts (at least 0.1, the floor of liftPct).
 //              With no bodyweight set, a 70kg climber is assumed (target effort % never counts).
 //              Abrahangs and Warm-up are light by design (feet on or assisted, which people rarely
 //              enter as assist), so they count at most 60%.
@@ -38,7 +39,7 @@ type Scored = Load & Pick<Session, 'tutS' | 'fullHangs' | 'totalHangs' | 'isPb' 
 export function intensity(s: Load) {
   const pct = s.loadPct ?? (s.mode === 'lift' ? liftPct(DEFAULT_BW, s.liftKg) : loadPct(DEFAULT_BW, s.addedKg, s.assistKg))!;
   const raw = (pct / 100) * (s.mode === 'hang' && s.hands !== 'both' ? 2 : 1); // lifts are already per hand × 2
-  return Math.min(LIGHT_PROTOCOLS.has(s.protocolKey ?? '') ? LIGHT_CAP : 3, Math.max(0.4, raw));
+  return Math.min(LIGHT_PROTOCOLS.has(s.protocolKey ?? '') ? LIGHT_CAP : 3, Math.max(s.mode === 'lift' ? 0.1 : 0.4, raw));
 }
 export const edgeFactor = (mm: number) => Math.min(1.6, Math.max(0.6, 20 / Math.max(1, mm)));
 /** Training work in one session (see the top of this file). */
@@ -159,8 +160,8 @@ export const CATEGORIES: Category[] = [
     value: m => { const xs = m.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0 && s.hang >= 5); return xs.length ? Math.min(...xs.map(s => s.edgeMm)) : null; } },
   { id: 'onearm', icon: 'fingers', name: 'One-arm', group: 'Strength', unit: 's', desc: 'Longest single one-arm hang at bodyweight or more (no assist)',
     value: m => { const v = maxBy(m.filter(s => s.mode === 'hang' && s.assistKg === 0).flatMap(s => s.hangs.filter(h => h.hand !== 'both')), h => h.held); return isFinite(v) ? v : null; } },
-  { id: 'lift', icon: 'lift', name: 'No-hang lift', group: 'Strength', unit: 'kg', desc: 'Heaviest no-hang lift',
-    value: m => { const v = maxBy(m.filter(s => s.mode === 'lift'), s => s.liftKg); return isFinite(v) ? v : null; } },
+  { id: 'lift', icon: 'lift', name: 'No-hang lift', group: 'Strength', unit: 'kg', desc: 'Heaviest no-hang lift held full time',
+    value: m => { const v = maxBy(m.filter(s => s.mode === 'lift' && s.fullHangs > 0), s => s.liftKg); return isFinite(v) ? v : null; } },
   { id: 'half', icon: 'half', name: 'Half crimp', group: 'Grip type', unit: '%', desc: 'Best half-crimp load as % of bodyweight', value: m => gripBest(m, 'Half crimp') },
   { id: 'fullc', icon: 'full', name: 'Full crimp', group: 'Grip type', unit: '%', desc: 'Best full-crimp load as % of bodyweight', value: m => gripBest(m, 'Full crimp') },
   { id: 'openh', icon: 'open', name: 'Open hand', group: 'Grip type', unit: '%', desc: 'Best open-hand load as % of bodyweight', value: m => gripBest(m, 'Open') },
