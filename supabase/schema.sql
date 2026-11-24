@@ -942,10 +942,11 @@ begin
     -- a finished season's results are final: its sessions can still get a note or RPE, but not new scoring
     if old.created_at < public.current_season_start() then
       new.edge_mm := old.edge_mm; new.added_kg := old.added_kg; new.assist_kg := old.assist_kg;
-      new.lift_kg := old.lift_kg;
+      new.lift_kg := old.lift_kg; new.mode := old.mode;
     end if;
+    -- switching between a hang and a no-hang lift changes the load as much as a new weight does
     reload := new.added_kg is distinct from old.added_kg or new.assist_kg is distinct from old.assist_kg
-           or new.lift_kg is distinct from old.lift_kg;
+           or new.lift_kg is distinct from old.lift_kg or new.mode is distinct from old.mode;
   end if;
 
   -- Load always comes from the kg entered and the climber's own bodyweight, never the app's number.
@@ -1070,7 +1071,7 @@ create trigger sessions_rescore_del after delete on public.sessions
   for each row execute function public.sessions_rescore_day();
 drop trigger if exists sessions_rescore_upd on public.sessions;
 create trigger sessions_rescore_upd after update on public.sessions
-  for each row when (old.load_pct is distinct from new.load_pct or old.edge_mm is distinct from new.edge_mm)
+  for each row when (old.load_pct is distinct from new.load_pct or old.edge_mm is distinct from new.edge_mm or old.mode is distinct from new.mode)
   execute function public.sessions_rescore_day();
 
 -- Re-score this season with the new rules (each session's points depend only on the other
@@ -1083,13 +1084,15 @@ update public.sessions set points = points where created_at >= public.current_se
 --
 --   • Edit session can also change how a session was done: grip, fingers, board, edge material and
 --     profile, pre-session feel, and a no-hang lift's target effort. None of these change points.
---     The timings and the hang-by-hang log still can't be changed.
+--     It can also switch a session between a hang and a no-hang lift (one logged the wrong way): the
+--     load and points are worked out again, as for a new weight. The timings and the hang-by-hang
+--     log still can't be changed.
 --   • rank_alerts: "Sam took your #2 spot" notices. The notify function writes one when a new session
 --     knocks someone down from the top 3 of the Overall board; they show in the app's bell. For phone
 --     notifications too, add the sessions webhook in docs/PUSH.md ("Top-3 alerts").
 -- =====================================================================
 
-grant update (edge_mm, added_kg, assist_kg, lift_kg, rpe, note, load_pct, points,
+grant update (edge_mm, added_kg, assist_kg, lift_kg, rpe, note, load_pct, points, mode,
               grip, fingers, board, edge_material, edge_profile, feel, effort_pct) on public.sessions to authenticated;
 
 create table if not exists public.rank_alerts (

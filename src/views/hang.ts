@@ -170,7 +170,6 @@ function drawParams() {
     return `<div class="prm ${off ? 'off' : ''}" style="--c:${f.colour}"><div class="hd"><span class="ic">${ic(f.icon)}</span>${label}${TIPS[f.k] ? `<span class="tip" data-tip="${f.k}">i</span>` : ''}</div>
       <div class="step"><button data-k="${f.k}" data-d="-1" aria-label="Decrease ${label}">−</button><input id="i-${f.k}" value="${val[f.k]}" inputmode="decimal" aria-label="${label}"><small>${f.unit}</small><button data-k="${f.k}" data-d="1" aria-label="Increase ${label}">+</button></div></div>`;
   }).join('');
-  $('#modeWrap').classList.toggle('hide', !!val.simple);
   hydrateIcons($('#params'));
   drawLoadHint();
 }
@@ -180,10 +179,12 @@ function drawParams() {
 export function drawLoadHint() {
   const p = allProtos()[cur], el = $('#loadHint'); if (!p || !el) return;
   const bw = state.priv.bodyweightKg;
-  const pct = val.mode === 'lift' ? liftPct(bw, val.lift) : loadPct(bw, val.add, val.rem);
-  const load = pct == null ? (bw == null ? 'Set your bodyweight in Profile to see your load as % of bodyweight.' : '')
-    : val.mode === 'lift' ? `Lifting ${val.lift}kg per hand ≈ ${pct}% of bodyweight.`
-    : `Your load: ${pct}% of bodyweight${val.hands !== 'both' ? ', on one arm' : ''}.`;
+  const pct = val.mode === 'lift' ? liftPct(bw, val.lift) : loadPct(bw, val.add, val.rem), one = val.hands !== 'both';
+  // a lift is only the weight lifted (no bodyweight); one hand's share is shown the same way as a one-arm hang
+  const load = val.mode === 'lift' && !val.lift ? 'Set the weight you’ll lift: just the plates or dumbbell, not your bodyweight.'
+    : pct == null ? (bw == null ? 'Set your bodyweight in Profile to see your load as % of bodyweight.' : '')
+    : val.mode === 'lift' ? `Lifting ${val.lift}kg ${one ? 'in one hand' : 'in each hand'} ≈ ${one ? Math.round((val.lift / bw!) * 100) : pct}% of bodyweight${one ? ', on one arm' : ''}. Only the weight counts, not you.`
+    : `Your load: ${pct}% of bodyweight${one ? ', on one arm' : ''}.`;
   el.innerHTML = `${ic('effort')}<span><b>Target intensity:</b> ${esc(p.int)}${load ? `<small>${esc(load)}</small>` : ''}</span>`;
   hydrateIcons(el);
 }

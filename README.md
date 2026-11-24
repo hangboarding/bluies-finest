@@ -8,6 +8,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 
 - **Hang timer:** 12 protocols (Max Hangs, Repeaters, Abrahangs, 7/53…), or save your own, plus ⚡ Quick sesh.
   - Picking a protocol loads its recommended settings; your load (added weight or assist) is remembered for each one. Pick it again to reset it. Your own protocols keep whatever you last set.
+  - Every protocol (⚡ Quick sesh too) can be a hang or a no-hang lift. A lift counts only the weight lifted (plates, a dumbbell), never your bodyweight.
   - Get-ready countdown, beeps, let-go logging and left/right one-arm hangs.
   - The screen stays awake while you hang.
 - **Workouts:** queue several protocols (built-in or your own) with a rest between each, then save the list or just start it.
@@ -16,7 +17,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
   - Each exercise is saved as its own session (so points, PBs and leaderboards work as before). Rate each one at the end and its load in that workout adjusts next time.
   - Finished exercises are kept on the phone until saved, so closing the app mid-workout loses nothing.
   - Workouts and your own protocols sync between your devices; rename or delete protocols under **My protocols**.
-- **History:** every session you've logged (in the Workouts tab), with delete, "do it again" and edit (load and edge, grip, fingers, board, edge, feel, effort rating and note; the timings come from the timer and stay as they were).
+- **History:** every session you've logged (in the Workouts tab), with delete, "do it again" and edit (hang or lift, load and edge, grip, fingers, board, edge, feel, effort rating and note; the timings come from the timer and stay as they were).
 - **Smart prompts:** warm-up and overtraining reminders, and next time's load adjusted from how hard the session felt.
 - **Offline-safe saving:** sessions saved with no signal upload automatically later.
 - **Seasons:** Summer, Autumn, Winter and Spring leaderboards (Blue Mountains time). The winner is crowned season champion and joins the Hall of champions.
@@ -31,7 +32,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 304 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
+npm test         # 310 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.

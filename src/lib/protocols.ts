@@ -31,7 +31,7 @@ export interface Values {
   add: number; rem: number; lift: number; effort: number; sw: number; ready: number;
   mode: Mode; hands: Hands; simple?: boolean;
 }
-export const DEFAULTS: Omit<Values, 'hang' | 'rest' | 'sets' | 'edge'> = { add: 0, rem: 0, lift: 20, effort: 60, setRest: 180, sw: 10, ready: 10, reps: 1, mode: 'hang', hands: 'both' };
+export const DEFAULTS: Omit<Values, 'hang' | 'rest' | 'sets' | 'edge'> = { add: 0, rem: 0, lift: 0, effort: 60, setRest: 180, sw: 10, ready: 10, reps: 1, mode: 'hang', hands: 'both' };
 
 export type FieldKey = 'hang' | 'rest' | 'sets' | 'reps' | 'setRest' | 'edge' | 'add' | 'rem' | 'lift' | 'effort' | 'sw' | 'ready';
 export interface Field { k: FieldKey; label: string; unit: string; step: number; icon: string; colour: string; show?: (v: Values) => boolean; }
@@ -44,7 +44,7 @@ export const FIELDS: Field[] = [
   { k: 'edge', label: 'Edge size', unit: 'mm', step: 1, icon: 'edge', colour: '#ff9f43' },
   { k: 'add', label: 'Added weight', unit: 'kg', step: 0.5, icon: 'add', colour: '#ff5a4e', show: v => v.mode !== 'lift' },
   { k: 'rem', label: 'Assist (removed)', unit: 'kg', step: 0.5, icon: 'rem', colour: '#4ecdc4', show: v => v.mode !== 'lift' },
-  { k: 'lift', label: 'Load lifted', unit: 'kg', step: 0.5, icon: 'lift', colour: '#ff5a4e', show: v => v.mode === 'lift' && !v.simple },
+  { k: 'lift', label: 'Weight lifted', unit: 'kg', step: 0.5, icon: 'lift', colour: '#ff5a4e', show: v => v.mode === 'lift' },
   { k: 'effort', label: 'Target effort', unit: '%', step: 5, icon: 'effort', colour: '#4ecdc4', show: v => v.mode === 'lift' && !v.simple },
   { k: 'sw', label: 'Hand switch rest', unit: 's', step: 1, icon: 'switch', colour: '#c9d1d9', show: v => v.hands === 'LR' && !v.simple },
 ];
@@ -72,10 +72,10 @@ export const TIPS: Record<string, [string, string]> = {
   rem: ['Assist (removed)', 'Weight taken off you, like a pulley counterweight or feet on a chair. Can’t be combined with Added weight.'],
   sw: ['Hand switch rest', 'Rest between your left-hand and right-hand hang in “L then R” mode.'],
   ready: ['Get-ready', 'Countdown before the first hang so you can chalk up and get into position. Change it in Profile → Settings.'],
-  lift: ['Load lifted', 'Weight you pull off the floor with a lifting edge or block, per hand.'],
+  lift: ['Weight lifted', 'Just the weight you pick up with each hand: plates, a dumbbell or a loaded block. Your bodyweight isn’t part of a no-hang lift (your feet stay on the floor), so it starts from 0.'],
   effort: ['Target effort', 'How hard to pull, as % of your max. Abrahangs ≈ 40–60%, recruitment pulls ≈ 100%.'],
   setRest: ['Rest between sets', 'Longer rest after finishing all reps in a set.'],
-  mode: ['Load method', 'Hang: you hang off the board, adding or removing weight. No-hang: you stand and lift a weight with a portable edge, which makes the load easier to control.'],
+  mode: ['Load method', 'Hang: you hang off the board, so the load is your bodyweight, plus added weight or minus assist. No-hang: you stand and lift a weight (plates, a dumbbell) with a portable edge, so the load is only that weight, not you.'],
   bodyweight: ['Why bodyweight?', 'Used to work out load as a % of bodyweight so scoring is fair. Your bodyweight itself is never shown to anyone. Others only see the rounded %, which keeps it approximate.'],
 };
 

@@ -220,7 +220,7 @@ export async function editBlock(b: WorkoutBlock, o: { index: number; count: numb
     autofocus: false,
     body: `<div class="bedit">
       <p class="sub">${esc(p.use)}. Intensity: ${esc(p.int)}</p>
-      ${p.simple ? '' : `<label class="f">${ic('mode')} Load method</label>${chips('mode', [['hang', 'Hang (on board)'], ['lift', 'No-hang (lift)']], v.mode, 'g2')}`}
+      <label class="f">${ic('mode')} Load method</label>${chips('mode', [['hang', 'Hang (on board)'], ['lift', 'No-hang (lift)']], v.mode, 'g2')}
       <div class="params be-params"></div>
       <label class="f">${ic('hands')} Hands</label>${chips('hands', (['both', 'L', 'R', 'LR'] as const).map(h => [h, handsLabel(h)]), v.hands, 'g4')}
       <label class="f">${ic('grip')} Grip</label>${chips('grip', GRIPS.map(([n, k]) => [n, `<em>${ic(k)}</em>${n}`]), grip, 'g6 tile')}

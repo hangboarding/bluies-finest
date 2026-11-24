@@ -326,3 +326,86 @@ describe('the get-ready countdown', () => {
     expect($('#ph').textContent).toBe('Get ready');
   });
 });
+
+describe('no-hang lifts count only the weight lifted', () => {
+  const pickQuick = async () => {
+    Object.assign(S.state.settings.prefs, { warmup: false, nudges: false });
+    const hang = await import('../src/views/hang');
+    hang.renderHang($('#view-hang'));
+    const sel = $<HTMLSelectElement>('#proto'); sel.value = 'jlmh'; sel.dispatchEvent(new Event('change'));
+  };
+  it('QUICK SESH can be a lift: it starts at 0 kg, and 10 kg in one hand is 14% of bodyweight on one arm', async () => {
+    await pickQuick();
+    expect($('#modeWrap').classList.contains('hide')).toBe(false);
+    $('[data-k="mode"] [data-v="lift"]').click();
+    expect($<HTMLInputElement>('#i-lift').value).toBe('0');
+    expect($('#loadHint').textContent).toContain('just the plates or dumbbell');
+    expect($('#i-add')).toBeNull(); // no added weight on top of bodyweight in a lift
+    $('[data-k="hands"] [data-v="L"]').click();
+    const i = $<HTMLInputElement>('#i-lift'); i.value = '10'; i.dispatchEvent(new Event('change', { bubbles: true }));
+    $('[data-k="hands"] [data-v="L"]').click(); // redraw the hint with the typed weight
+    expect($('#loadHint').textContent).toContain('Lifting 10kg in one hand ≈ 14% of bodyweight, on one arm');
+  });
+  it('a one-arm lift of 10 kg scores far less than a one-arm hang with 10 kg added', async () => {
+    const added: any[] = [];
+    (S.state.store as any).addSession = async (x: any) => { added.push(x); return { ...x, userId: 'u1' }; };
+    await pickQuick();
+    const log = async (mode: 'hang' | 'lift') => {
+      $(`[data-k="mode"] [data-v="${mode}"]`).click();
+      $('[data-k="hands"] [data-v="L"]').click();
+      const i = $<HTMLInputElement>(mode === 'lift' ? '#i-lift' : '#i-add'); i.value = '10'; i.dispatchEvent(new Event('change', { bubbles: true }));
+      $('#backlog').click(); await flush();
+      sheetButtons().find(b => b.textContent === 'I promise')!.click(); await flush();
+      $('#saveSess').click(); await flush();
+      return added.at(-1);
+    };
+    const asHang = await log('hang'), asLift = await log('lift');
+    expect([asHang.mode, asHang.addedKg, asHang.loadPct]).toEqual(['hang', 10, 114]);
+    expect([asLift.mode, asLift.liftKg, asLift.addedKg, asLift.loadPct]).toEqual(['lift', 10, 0, 29]);
+    expect(asLift.points).toBeLessThan(asHang.points / 4);
+  });
+  it('the workout exercise editor offers hang or lift for QUICK SESH too', async () => {
+    const WP = await import('../src/views/workout-parts');
+    const W = await import('../src/lib/workouts');
+    const P = (await import('../src/lib/protocols')).PROTOCOLS;
+    const done = WP.editBlock(W.makeBlock('jlmh', P.jlmh!, undefined), { index: 0, count: 1, structure: false });
+    await flush();
+    expect($('.modal [data-bk="mode"] [data-v="lift"]')).not.toBeNull();
+    $('.modal [data-bk="mode"] [data-v="lift"]').click();
+    expect($('.modal [data-pi="lift"]')).not.toBeNull();
+    sheetButtons()[0]!.click(); await done;
+  });
+  it('a session logged as a hang by mistake can be switched to a lift in Edit session', async () => {
+    const hangs = Array.from({ length: 6 }, (_, i) => ({ set: i + 1, rep: 1, hand: 'L' as const, target: 10, held: 10, full: true }));
+    const s = session({ id: 'm1', protocolKey: 'jlmh', protocolName: 'QUICK SESH', mode: 'hang', hands: 'L', addedKg: 10, loadPct: 114, hangs, tutS: 60, fullHangs: 6, totalHangs: 6, points: 0 });
+    const { sessionPoints } = await import('../src/lib/scoring');
+    s.points = sessionPoints(s, [s]);
+    await openApp([s]);
+    const wk = await import('../src/views/workouts');
+    wk.renderWorkouts($('#view-workouts'));
+    $('#recent [data-ed]').click(); await flush();
+    expect($('.modal [data-for="lift"]').classList.contains('hide')).toBe(true);
+    $('.modal [data-sk="mode"] [data-v="lift"]').click();
+    expect($('.modal [data-for="lift"]').classList.contains('hide')).toBe(false);
+    expect($('.modal [data-f="addedKg"]').closest('[data-for]')!.classList.contains('hide')).toBe(true);
+    $<HTMLInputElement>('.modal [data-f="liftKg"]').value = '10';
+    $('.modal [data-sk="mode"] [data-v="lift"]').click(); // tapping the picked one again keeps it (never blank)
+    const before = s.points;
+    sheetButtons()[1]!.click(); await flush();
+    expect(updates[0]!.patch).toMatchObject({ mode: 'lift', liftKg: 10, addedKg: 0, loadPct: 29 });
+    expect(s.points).toBeLessThan(before / 4);
+  });
+  it('on a database without the latest update, switching hang and lift saves nothing and says why', async () => {
+    updateError = p => ('mode' in p ? Object.assign(new Error('permission denied for table sessions'), { code: '42501' }) : null);
+    const s = session({ id: 'm2', mode: 'hang', addedKg: 10 });
+    await openApp([s]);
+    const wk = await import('../src/views/workouts');
+    wk.renderWorkouts($('#view-workouts'));
+    $('#recent [data-ed]').click(); await flush();
+    $('.modal [data-sk="mode"] [data-v="lift"]').click();
+    sheetButtons()[1]!.click(); await flush();
+    expect(updates).toHaveLength(0);
+    expect(s.mode).toBe('hang');
+    expect($('#toast').textContent).toContain('between a hang and a lift');
+  });
+});

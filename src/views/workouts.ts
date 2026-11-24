@@ -134,7 +134,8 @@ async function deleteSession(s: Session) {
 async function editSession(s: Session) {
   let el!: HTMLElement;
   const B = state.settings.boards.list, boards = s.board && !B.includes(s.board) ? [s.board, ...B] : B;
-  const num = (k: string, label: string, v: number, step = '0.5') => `<div><label class="f">${label}</label><input class="tx" data-f="${k}" type="number" inputmode="decimal" step="${step}" value="${esc(v)}"></div>`;
+  // `only`: shown just for a hang or just for a lift (the Load method switch swaps them)
+  const num = (k: string, label: string, v: number, step = '0.5', only = '') => `<div${only ? ` data-for="${only}"${only !== s.mode ? ' class="hide"' : ''}` : ''}><label class="f">${label}</label><input class="tx" data-f="${k}" type="number" inputmode="decimal" step="${step}" value="${esc(v)}"></div>`;
   const chips = (k: string, opts: string[], cur: string, cls: string, show: (v: string) => string = esc) =>
     `<div class="chips g ${cls}" data-sk="${k}">${opts.map(v => `<span class="chip${v === cur ? ' on' : ''}" data-v="${esc(v)}" role="button" tabindex="0" aria-pressed="${v === cur}">${show(v)}</span>`).join('')}</div>`;
   const when = new Date(s.createdAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -146,8 +147,10 @@ async function editSession(s: Session) {
       <p class="sedit-sum"><b>${esc(s.protocolName)}</b> · ${esc(when)}<small>${esc([shape, `${s.rest}s rest`, sets, ({ both: 'both hands', L: 'left hand', R: 'right hand', LR: 'left then right' } as const)[s.hands], `${s.tutS}s under tension`, `${s.fullHangs}/${s.totalHangs} full`].join(' · '))}</small>
         <small class="sedit-why">Times and hangs come from the timer, so they stay as they were.</small></p>
       <h4>${ic('add')} Load</h4>
-      <div class="split">${num('edgeMm', 'Edge (mm)', s.edgeMm, '1')}${s.mode === 'lift' ? num('liftKg', 'Lifted (kg)', s.liftKg) : num('addedKg', 'Added (kg)', s.addedKg)}</div>
-      <div class="split">${s.mode === 'lift' ? num('effortPct', 'Target effort (%)', s.effortPct, '5') : num('assistKg', 'Assist (kg)', s.assistKg)}<div></div></div>
+      <label class="f">Load method</label>${chips('mode', ['hang', 'lift'], s.mode, 'g2', v => (v === 'hang' ? 'Hang (on board)' : 'No-hang (lift)'))}
+      <p class="sub sedit-lift${s.mode === 'lift' ? '' : ' hide'}" data-for="lift">A lift counts only the weight lifted (plates, a dumbbell), not your bodyweight.</p>
+      <div class="split">${num('edgeMm', 'Edge (mm)', s.edgeMm, '1')}${num('addedKg', 'Added (kg)', s.addedKg, '0.5', 'hang')}${num('liftKg', 'Weight lifted (kg)', s.liftKg, '0.5', 'lift')}</div>
+      <div class="split">${num('assistKg', 'Assist (kg)', s.assistKg, '0.5', 'hang')}${num('effortPct', 'Target effort (%)', s.effortPct, '5', 'lift')}<div></div></div>
       <h4>${ic('grip')} Grip</h4>
       <label class="f">Grip type</label>${chips('grip', GRIPS.map(g => g[0]), s.grip, 'g6 tile', v => `<em>${ic(GRIPS.find(g => g[0] === v)![1])}</em>${esc(v)}`)}
       <label class="f">Fingers</label>${chips('fingers', FINGERS, s.fingers, 'g4')}
@@ -167,18 +170,22 @@ async function editSession(s: Session) {
       const rpe = $<HTMLInputElement>('[data-f="rpe"]', el), out = $('#seRpeV', el);
       const label = () => { out.innerHTML = rpe.dataset.unset != null ? '<small>Not rated</small>' : `<small>${RPE_WORDS[+rpe.value]}</small><b>${rpe.value}</b>`; };
       rpe.addEventListener('input', () => { delete rpe.dataset.unset; label(); }); label();
-      // tap to pick, tap the picked one again to leave it blank
+      // tap to pick, tap the picked one again to leave it blank (a session is always a hang or a lift, though)
       el.addEventListener('click', ev => {
         const c = (ev.target as HTMLElement).closest('[data-sk] .chip') as HTMLElement | null; if (!c) return;
-        const on = !c.classList.contains('on');
+        const isMode = (c.parentElement as HTMLElement).dataset.sk === 'mode', on = isMode || !c.classList.contains('on');
         $$('.chip', c.parentElement!).forEach(x => { x.classList.toggle('on', x === c && on); x.setAttribute('aria-pressed', String(x === c && on)); });
+        if (isMode) $$<HTMLElement>('[data-for]', el).forEach(x => x.classList.toggle('hide', x.dataset.for !== c.dataset.v));
       });
     },
   });
   if (i !== 1) return;
   const LIM: Record<string, [number, number]> = { edgeMm: [3, 60], liftKg: [0, 200], addedKg: [0, 150], assistKg: [0, 150], effortPct: [0, 100] };
   const patch: Record<string, any> = {};
+  const mode = ($('[data-sk="mode"] .chip.on', el) as HTMLElement | null)?.dataset.v === 'lift' ? 'lift' : 'hang';
   for (const inp of $$<HTMLInputElement>('input[type="number"][data-f]', el)) {
+    const only = (inp.closest('[data-for]') as HTMLElement | null)?.dataset.for;
+    if (only && only !== mode) continue; // the other kind's numbers (zeroed below)
     const k = inp.dataset.f!, raw = inp.value.trim().replace(',', '.');
     if (raw === '') continue; // leave a cleared box as it was
     const n = +raw, [lo, hi] = LIM[k]!;
@@ -186,14 +193,16 @@ async function editSession(s: Session) {
     if (n !== (s as any)[k]) patch[k] = n;
   }
   for (const g of $$('[data-sk]', el)) { const v = ($('.chip.on', g) as HTMLElement | null)?.dataset.v ?? ''; if (v !== (s as any)[g.dataset.sk!]) patch[g.dataset.sk!] = v; }
+  // a lift has no added weight or assist (it's only the weight lifted), and a hang has no weight lifted
+  if (mode === 'lift') { if (s.addedKg) patch.addedKg = 0; if (s.assistKg) patch.assistKg = 0; } else if (s.liftKg) patch.liftKg = 0;
   const board = $<HTMLSelectElement>('select[data-f="board"]', el).value; if (board !== s.board) patch.board = board;
   const rpe = $<HTMLInputElement>('[data-f="rpe"]', el); if (rpe.dataset.unset == null && +rpe.value !== s.rpe) patch.rpe = +rpe.value;
   const note = $<HTMLTextAreaElement>('[data-f="note"]', el).value.trim().slice(0, 2000); if (note !== s.note) patch.note = note;
   if (!Object.keys(patch).length) { toast('Nothing changed'); return; }
-  // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have).
+  // Only recompute % bodyweight if the load changed (and with current bodyweight — the best we have, as the server does).
   const bw = state.priv.bodyweightKg, next = { ...s, ...patch } as Session;
-  if (s.mode === 'hang' && bw && (next.addedKg !== s.addedKg || next.assistKg !== s.assistKg)) patch.loadPct = next.loadPct = loadPct(bw, next.addedKg, next.assistKg);
-  if (s.mode === 'lift' && bw && next.liftKg !== s.liftKg) patch.loadPct = next.loadPct = liftPct(bw, next.liftKg);
+  if (next.mode !== s.mode || next.addedKg !== s.addedKg || next.assistKg !== s.assistKg || next.liftKg !== s.liftKg)
+    patch.loadPct = next.loadPct = next.mode === 'lift' ? liftPct(bw, next.liftKg) : loadPct(bw, next.addedKg, next.assistKg);
   patch.points = next.points = sessionPoints(next, state.sessions.filter(x => x.userId === s.userId));
   let skipped = false;
   try {
@@ -201,6 +210,7 @@ async function editSession(s: Session) {
     catch (e: any) {
       // A database that hasn't had the latest supabase/schema.sql only lets load, edge, effort rating and note change:
       // save those, and say what's left.
+      if (e?.code === '42501' && 'mode' in patch) throw new Error('Switching a session between a hang and a lift needs the latest database update. Ask an admin to run supabase/schema.sql.');
       if (e?.code !== '42501' || !DESCRIPTIVE.some(k => k in patch)) throw e;
       for (const k of DESCRIPTIVE) delete patch[k];
       skipped = true;

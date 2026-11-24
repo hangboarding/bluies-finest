@@ -69,7 +69,7 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
 
   // Edit session: how it was done can be changed, the timer's numbers can't
   const can = async (role: string, col: string) => (await db.query<any>(`select has_column_privilege($1, 'public.sessions', $2, 'UPDATE') ok`, [role, col])).rows[0].ok;
-  for (const c of ['grip', 'fingers', 'board', 'edge_material', 'edge_profile', 'feel', 'effort_pct', 'edge_mm', 'added_kg', 'rpe', 'note']) expect(await can('authenticated', c), c).toBe(true);
+  for (const c of ['grip', 'fingers', 'board', 'edge_material', 'edge_profile', 'feel', 'effort_pct', 'edge_mm', 'added_kg', 'rpe', 'note', 'mode']) expect(await can('authenticated', c), c).toBe(true);
   for (const c of ['hang', 'rest', 'sets', 'hangs', 'tut_s', 'created_at', 'user_id', 'hands', 'protocol_key', 'is_pb']) expect(await can('authenticated', c), c).toBe(false);
 
   // top-3 alerts: members read their own, only the notify function writes them
@@ -99,4 +99,30 @@ test('a session logged for an earlier day keeps its date, up to 7 days back', as
   expect(Math.abs(ten.kept - Date.now())).toBeLessThan(60e3);            // too far back: the server's time instead
   const future = await save(-1);
   expect(Math.abs(future.kept - Date.now())).toBeLessThan(60e3);         // in the future: the server's time
+}, 60000);
+
+test('a lift counts only the weight lifted, and a session logged as a hang by mistake can be switched to a lift', async () => {
+  const db = new PGlite();
+  await db.exec(SUPABASE_STANDINS);
+  await db.exec(SCHEMA);
+  await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, 'c@example.test', '{"name":"Cal","invite":"BLUIES","invite_code":"BLUIES","code":"BLUIES"}')`, [U]);
+  await db.query(`update public.private_data set bodyweight_kg = 70 where id = $1`, [U]);
+  await db.exec(`set test.uid = '${U}'`);
+  const hangs = JSON.stringify(Array.from({ length: 6 }, (_, i) => ({ set: i + 1, rep: 1, hand: 'L', target: 10, held: 10, full: true })));
+  const row = async (sql: string, args: unknown[]) => (await db.query<any>(sql, args)).rows[0];
+  // the report: a one-arm QUICK SESH with "10 kg" meant as a dumbbell, logged as a hang (bodyweight + 10 kg on one arm)
+  const hang = await row(`insert into public.sessions (protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, added_kg, hangs) values ('jlmh','hang','L',10,60,6,1,180,20,10,$1) returning id, load_pct, points`, [hangs]);
+  expect(hang.load_pct).toBe(114);
+  // the same, as a lift: only the 10 kg counts (per hand × 2 ÷ bodyweight)
+  const lift = await row(`insert into public.sessions (protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, lift_kg, hangs) values ('jlmh','lift','L',10,60,6,1,180,20,10,$1) returning load_pct, points`, [hangs]);
+  expect(lift.load_pct).toBe(29);
+  expect(lift.points).toBeLessThan(hang.points / 4);
+  // fixing the first one in Edit session: switched to a lift, its load and points are worked out again
+  const fixed = await row(`update public.sessions set mode = 'lift', lift_kg = 10, added_kg = 0 where id = $1 returning load_pct, points`, [hang.id]);
+  expect(fixed.load_pct).toBe(29);
+  expect(fixed.points).toBeLessThan(hang.points / 4);
+  // a 0 kg lift switched from a hang with nothing added still changes (only the mode differs)
+  const bare = await row(`insert into public.sessions (protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, hangs) values ('jlmh','hang','both',10,60,6,1,180,20,$1) returning id, load_pct`, [hangs]);
+  expect(bare.load_pct).toBe(100);
+  expect((await row(`update public.sessions set mode = 'lift' where id = $1 returning load_pct`, [bare.id])).load_pct).toBe(10); // the floor
 }, 60000);
