@@ -8,7 +8,7 @@ import { ISSUE_CATS } from './report';
 import { forgetClimber } from './climber';
 import { METRICS, todayISO, type Metric } from '../lib/challenges';
 import { rescoreDay, scoringDay } from '../lib/scoring';
-import { SPECIES_ORDER, SPECIES_NAMES, chosenBird, rotationOf, speciesOfWeek } from '../lib/flock';
+import { ROTATION, weekNames, chosenBird, rotationOf, speciesOfWeek } from '../lib/flock';
 import { applyAppSettings } from '../lib/state';
 
 let root: HTMLElement | null = null;
@@ -32,7 +32,8 @@ async function onChange(e: Event) {
     await state.store.saveAppSetting('bird', id);
     applyAppSettings({ ...state.appSettings, bird: id });
     document.dispatchEvent(new CustomEvent('bf:sessions-changed')); // the button by the bell takes the new bird's shape
-    toast(id ? `${SPECIES_NAMES[speciesOfWeek()].one} it is, every week until you change it` : `Back to the rotation: ${SPECIES_NAMES[speciesOfWeek()].one} this week`, 3500);
+    const now = weekNames(speciesOfWeek()).one;
+    toast(id ? `${now} it is, every week until you change it` : `Back to the rotation: ${now} this week`, 3500);
     draw();
   } catch (err: any) {
     sel.value = before ?? ''; sel.disabled = false;
@@ -100,10 +101,10 @@ async function draw() {
     <h3>${ic('bird')} Bird of the week</h3>
     ${crew === null && !pick ? '<p class="sub">Run supabase/schema.sql in the Supabase SQL editor to choose the bird from here.</p>' : `
       <select id="birdPick" class="adm-bird" aria-label="Bird of the week">
-        <option value=""${pick ? '' : ' selected'}>Automatic: the weekly rotation (${esc(SPECIES_NAMES[rot].one)} this week)</option>
-        ${SPECIES_ORDER.map(id => `<option value="${id}"${pick === id ? ' selected' : ''}>${esc(SPECIES_NAMES[id].one)}</option>`).join('')}
+        <option value=""${pick ? '' : ' selected'}>Automatic: the weekly rotation (${esc(weekNames(rot).one)} this week)</option>
+        ${ROTATION.map(id => `<option value="${id}"${pick === id ? ' selected' : ''}>${esc(weekNames(id).one)}</option>`).join('')}
       </select>
-      <p class="sub" style="font-size:12px;margin:6px 0 0">Everyone sees ${pick ? `the ${esc(SPECIES_NAMES[pick].one.toLowerCase())}` : 'your pick'} on the bird page and the button by the bell, every week until you set it back to Automatic. The birds already in the clearing become the new bird; nobody loses any.</p>`}
+      <p class="sub" style="font-size:12px;margin:6px 0 0">Everyone sees ${pick === 'all' ? 'all the birds together' : pick ? `the ${esc(weekNames(pick).one.toLowerCase())}` : 'your pick'} on the bird page and the button by the bell, every week until you set it back to Automatic. The birds already in the clearing become the new ones; nobody loses any. The rotation has a week of all the birds together after the black cockatoos.</p>`}
 
     <h3>${ic('users')} Members (${state.profiles.size})</h3>
     ${[...state.profiles.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(p => `<div class="lrow">${avatar(p)}<span class="nm">${esc(p.name)}${p.isAdmin ? ' · admin' : ''}<small>Joined ${new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · ${counts.get(p.id) ?? 0} recent sessions</small></span></div>`).join('')}

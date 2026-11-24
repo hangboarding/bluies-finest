@@ -55,6 +55,28 @@ describe('the clearing', () => {
     }, 30_000); // over four simulated minutes of 14 birds: about a second here, but CI machines are slower
   }
 
+  it('all the birds together: a mixed flock gets on with it, day and night, perched a big bird apart', () => {
+    const w = new World(seeded(41)); w.resize(375, 560);
+    SPECIES_ORDER.forEach((id, i) => { w.add(id, `u${i % 3}`, '#f00', 'place'); w.add(id, `u${(i + 1) % 3}`, '#0f0', 'arrive'); });
+    expect((w as any).ref.id).toBe('blackcockatoo'); // the perches are spaced for the biggest bird
+    const acts = new Set<string>(); let tick = 0;
+    run(w, 150, () => {
+      if (++tick === 1800) w.night = true;
+      if (tick === 3000) w.night = false;
+      if (tick % 300 === 0) w.tap(187, w.top + 120);
+      for (const b of w.birds) {
+        acts.add(b.act);
+        expect(finite(b), `${b.sp.id} ${b.act}`).toBe(true);
+        if (!['perched', 'sleep', 'swim'].includes(b.act)) expect(b.at, `${b.sp.id} stuck in ${b.act}`).toBeLessThan(40);
+      }
+    });
+    expect(w.birds).toHaveLength(22);
+    expect(new Set(w.birds.map(b => b.sp.id)).size).toBe(SPECIES_ORDER.length);
+    expect(acts.size).toBeGreaterThanOrEqual(12);
+    const taken = w.perches.filter(p => p.by); // nobody shares a slot
+    expect(new Set(taken.map(p => p.by)).size).toBe(taken.length);
+  }, 30_000);
+
   it('wood ducks swim, galahs hang upside down, currawongs pull grubs, wattlebirds catch insects', () => {
     const seen = (id: keyof typeof SPECIES, ok: (b: Bird) => boolean, secs = 240) => {
       const w = new World(seeded(3)); w.resize(375, 560);

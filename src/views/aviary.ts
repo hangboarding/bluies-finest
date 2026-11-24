@@ -2,7 +2,7 @@
 // earns this week brings a bird. See lib/flock.ts for the counting and src/aviary/ for the birds.
 import { $, esc, avatar, onSwipe, slideIn, toast } from '../lib/ui';
 import { state, refreshShared } from '../lib/state';
-import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, SPECIES_NAMES, POINTS_PER_BIRD, type FlockMember, type SpeciesId } from '../lib/flock';
+import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, weekNames, isBirdWeek, SPECIES_NAMES, SPECIES_ORDER, POINTS_PER_BIRD, type FlockMember, type SpeciesId, type BirdWeek } from '../lib/flock';
 import { FACTS } from '../aviary/facts';
 import { SPECIES } from '../aviary/species';
 import { drawBird, restPose } from '../aviary/rig';
@@ -17,7 +17,9 @@ const muteIcon = (muted: boolean) => `<svg viewBox="0 0 24 24" width="22" height
 
 /** At most this many birds on screen; the count still shows them all. */
 const MAX_BIRDS = 120;
-const labelOf = (id: SpeciesId) => `This week's ${SPECIES_NAMES[id].many.toLowerCase()}`;
+const labelOf = (id: BirdWeek) => `This week's ${weekNames(id).many.toLowerCase()}`;
+/** The bird to draw on the button: the week's, or in the all-birds week, a different one every minute. */
+const shapeOf = (id: BirdWeek): SpeciesId => (id === 'all' ? SPECIES_ORDER[Math.floor(Date.now() / 60e3) % SPECIES_ORDER.length]! : id);
 
 export function flockBtnHtml() {
   return `<button class="flockbtn" id="flockBtn" aria-label="${labelOf(speciesOfWeek())}"><canvas width="64" height="64" aria-hidden="true"></canvas><i class="flock-dot hide"></i></button>`;
@@ -48,7 +50,7 @@ export function paintFlockButton() {
   const btn = $('#flockBtn'); if (!btn) return;
   const id = speciesOfWeek(), cv = btn.querySelector('canvas') as HTMLCanvasElement | null;
   try {
-    const icon = silhouette(id, getComputedStyle(btn).color || '#eef2f6'), c = cv?.getContext('2d');
+    const icon = silhouette(shapeOf(id), getComputedStyle(btn).color || '#eef2f6'), c = cv?.getContext('2d');
     if (icon && c) { c.clearRect(0, 0, 64, 64); c.drawImage(icon, 0, 0); }
   } catch { /* no canvas (tests) */ }
   const n = newBirds(crewFlock(state.sessions, state.profiles));
@@ -61,22 +63,23 @@ export function openAviary() {
   if (isOpen) return;
   isOpen = true;
   unlockAudio();
-  const devBird = import.meta.env.DEV ? new URLSearchParams(location.search).get('bird') : null; // ?bird=galah to try another week's bird
-  const birdNow = () => (devBird && devBird in SPECIES_NAMES ? devBird as SpeciesId : speciesOfWeek());
-  const id = birdNow(), names = SPECIES_NAMES[id], week = weekIndex();
+  const devBird = import.meta.env.DEV ? new URLSearchParams(location.search).get('bird') : null; // ?bird=galah (or all) to try another week's birds
+  const birdNow = (): BirdWeek => (isBirdWeek(devBird) ? devBird : speciesOfWeek());
+  const id = birdNow(), names = weekNames(id), week = weekIndex();
   const opener = document.activeElement as HTMLElement | null;
   const el = document.createElement('div');
   el.className = 'aviary'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', labelOf(id));
-  const facts = FACTS[id];
+  // the facts: the week's bird's four, or in the all-birds week, every bird's, a different bird each time
+  const facts = id === 'all' ? [0, 1, 2, 3].flatMap(i => SPECIES_ORDER.map(sp => `<b>${esc(SPECIES_NAMES[sp].one)}.</b> ${esc(FACTS[sp][i])}`)) : FACTS[id].map(esc);
   el.innerHTML = `
     <div class="av-head">
       <div class="av-top">
         <button class="av-back" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <div class="av-tt"><b>Bird of the week</b><span>${esc(names.one)} <i>${esc(names.sci)}</i></span></div>
+        <div class="av-tt"><b>${id === 'all' ? 'Birds' : 'Bird'} of the week</b><span>${esc(names.one)} <i>${esc(names.sci)}</i></span></div>
         <button class="av-mute" id="avMute"></button>
       </div>
-      <div class="av-facts" role="group" aria-roledescription="carousel" aria-label="About the ${esc(names.one.toLowerCase())}: tap or swipe for more" tabindex="0">
-        <div class="av-fact-list">${facts.map((f, i) => `<p class="${i ? '' : 'on'}"${i ? ' aria-hidden="true"' : ''}>${esc(f)}</p>`).join('')}</div>
+      <div class="av-facts" role="group" aria-roledescription="carousel" aria-label="About ${id === 'all' ? 'the birds' : `the ${esc(names.one.toLowerCase())}`}: tap or swipe for more" tabindex="0">
+        <div class="av-fact-list">${facts.map((f, i) => `<p class="${i ? '' : 'on'}"${i ? ' aria-hidden="true"' : ''}>${f}</p>`).join('')}</div>
       </div>
     </div>
     <div class="av-stage"><canvas role="img" aria-label="${esc(names.many)} in a Blue Mountains clearing"></canvas><div class="av-msg hide" id="avMsg"></div><div class="av-new hide" id="avNew"></div></div>
@@ -146,6 +149,15 @@ export function openAviary() {
   // ---- birds: one per 30 points, per climber ----
   let members: FlockMember[] = [];
   const pending = (uid: string) => world.queue.filter(q => q.uid === uid).length;
+  /** The species for the next bird: the week's, or in the all-birds week, whichever there's fewest of so far, so
+   *  the clearing fills with an even mix. Worked out as each one comes, so birds arriving one by one mix too. */
+  const nextSpecies = (): SpeciesId => {
+    if (id !== 'all') return id;
+    const n = new Map<SpeciesId, number>(SPECIES_ORDER.map(sp => [sp, 0]));
+    for (const b of world.birds) if (!b.leaving && !b.gone) n.set(b.sp.id, (n.get(b.sp.id) ?? 0) + 1);
+    const least = Math.min(...n.values()), few = SPECIES_ORDER.filter(sp => n.get(sp) === least);
+    return few[Math.floor(Math.random() * few.length)]!;
+  };
   const sync = (first: boolean) => {
     members = crewFlock(state.sessions, state.profiles);
     const seen = first ? seenBirds() : {};
@@ -155,8 +167,8 @@ export function openAviary() {
       if (want > have) {
         let place = first ? Math.min(seen[m.userId] ?? 0, want) : 0;
         for (let i = have; i < want; i++) {
-          if (place-- > 0) { world.add(id, m.userId, m.band, 'place'); continue; }
-          world.queue.push({ at: world.t + delay, uid: m.userId, run: () => world.add(id, m.userId, m.band, 'arrive') });
+          if (place-- > 0) { world.add(nextSpecies(), m.userId, m.band, 'place'); continue; }
+          world.queue.push({ at: world.t + delay, uid: m.userId, run: () => world.add(nextSpecies(), m.userId, m.band, 'arrive') });
           delay += 0.5 + Math.random() * 0.8; arriving++;
         }
       } else if (want < have) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { speciesOfWeek, weekIndex, crewFlock, flockSize, newBirds, markSeen, flockEnds, SPECIES_ORDER, BANDS, chooseBird, chosenBird, rotationOf } from '../src/lib/flock';
+import { speciesOfWeek, weekIndex, crewFlock, flockSize, newBirds, markSeen, flockEnds, SPECIES_ORDER, ROTATION, BANDS, chooseBird, chosenBird, rotationOf, weekNames } from '../src/lib/flock';
 import { FACTS } from '../src/aviary/facts';
 import type { Profile } from '../src/lib/types';
 import { sessionAt } from './helpers';
@@ -10,16 +10,19 @@ const profiles = new Map([prof('a', '2026-01-01T00:00:00Z'), prof('b', '2026-02-
 const NOW = new Date(2026, 10, 24, 12);
 
 describe('which bird it is this week', () => {
-  it('starts with currawongs and changes every Monday, in order, then round again', () => {
+  it('starts with currawongs and changes every Monday, in order, with a week of all the birds, then round again', () => {
     expect(speciesOfWeek(new Date(2026, 10, 23, 0, 0))).toBe('currawong');
     expect(speciesOfWeek(new Date(2026, 10, 29, 23, 59))).toBe('currawong');
     expect(speciesOfWeek(new Date(2026, 10, 30, 0, 0))).toBe('galah');
-    const seen = Array.from({ length: SPECIES_ORDER.length + 1 }, (_, i) => speciesOfWeek(new Date(2026, 10, 25 + i * 7)));
-    expect(seen).toEqual([...SPECIES_ORDER, 'currawong']);
+    const seen = Array.from({ length: ROTATION.length + 1 }, (_, i) => speciesOfWeek(new Date(2026, 10, 25 + i * 7)));
+    expect(seen).toEqual([...SPECIES_ORDER, 'all', 'currawong']);
+    expect(speciesOfWeek(new Date(2027, 1, 10))).toBe('all'); // the week of 8 Feb 2027, after the black cockatoos
+    expect(weekNames('all')).toEqual({ one: 'All the birds', many: 'Birds', sci: 'all 11 species together' });
     expect(SPECIES_ORDER).toEqual(['currawong', 'galah', 'kingparrot', 'cockatoo', 'rosella', 'magpie', 'raven', 'woodduck', 'crimsonrosella', 'wattlebird', 'blackcockatoo']);
   });
   it('counts weeks before the first one backwards', () => {
-    expect(speciesOfWeek(new Date(2026, 10, 20))).toBe('blackcockatoo');
+    expect(speciesOfWeek(new Date(2026, 10, 20))).toBe('all');
+    expect(speciesOfWeek(new Date(2026, 10, 13))).toBe('blackcockatoo');
   });
   it('moves on exactly one week across a daylight-saving change', () => {
     expect(weekIndex(new Date(2027, 2, 29, 9)) - weekIndex(new Date(2027, 2, 22, 9))).toBe(1); // BST starts 28 Mar 2027
@@ -36,6 +39,8 @@ describe('which bird it is this week', () => {
       expect(rotationOf(NOW)).toBe('currawong'); // the rotation carries on underneath
       expect(localStorage.getItem('bf.bird')).toBe('galah'); // remembered on the phone for next time
       expect(chooseBird('galah')).toBe(false); // nothing changed
+      expect(chooseBird('all')).toBe(true); // all of them, every week
+      expect(speciesOfWeek(new Date(2026, 11, 9))).toBe('all');
       expect(chooseBird('dodo')).toBe(true); // not one of ours: back to the rotation
       expect(speciesOfWeek(NOW)).toBe('currawong');
       chooseBird('magpie'); chooseBird(null);

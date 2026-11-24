@@ -482,7 +482,9 @@ export class World {
   private restOf(sp: Species) { let r = this.rests.get(sp.id); if (!r) this.rests.set(sp.id, r = restPose(sp)); return r; }
   add(id: SpeciesId, uid: string, band: string, how: 'place' | 'arrive') {
     const sp = SPECIES[id], female = this.rand() < (id === 'crimsonrosella' ? 0.3 : 0.45), p = this.spot(null);
-    if (this.ref !== sp) { this.ref = sp; this.buildPerches(); }
+    // perch slots are spaced for the biggest bird about, so a mixed flock never overlaps on a branch
+    let big = sp; for (const o of this.birds) if (!o.gone && o.sp.rx * o.sp.size > big.rx * big.size) big = o.sp;
+    if (this.ref !== big) { this.ref = big; this.buildPerches(); }
     const b: Bird = {
       id: ++this.seq, sp, lk: lookOf(sp, female), uid, band, female, x: p.x, y: p.y, alt: 0, face: this.rand() < 0.5 ? 1 : -1,
       size: this.r(0.93, 1.07), bold: clamp(sp.bold + this.r(-0.2, 0.2), 0.1, 1), pose: { ...this.restOf(sp) }, want: { ...this.restOf(sp) }, rate: 9,
