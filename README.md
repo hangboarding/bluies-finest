@@ -22,7 +22,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 - **Smart prompts:** warm-up and overtraining reminders, and next time's load adjusted from how hard the session felt.
 - **Offline-safe saving:** sessions saved with no signal upload automatically later.
 - **Seasons:** Summer, Autumn, Winter and Spring leaderboards (Blue Mountains time). The winner is crowned season champion and joins the Hall of champions.
-- **Ranks:** other leaderboards over the last 90 days (strength, each grip type from open hand and drag to crimps, pinch and sloper, volume and consistency). Strength is scored as % of bodyweight; bodyweight itself is never shown.
+- **Ranks:** one leaderboard card: pick a board (points, strength, each grip type from open hand and drag to crimps, pinch and sloper, volume, days trained) and it shows the podium, who rules it, the top 10 as bars and how far you are from the next place. Every board works for this week, this month, this season or overall (points: the last 28 days plus the streak bonus; the others: the last 90 days), and it moves through them by itself: the podium rises and the crown twinkles in, and climbers slide to their new places; tap one to jump to it, or pause it. Weekly streak and Most improved have a card of their own. Strength is scored as % of bodyweight; bodyweight itself is never shown.
 - **Stats:** consistency calendar, personal bests, trends and achievements (10 tiers from Iron to GOAT, plus secret ones). A new achievement pops up the moment it's earned, whatever earned it.
 - **Activity:** feed with hearts and comments, a group challenge with a shared progress bar, a weekly recap, and climber profiles.
 - **Notifications:** an in-app bell for hearts, comments and losing your top-3 place on the Overall board, plus optional phone push notifications ([docs/PUSH.md](docs/PUSH.md)).
@@ -33,7 +33,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 341 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
+npm test         # 355 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.

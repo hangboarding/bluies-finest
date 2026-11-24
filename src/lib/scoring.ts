@@ -132,7 +132,10 @@ export const maxBy = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((m, x) => M
 
 // ---------- leaderboard categories ----------
 export interface Category { id: string; icon: string; name: string; desc: string; unit: string; lower?: boolean; group: string;
-  value: (mine: Session[], all: Session[], now: Date) => number | null; }
+  value: (mine: Session[], all: Session[], now: Date) => number | null;
+  /** Works over any stretch of time: the Ranks page shows it for this week, month, season or the last 90 days
+   *  (see rankRows), and `value` only looks at the sessions it's given. */
+  periodic?: boolean; }
 const days = (n: number, now: Date) => +now - n * 864e5;
 const recent = (xs: Session[], n: number, now: Date) => xs.filter(s => +new Date(s.createdAt) >= days(n, now));
 /** Points from sessions at or after `from` (ms); null when there are none, so empty climbers stay off the board. */
@@ -152,32 +155,32 @@ export const CATEGORIES: Category[] = [
   // Overall stays first: it's the default board (placeOf, the #1 overall crown).
   { id: 'overall', icon: 'award', name: 'Overall', group: 'Points', unit: 'pts', desc: 'Points over the last 28 days + streak bonus',
     value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.points, 0) + 15 * weekStreak(m, now) },
-  { id: 'loadpct', icon: 'bolt', name: '% Bodyweight', group: 'Strength', unit: '%', desc: 'Best load on a two-arm ≤15s hang, as % of bodyweight',
+  { id: 'loadpct', periodic: true, icon: 'bolt', name: '% Bodyweight', group: 'Strength', unit: '%', desc: 'Best load on a two-arm ≤15s hang, as % of bodyweight',
     value: m => { const v = maxBy(maxHang(m).filter(s => s.loadPct != null), s => s.loadPct!); return isFinite(v) ? v : null; } },
-  { id: 'added', icon: 'add', name: 'Added weight', group: 'Strength', unit: 'kg', desc: 'Heaviest added weight on a two-arm ≤15s hang, 18–22mm edge',
+  { id: 'added', periodic: true, icon: 'add', name: 'Added weight', group: 'Strength', unit: 'kg', desc: 'Heaviest added weight on a two-arm ≤15s hang, 18–22mm edge',
     value: m => { const v = maxBy(maxHang(m).filter(s => s.edgeMm >= 18 && s.edgeMm <= 22), s => s.addedKg - s.assistKg); return isFinite(v) ? v : null; } },
-  { id: 'edge', icon: 'edge', name: 'Smallest edge', group: 'Strength', unit: 'mm', lower: true, desc: 'Smallest edge held full time for 5s or more, at bodyweight or more',
+  { id: 'edge', periodic: true, icon: 'edge', name: 'Smallest edge', group: 'Strength', unit: 'mm', lower: true, desc: 'Smallest edge held full time for 5s or more, at bodyweight or more',
     value: m => { const xs = m.filter(s => s.mode === 'hang' && s.assistKg === 0 && s.fullHangs > 0 && s.hang >= 5); return xs.length ? Math.min(...xs.map(s => s.edgeMm)) : null; } },
-  { id: 'onearm', icon: 'fingers', name: 'One-arm', group: 'Strength', unit: 's', desc: 'Longest single one-arm hang at bodyweight or more (no assist)',
+  { id: 'onearm', periodic: true, icon: 'fingers', name: 'One-arm', group: 'Strength', unit: 's', desc: 'Longest single one-arm hang at bodyweight or more (no assist)',
     value: m => { const v = maxBy(m.filter(s => s.mode === 'hang' && s.assistKg === 0).flatMap(s => s.hangs.filter(h => h.hand !== 'both')), h => h.held); return isFinite(v) ? v : null; } },
-  { id: 'lift', icon: 'lift', name: 'No-hang lift', group: 'Strength', unit: 'kg', desc: 'Heaviest no-hang lift held full time',
+  { id: 'lift', periodic: true, icon: 'lift', name: 'No-hang lift', group: 'Strength', unit: 'kg', desc: 'Heaviest no-hang lift held full time',
     value: m => { const v = maxBy(m.filter(s => s.mode === 'lift' && s.fullHangs > 0), s => s.liftKg); return isFinite(v) ? v : null; } },
-  { id: 'half', icon: 'half', name: 'Half crimp', group: 'Grip type', unit: '%', desc: 'Best half-crimp load as % of bodyweight', value: m => gripBest(m, 'Half crimp') },
-  { id: 'fullc', icon: 'full', name: 'Full crimp', group: 'Grip type', unit: '%', desc: 'Best full-crimp load as % of bodyweight', value: m => gripBest(m, 'Full crimp') },
-  { id: 'openh', icon: 'open', name: 'Open hand', group: 'Grip type', unit: '%', desc: 'Best open-hand load as % of bodyweight', value: m => gripBest(m, 'Open') },
-  { id: 'drag', icon: 'drag', name: 'Drag', group: 'Grip type', unit: '%', desc: 'Best drag load as % of bodyweight', value: m => gripBest(m, 'Drag') },
-  { id: 'pinch', icon: 'pinch', name: 'Pinch', group: 'Grip type', unit: '%', desc: 'Best pinch load as % of bodyweight', value: m => gripBest(m, 'Pinch') },
-  { id: 'sloper', icon: 'sloper', name: 'Sloper', group: 'Grip type', unit: '%', desc: 'Best sloper load as % of bodyweight', value: m => gripBest(m, 'Sloper') },
-  { id: 'tut', icon: 'hang', name: 'Hang time', group: 'Volume', unit: 's', desc: 'Time under tension, last 28 days',
-    value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + s.tutS, 0) },
-  { id: 'sets', icon: 'sets', name: 'Sets', group: 'Volume', unit: '', desc: 'Sets with every hang held full time, last 28 days',
-    value: (m, _a, now) => recent(m, 28, now).reduce((a, s) => a + completedSets(s), 0) },
-  { id: 'hangs', icon: 'mountain', name: 'Total hangs', group: 'Volume', unit: '', desc: 'Hangs held full time in the last 90 days',
-    value: (m, _a, now) => recent(m, 90, now).reduce((a, s) => a + s.fullHangs, 0) },
+  { id: 'half', periodic: true, icon: 'half', name: 'Half crimp', group: 'Grip type', unit: '%', desc: 'Best half-crimp load as % of bodyweight', value: m => gripBest(m, 'Half crimp') },
+  { id: 'fullc', periodic: true, icon: 'full', name: 'Full crimp', group: 'Grip type', unit: '%', desc: 'Best full-crimp load as % of bodyweight', value: m => gripBest(m, 'Full crimp') },
+  { id: 'openh', periodic: true, icon: 'open', name: 'Open hand', group: 'Grip type', unit: '%', desc: 'Best open-hand load as % of bodyweight', value: m => gripBest(m, 'Open') },
+  { id: 'drag', periodic: true, icon: 'drag', name: 'Drag', group: 'Grip type', unit: '%', desc: 'Best drag load as % of bodyweight', value: m => gripBest(m, 'Drag') },
+  { id: 'pinch', periodic: true, icon: 'pinch', name: 'Pinch', group: 'Grip type', unit: '%', desc: 'Best pinch load as % of bodyweight', value: m => gripBest(m, 'Pinch') },
+  { id: 'sloper', periodic: true, icon: 'sloper', name: 'Sloper', group: 'Grip type', unit: '%', desc: 'Best sloper load as % of bodyweight', value: m => gripBest(m, 'Sloper') },
+  { id: 'tut', periodic: true, icon: 'hang', name: 'Hang time', group: 'Volume', unit: 's', desc: 'Time under tension',
+    value: m => m.reduce((a, s) => a + s.tutS, 0) },
+  { id: 'sets', periodic: true, icon: 'sets', name: 'Sets', group: 'Volume', unit: '', desc: 'Sets with every hang held full time',
+    value: m => m.reduce((a, s) => a + completedSets(s), 0) },
+  { id: 'hangs', periodic: true, icon: 'mountain', name: 'Total hangs', group: 'Volume', unit: '', desc: 'Hangs held full time',
+    value: m => m.reduce((a, s) => a + s.fullHangs, 0) },
   { id: 'streak', icon: 'streak', name: 'Weekly streak', group: 'Consistency', unit: 'wks', desc: 'Consecutive weeks training on 2+ days',
     value: (m, _a, now) => weekStreak(m, now) },
-  { id: 'consist', icon: 'calendar', name: 'Consistency', group: 'Consistency', unit: '', desc: 'Days trained in the last 30 days',
-    value: (m, _a, now) => new Set(recent(m, 30, now).filter(qualifies).map(s => dayKey(new Date(s.createdAt)))).size },
+  { id: 'consist', periodic: true, icon: 'calendar', name: 'Days trained', group: 'Consistency', unit: '', desc: `Days with ${MIN_TUT}s or more under tension`,
+    value: m => new Set(m.filter(qualifies).map(s => dayKey(new Date(s.createdAt)))).size },
   { id: 'improved', icon: 'chart', name: 'Most improved', group: 'Consistency', unit: '%', desc: 'Best load %BW this month vs the month before',
     value: (m, _a, now) => {
       const a = maxBy(maxHang(recent(m, 30, now)).filter(s => s.loadPct != null), s => s.loadPct!);

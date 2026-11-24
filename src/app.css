@@ -352,7 +352,45 @@ html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
 .t10.in .t10v{animation:t10fade .3s .35s both}
 @keyframes t10grow{from{transform:scaleX(0)}}
 @keyframes t10fade{from{opacity:0}}
+@keyframes blkUp{from{height:0;padding-top:0;padding-bottom:0}}
+@keyframes crownIn{0%{opacity:0;transform:translateY(-16px) scale(.2) rotate(-25deg)}60%{opacity:1;transform:translateY(1px) scale(1.18) rotate(6deg)}100%{opacity:1;transform:none}}
+@keyframes twinkle{0%{opacity:0;transform:scale(0) rotate(0)}45%{opacity:1;transform:scale(1.2) rotate(60deg)}100%{opacity:0;transform:scale(.3) rotate(120deg)}}
+/* the crown's sparkles: four-point stars around it, only seen as it arrives */
+.crown{position:relative}
+.crown .tw{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;opacity:0;pointer-events:none;background:#fff;clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);filter:drop-shadow(0 0 4px var(--gold)) drop-shadow(0 0 2px #fff)}
+.crown .tw:nth-of-type(1){left:calc(50% - 30px);top:12px;--td:1s}
+.crown .tw:nth-of-type(2){left:calc(50% + 28px);top:0;width:22px;height:22px;margin:-11px 0 0 -11px;--td:1.1s;background:#ffe9a8}
+.crown .tw:nth-of-type(3){left:calc(50% + 30px);top:30px;width:13px;height:13px;margin:-6px 0 0 -6px;--td:1.22s}
+.crown .tw:nth-of-type(4){left:calc(50% - 18px);top:-6px;width:13px;height:13px;margin:-6px 0 0 -6px;--td:1.32s;background:#ffe9a8}
 @media (prefers-reduced-motion:reduce){.t10.in .t10b,.t10.in .t10v{animation:none}}
+/* Moving from one board to the next (see morphFrom in ranks.ts): rows slide to their new places, bars and values
+   move to their new lengths, the grid and anyone new to the top 10 fade in */
+@media (prefers-reduced-motion:no-preference){
+  .t10.morph .t10r{transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+  /* bars reach their length as their numbers add up (COUNT_MS in ranks.ts), at the same steady pace */
+  .t10.morph .t10b{transition:left 1.6s cubic-bezier(.37,0,.63,1),width 1.6s cubic-bezier(.37,0,.63,1)}
+  .t10.morph .t10v{transition:left 1.6s cubic-bezier(.37,0,.63,1)}
+  .t10.morph .t10plot .gl,.t10.morph .t10plot .avg,.t10.morph .t10ax em,.t10.morph .t10new{animation:t10fade .45s .15s both}
+  .t10card .swap{animation:t10fade .45s both}
+  /* the podium rises (see draw in ranks.ts): each block fills up from the floor, 3rd then 2nd then 1st, carrying
+     its climber up with it; then the crown drops onto the winner with a burst of sparkles, and bobs as usual */
+  .podium.rise .blk{overflow:hidden;animation:blkUp .6s cubic-bezier(.2,.8,.25,1) var(--rd,0s) both}
+  .podium.rise .pod>:not(.blk):not(.crown){animation:t10fade .4s var(--rd,0s) both}
+  .podium.rise .p3{--rd:0s}.podium.rise .p2{--rd:.12s}.podium.rise .p1{--rd:.24s}
+  .podium.rise .crown{animation:crownIn .65s .8s cubic-bezier(.3,1.4,.5,1) both,bob 1.6s 1.45s ease-in-out infinite}
+  .podium.rise .tw{animation:twinkle .75s var(--td) ease-out both}
+}
+/* The period carousel: each period's name, the one shown filling up until it moves on, and play/pause */
+.t10spin{display:flex;align-items:center;gap:6px;margin:10px 0 2px}
+.t10dot{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;align-items:stretch;background:none;border:0;padding:4px 0 2px;color:var(--mute);font:inherit;font-size:12px;font-weight:700;cursor:pointer;text-align:center}
+.t10dot span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t10dot i{display:block;height:3px;border-radius:2px;background:color-mix(in srgb,var(--line) 70%,transparent);position:relative;overflow:hidden}
+.t10dot i::after{content:'';position:absolute;inset:0;background:var(--bar);transform:scaleX(0);transform-origin:left center}
+.t10dot.on{color:var(--ink)}
+.t10dot.on i::after{transform:scaleX(var(--spun,0));transition:transform .1s linear}
+.t10spin.paused .t10dot.on i::after{transform:scaleX(1)}
+.t10play{flex:none;width:32px;height:32px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:var(--card2);color:var(--ink);cursor:pointer;padding:0}
+.t10play svg{width:14px;height:14px}
 @media (forced-colors:active){.t10b{background:CanvasText!important}.t10r.me .t10b{background:Highlight!important}}
 
 /* ---------- Hang: protocol picker (name + what it's for) ---------- */
@@ -534,3 +572,9 @@ html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
 .tname.sm{flex:1;min-width:0;margin:0}.tname.sm b{flex:none}.tname.sm input{font-size:16px;font-weight:700;padding:2px 0}
 /* a named session's protocol, under its name */
 .post .what small{display:block;font-size:12px;font-weight:500;color:var(--mute);margin-top:1px}
+
+.t10gapline{margin:10px 0 0}.t10gapline:empty{display:none}
+.t10card .champ{margin-bottom:14px}
+/* The leaderboard keeps its shape as the carousel moves on: two lines are kept for what the board measures and who
+   rules it, so a one-line period after a two-line one doesn't shift everything (the podium holds its height too) */
+.t10card #catDesc{min-height:2.9em}.t10card .champ{min-height:2.9em}
