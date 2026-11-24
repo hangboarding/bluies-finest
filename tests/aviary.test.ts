@@ -52,7 +52,7 @@ describe('the clearing', () => {
       run(w, 15);
       expect(w.birds.length).toBe(12);
       expect(w.perches.every(p => !p.by || w.birds.includes(p.by))).toBe(true);
-    });
+    }, 30_000); // over four simulated minutes of 14 birds: about a second here, but CI machines are slower
   }
 
   it('wood ducks swim, galahs hang upside down, currawongs pull grubs, wattlebirds catch insects', () => {

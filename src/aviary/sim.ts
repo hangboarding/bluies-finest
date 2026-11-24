@@ -339,7 +339,18 @@ export class World {
   inBounds(x: number, y: number) { return x > 14 && x < this.w - 14 && y > this.top && y < this.bottom; }
   /** Somewhere a bird can stand: in the clearing, out of the water, and not inside a bush or a trunk. */
   okGround(x: number, y: number) {
-    return this.inBounds(x, y) && !this.inPond(x, y, 1.12) && !this.props.some(p => p.foot > 0 && ((x - p.x) / p.foot) ** 2 + ((y - p.y) / (p.foot * 0.45)) ** 2 < 1);
+    if (!this.inBounds(x, y) || this.inPond(x, y, 1.12)) return false;
+    for (const p of this.footed()) {
+      const dx = (x - p.x) / p.foot; if (dx > 1 || dx < -1) continue;
+      const dy = (y - p.y) / (p.foot * 0.45); if (dx * dx + dy * dy < 1) return false;
+    }
+    return true;
+  }
+  /** Just the props that take up ground (asked for all the time, so kept until the props change). */
+  private feet: Prop[] = []; private feetOf: Prop[] | null = null; private feetN = -1;
+  private footed() {
+    if (this.feetOf !== this.props || this.feetN !== this.props.length) { this.feet = this.props.filter(p => p.foot > 0); this.feetOf = this.props; this.feetN = this.props.length; }
+    return this.feet;
   }
   crossesPond(x0: number, y0: number, x1: number, y1: number) {
     for (let i = 1; i < 10; i++) if (this.inPond(lerp(x0, x1, i / 10), lerp(y0, y1, i / 10), 1.05)) return true;
