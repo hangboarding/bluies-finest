@@ -1184,13 +1184,17 @@ create policy "app settings: admins delete" on public.app_settings
 --
 -- Matches src/lib/scoring.ts. Why: one heavy set could earn what a whole session did (load was squared
 -- and a day's volume was squashed hard). What changed:
---   • Every set in the hang log scores: 10 × time, × 1.25 if every hang in it was held its full time.
---     Time = seconds held in the set ÷ 10, in full up to 10s, then √ (a 7s × 6 repeater set ≈ 2).
---     A one-arm hang's time counts half per arm, so left + right together count like one two-arm hang.
+--   • Every set in the hang log scores: 10 × time × the share of the set done (no bonus for finishing).
+--     Time = the set's full length (planned reps × hang time, or more if more was logged) ÷ 10, in full
+--     up to 10s, then √ (a 7s × 6 repeater set ≈ 2). Share = seconds held ÷ that length, so one rep of
+--     a six-rep set earns a sixth of it. A one-arm hang's time counts half per arm, so left + right
+--     together count like one two-arm hang.
 --   • A session's raw points = its set points × load × edge × hold. Load counts in proportion now
---     (it was squared): +100% doubles a set's points. Abrahangs and Warm-up count at most 40%.
---   • Hold = grip × fingers × one-arm, together at most ×2: open hand and drag ×1.1, pinch and
---     sloper ×1.2; three fingers ×1.15, two ×1.3, mono ×1.5; a one-arm hang (not a lift) ×1.5.
+--     (it was squared): +100% doubles a set's points. A no-hang lift's load is the weight in each hand
+--     ÷ half the climber's bodyweight. Abrahangs and Warm-up count at most 40%.
+--   • Hold = grip × fingers × one-arm, together at most ×2: full crimp ×1.3, half crimp, pinch and
+--     sloper ×1.2, open hand and drag ×1.05; three fingers ×1.15, two ×1.3, mono ×1.5; a one-arm hang
+--     (not a lift) ×1.5.
 --   • Per day (Sydney time) the first 200 raw points count in full, then 200 + 75·ln(1 + rest/75).
 --     Each session still earns what it adds to its day; the 5 for showing up and the PB 10 are as before.
 --   • Training regularly: points × 1.1 when there were real sessions (15s+) on 2 or more of the 7 days before.
@@ -1202,30 +1206,34 @@ create policy "app settings: admins delete" on public.app_settings
 -- =====================================================================
 
 -- Points from the sets in a hang log, before load, edge and hold. Same rules as src/lib/scoring.ts setPoints().
-create or replace function public.set_points(p_hands text, p_hangs jsonb)
+-- The log has only the hangs that were done, so a set's full length comes from the planned reps × hang time.
+drop function if exists public.set_points(text, jsonb);
+create or replace function public.set_points(p_hands text, p_reps double precision, p_hang double precision, p_hangs jsonb)
 returns double precision
 language sql immutable
 set search_path = public
 as $$
-  select coalesce(sum(10 * case when x.t <= 10 then x.t / 10 else sqrt(x.t / 10) end
-                         * case when x.full_set then 1.25 else 1 end), 0)
+  select coalesce(sum(case when x.f > 0 then 10 * case when x.f <= 10 then x.f / 10 else sqrt(x.f / 10) end * x.h / x.f else 0 end), 0)
     from (select sum(greatest(0, least((h->>'held')::double precision, (h->>'target')::double precision)))
-                   * case when p_hands = 'both' then 1 else 0.5 end as t,
-                 bool_and((h->>'held')::double precision >= (h->>'target')::double precision) as full_set
+                   * case when p_hands = 'both' then 1 else 0.5 end as h,
+                 greatest(sum(greatest(0, (h->>'target')::double precision)) * case when p_hands = 'both' then 1 else 0.5 end,
+                          coalesce(p_reps, 0) * coalesce(p_hang, 0) * case when p_hands = 'LR' then 2 else 1 end
+                            * case when p_hands = 'both' then 1 else 0.5 end) as f
             from jsonb_array_elements(p_hangs) h
            group by h->'set') x;
 $$;
 
 -- Raw points for one session: set points × load × edge × hold. Same rules as src/lib/scoring.ts sessionWork().
 drop function if exists public.session_work(text, text, text, double precision, double precision, double precision, double precision, double precision, double precision);
+drop function if exists public.session_work(text, text, text, double precision, double precision, double precision, double precision, double precision, text, text, jsonb);
 create or replace function public.session_work(p_protocol text, p_mode text, p_hands text, p_load_pct double precision,
   p_added double precision, p_assist double precision, p_lift double precision, p_edge double precision,
-  p_grip text, p_fingers text, p_hangs jsonb)
+  p_grip text, p_fingers text, p_reps double precision, p_hang double precision, p_hangs jsonb)
 returns double precision
 language sql immutable
 set search_path = public
 as $$
-  select public.set_points(p_hands, p_hangs)
+  select public.set_points(p_hands, p_reps, p_hang, p_hangs)
        -- load: two-arm-equivalent ÷ bodyweight (one-arm hang ×2; lifts are per hand × 2 ÷ bw), in proportion
        * least(case when p_protocol in ('abra', 'warm') then 0.4 else 3 end, greatest(case when p_mode = 'lift' then 0.1 else 0.4 end,
            coalesce(p_load_pct,
@@ -1235,7 +1243,8 @@ as $$
        -- edge
        * least(1.6, greatest(0.6, 20.0 / greatest(1, p_edge)))
        -- hold: grip × fingers × one-arm hang, at most ×2
-       * least(2, (case p_grip when 'Open' then 1.1 when 'Drag' then 1.1 when 'Pinch' then 1.2 when 'Sloper' then 1.2 else 1 end)::double precision
+       * least(2, (case p_grip when 'Full crimp' then 1.3 when 'Half crimp' then 1.2 when 'Pinch' then 1.2 when 'Sloper' then 1.2
+                               when 'Open' then 1.05 when 'Drag' then 1.05 else 1 end)::double precision
                 * (case p_fingers when 'Front 3' then 1.15 when 'Back 3' then 1.15 when 'Front 2' then 1.3 when 'Middle 2' then 1.3
                                   when 'Back 2' then 1.3 when 'Mono' then 1.5 else 1 end)::double precision
                 * case when p_mode = 'hang' and p_hands <> 'both' then 1.5 else 1 end);
@@ -1350,7 +1359,7 @@ begin
   -- Points: what this session adds to the climber's day, with diminishing returns past 200 a day.
   day0 := public.scoring_day_start(new.created_at);
   select coalesce(sum(public.session_work(c.protocol_key, c.mode, c.hands, c.load_pct, c.added_kg, c.assist_kg, c.lift_kg,
-                                          c.edge_mm, c.grip, c.fingers, c.hangs)), 0),
+                                          c.edge_mm, c.grip, c.fingers, c.reps, c.hang, c.hangs)), 0),
          coalesce(bool_or(c.tut_s >= 15), false),
          coalesce(bool_or(c.is_pb), false)
     into w0, had_real, had_pb
@@ -1366,7 +1375,7 @@ begin
      and c.created_at >= ((day0 at time zone 'Australia/Sydney') - interval '7 days') at time zone 'Australia/Sydney'
      and c.created_at < day0;
   w := public.session_work(new.protocol_key, new.mode, new.hands, new.load_pct, new.added_kg, new.assist_kg, new.lift_kg,
-                           new.edge_mm, new.grip, new.fingers, new.hangs);
+                           new.edge_mm, new.grip, new.fingers, new.reps, new.hang, new.hangs);
   -- numeric rounding (halves round up) to match JavaScript's Math.round
   new.points := round((
       case when new.tut_s >= 15 and not had_real then 5 else 0 end

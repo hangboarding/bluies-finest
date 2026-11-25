@@ -38,7 +38,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 410 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts, the weekly flock (every species run through a busy few minutes)
+npm test         # 412 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts, the weekly flock (every species run through a busy few minutes)
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.
@@ -59,12 +59,14 @@ Every push to `main` runs the tests, then builds and deploys to GitHub Pages via
 
 Harder training earns more, and there's nothing to gain from gaming it.
 
-- **Every set scores:** 10 × time, and 25% more when every hang in the set was held its full time. One set never earns what a whole session does.
-  - **Time:** seconds held in the set ÷ 10, counted in full up to 10s and with diminishing returns after that (√). A 10s hang is 1; a 7s × 6 repeater set is about 2. Splitting a set into tiny ones gains nothing.
+- **Every set scores:** 10 × time × the share of the set you did. One set never earns what a whole session does, and finishing a set earns no bonus on top.
+  - **Time:** the set's full length (its reps × hang time) ÷ 10, counted in full up to 10s and with diminishing returns after that (√). A 10s hang is 1; a 7s × 6 repeater set is about 2. Splitting a set into tiny ones gains nothing.
+  - **Share:** seconds held ÷ the set's full length, so one rep of a six-rep set earns a sixth of the set, never all of it.
 - **A session's points** = its set points × load × edge × hold.
-  - **Load:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2, and +100% doubles a set's points; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2 (never your bodyweight). Capped at 3; a hang counts as at least 0.4, but a lift counts only what it lifts.
+  - **Load:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2, and +100% doubles a set's points; a one-arm hang counts double. Capped at 3; a hang counts as at least 0.4.
+  - **No-hang lifts** use the weight in each hand as a share of half your bodyweight (never your bodyweight itself), so they score by what you lift. For a 70kg climber, 35kg in each hand scores like a two-arm bodyweight hang, and 35kg in one hand scores half of that.
   - **Edge:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
-  - **Hold** (the type of hang): open hand and drag ×1.1, pinch and sloper ×1.2 (half and full crimp ×1); three fingers ×1.15, two ×1.3, mono ×1.5; a one-arm hang ×1.5 on top of its doubled load (not a one-arm lift). Together at most ×2.
+  - **Hold** (the type of hang): full crimp ×1.3; half crimp, pinch and sloper ×1.2; open hand and drag ×1.05; three fingers ×1.15, two ×1.3, mono ×1.5; a one-arm hang ×1.5 on top of its doubled load (not a one-arm lift). Together at most ×2.
   - **One-arm hangs** count each arm's time at half, so left + right together count like one two-arm hang, with double the load and the one-arm bonus.
   - **Abrahangs and Warm-up** are done light (feet on or assisted), which people rarely enter as assist, so they count at most 40% of bodyweight.
 - **Points are scored per day.** The first 200 points of a day count in full; past that, more still scores more but each extra point is worth less. Each session gets what it adds to its day, so splitting training into lots of little sessions earns nothing extra.

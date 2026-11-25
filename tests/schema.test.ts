@@ -34,7 +34,7 @@ const log = (sets: number, reps: number, t: number, hands: 'both' | 'L' | 'R' | 
   Array.from({ length: sets }, (_, s) => Array.from({ length: reps }, (_, r) =>
     (hands === 'LR' ? ['L', 'R'] : [hands]).map(hand => ({ set: s + 1, rep: r + 1, hand, target: t, held: t, full: true })))).flat(2);
 /** A sessions row as the app sees it (what scoring needs). */
-const asApp = (r: any) => ({ id: r.id, userId: r.user_id, createdAt: new Date(r.created_at).toISOString(), mode: r.mode, hands: r.hands, hang: r.hang,
+const asApp = (r: any) => ({ id: r.id, userId: r.user_id, createdAt: new Date(r.created_at).toISOString(), mode: r.mode, hands: r.hands, hang: r.hang, reps: r.reps,
   protocolKey: r.protocol_key, edgeMm: r.edge_mm, addedKg: r.added_kg, assistKg: r.assist_kg, liftKg: r.lift_kg, tutS: r.tut_s, fullHangs: r.full_hangs, totalHangs: r.total_hangs,
   grip: r.grip, fingers: r.fingers, hangs: r.hangs, loadPct: r.load_pct, isPb: r.is_pb, points: r.points });
 
@@ -67,10 +67,19 @@ test('schema.sql runs on a fresh database, runs again cleanly, and scores like t
   await db.query(`insert into public.sessions (created_at, protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, added_kg, grip, fingers, hangs) values ($1,'oneA','hang','L',10,180,3,1,180,25,5,'Pinch','Mono',$2)`, [at(0.3), JSON.stringify(log(3, 1, 10, 'L'))]);
   // a no-hang lift of 20kg on two fingers, a 40s set
   await db.query(`insert into public.sessions (created_at, protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, lift_kg, fingers, hangs) values ($1,'rec','lift','both',40,60,2,1,180,20,20,'Front 2',$2)`, [at(0.2), JSON.stringify(log(2, 1, 40))]);
+  // Repeaters ended early: one full set, then one rep of the second (a sixth of a set), full crimp
+  const early = [...log(1, 6, 7), { set: 2, rep: 1, hand: 'both', target: 7, held: 7, full: true }];
+  await db.query(`insert into public.sessions (created_at, protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, grip, hangs) values ($1,'rep','hang','both',7,3,6,6,180,20,'Full crimp',$2)`, [at(0.1), JSON.stringify(early)]);
+  // a 70kg climber lifting 35kg in one hand: half a two-arm bodyweight hang's points
+  await db.query(`insert into public.sessions (created_at, protocol_key, mode, hands, hang, rest, sets, reps, set_rest, edge_mm, lift_kg, hangs) values ($1,'jlmh','lift','L',10,180,5,1,180,20,35,$2)`, [at(0.05), JSON.stringify(log(5, 1, 10, 'L'))]);
 
   const rows = (await db.query<any>(`select * from public.sessions order by created_at`)).rows;
   const xs = rows.map(asApp);
-  expect(xs.map(x => x.loadPct)).toEqual([100, 120, 100, 100, 107, 57]); // worked out on the server, not the 400 sent
+  expect(xs.map(x => x.loadPct)).toEqual([100, 120, 100, 100, 107, 57, 100, 100]); // worked out on the server, not the 400 sent
+  const work = async (x: any) => (await db.query<any>(`select public.session_work($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) w`,
+    [x.protocolKey, x.mode, x.hands, x.loadPct, x.addedKg, x.assistKg, x.liftKg, x.edgeMm, x.grip, x.fingers, x.reps, x.hang, JSON.stringify(x.hangs)])).rows[0].w;
+  expect(await work(xs[7])).toBeCloseTo((await work(xs[0])) / 2);                            // the one-hand 35kg lift
+  expect(await work(xs[6])).toBeCloseTo(10 * Math.sqrt(4.2) * (1 + 1 / 6) * 1.3);           // 1⅙ sets, full crimp
   expect(xs[0]!.isPb).toBe(false);                      // nothing to beat yet
   for (const x of xs) expect(x.points).toBe(sessionPoints(x as any, xs as any));
 
@@ -191,9 +200,9 @@ test('points v4: training regularly earns 10% more, and what scores locks 24 hou
 
   // a fresh session's load and grip can be fixed, and the points follow
   const now = await save(0);
-  expect(now.points).toBe(68); // 5 sets × 12.5, + 5
-  expect((await row(`update public.sessions set added_kg = 7 where id = $1 returning load_pct, points`, [now.id]))).toEqual({ load_pct: 110, points: 74 });
-  expect((await row(`update public.sessions set grip = 'Sloper' where id = $1 returning points`, [now.id])).points).toBe(88);
+  expect(now.points).toBe(65); // 5 sets × 10, half crimp ×1.2, + 5
+  expect((await row(`update public.sessions set added_kg = 7 where id = $1 returning load_pct, points`, [now.id]))).toEqual({ load_pct: 110, points: 71 });
+  expect((await row(`update public.sessions set grip = 'Full crimp' where id = $1 returning points`, [now.id])).points).toBe(77);
 
   // the season has to have started a few days ago for sessions on earlier days (otherwise they're dated today)
   const seasonStart = +new Date((await row(`select public.current_season_start() t`, [])).t);
@@ -203,7 +212,7 @@ test('points v4: training regularly earns 10% more, and what scores locks 24 hou
   let xs = await all();
   for (const x of xs) expect(x.points, x.createdAt).toBe(sessionPoints(x as any, xs as any));
   const today = xs.find(x => x.id === now.id)!;
-  expect(today.points).toBe(Math.round(5 + 62.5 * 1.1 * 1.1 * 1.2)); // +10% load, sloper ×1.2, regular ×1.1
+  expect(today.points).toBe(Math.round(5 + 50 * 1.1 * 1.3 * 1.1)); // +10% load, full crimp ×1.3, regular ×1.1
   // a session from three days ago can't have its load, edge or grip raised any more; its note can change
   const locked = await row(`update public.sessions set added_kg = 40, edge_mm = 5, grip = 'Pinch', fingers = 'Mono', mode = 'lift', note = 'ok' where id = $1 returning *`, [d3.id]);
   expect([locked.added_kg, locked.edge_mm, locked.grip, locked.fingers, locked.mode, locked.load_pct, locked.points, locked.note])
@@ -212,5 +221,5 @@ test('points v4: training regularly earns 10% more, and what scores locks 24 hou
   await db.query(`delete from public.sessions where id = $1`, [d2.id]);
   xs = await all();
   for (const x of xs) expect(x.points, x.createdAt).toBe(sessionPoints(x as any, xs as any));
-  expect(xs.find(x => x.id === now.id)!.points).toBe(Math.round(5 + 62.5 * 1.1 * 1.2));
+  expect(xs.find(x => x.id === now.id)!.points).toBe(Math.round(5 + 50 * 1.1 * 1.3));
 }, 60000);

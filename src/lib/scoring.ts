@@ -3,23 +3,29 @@
 // the done screen, the edit sheet and demo mode.
 //
 // Points v4 (November 2026): every set scores, so one set can't earn what a whole session does.
-//   set points  = 10 × time × 1.25 if every hang in the set was held its full time
-//     time      = seconds held in the set ÷ 10, in full up to 10s, then with diminishing returns (√):
-//                 a 10s hang = 1, a 7s × 6 repeater set (42s) ≈ 2. A one-arm hang's time counts half,
-//                 per arm, so left + right together count like one two-arm hang.
+//   set points  = 10 × time × share of the set done
+//     time      = the set's full length in seconds (its planned reps × hang time, or more if more was
+//                 logged) ÷ 10, in full up to 10s, then with diminishing returns (√): a 10s hang = 1,
+//                 a 7s × 6 repeater set (42s) ≈ 2. A one-arm hang's time counts half, per arm, so
+//                 left + right together count like one two-arm hang.
+//     share     = seconds held ÷ the set's full length, so one rep of a six-rep set earns a sixth of
+//                 it, never the whole set. Finishing a set earns no bonus on top.
 //   A session's raw points = its set points × load × edge × hold:
 //     load      = two-arm-equivalent load as a fraction of bodyweight, always worked out from the kg
 //                 entered: bodyweight on two arms = 1.0, +20% added = 1.2, one arm = ×2. It counts in
 //                 proportion, so +100% doubles a set's points (it used to be squared, which let one
-//                 heavy set match a whole session). No-hang lifts use the weight lifted per hand × 2 ÷
-//                 bodyweight. Capped at 3. A hang counts as at least 0.4; a lift counts only what it
+//                 heavy set match a whole session). No-hang lifts use the weight lifted in each hand ÷
+//                 half your bodyweight (35kg a hand for a 70kg climber = 1.0, the load on each arm of a
+//                 two-arm bodyweight hang); lifting with one hand, its time counts half, so it earns
+//                 half of that two-arm hang. Capped at 3. A hang counts as at least 0.4; a lift counts only what it
 //                 lifts (at least 0.1, the floor of liftPct). With no bodyweight set, a 70kg climber is
 //                 assumed (target effort % never counts). Abrahangs and Warm-up are light by design
 //                 (feet on or assisted, which people rarely enter as assist), so they count at most 40%.
 //     edge      = 20mm ÷ edge size, clamped 0.6–1.6 (smaller edges score more)
 //     hold      = grip × fingers × one-arm, together at most ×2 (see GRIP_FACTOR, FINGER_FACTOR):
-//                 open hand and drag ×1.1, pinch and sloper ×1.2; three fingers ×1.15, two ×1.3,
-//                 mono ×1.5; a one-arm hang (not a lift) ×1.5 on top of its doubled load.
+//                 full crimp ×1.3, half crimp, pinch and sloper ×1.2, open hand and drag ×1.05;
+//                 three fingers ×1.15, two ×1.3, mono ×1.5; a one-arm hang (not a lift) ×1.5 on top
+//                 of its doubled load.
 // Points are scored per day (Sydney time), so splitting training into lots of little sessions
 // never earns more than doing it in one:
 //   day points  = the day's raw points, the first 200 in full, then 200 + 75 × ln(1 + rest ÷ 75)
@@ -41,7 +47,8 @@ type Load = Pick<Session, 'mode' | 'loadPct' | 'hands' | 'addedKg' | 'assistKg' 
 /** Protocols done light by design, and the most they can count for. */
 export const LIGHT_PROTOCOLS = new Set(['abra', 'warm']), LIGHT_CAP = 0.4;
 type Hold = Pick<Session, 'mode' | 'hands' | 'grip' | 'fingers'>;
-type Worked = Load & Hold & Pick<Session, 'hangs' | 'edgeMm'>;
+type Sets = Pick<Session, 'hands' | 'hangs' | 'reps' | 'hang'>;
+type Worked = Load & Hold & Sets & Pick<Session, 'edgeMm'>;
 type Scored = Worked & Pick<Session, 'tutS' | 'isPb' | 'createdAt'> & { id?: string };
 
 /** Two-arm-equivalent load ÷ bodyweight. */
@@ -52,8 +59,8 @@ export function intensity(s: Load) {
 }
 export const edgeFactor = (mm: number) => Math.min(1.6, Math.max(0.6, 20 / Math.max(1, mm)));
 
-/** Harder grips score more. Half and full crimp are the baseline (×1); anything not listed counts ×1. */
-export const GRIP_FACTOR: Record<string, number> = { Open: 1.1, Drag: 1.1, Pinch: 1.2, Sloper: 1.2 };
+/** Harder grips score more. A grip that isn't picked (or isn't listed) counts ×1. */
+export const GRIP_FACTOR: Record<string, number> = { 'Full crimp': 1.3, 'Half crimp': 1.2, Pinch: 1.2, Sloper: 1.2, Open: 1.05, Drag: 1.05 };
 /** Fewer fingers score more. All 4 and Custom count ×1. */
 export const FINGER_FACTOR: Record<string, number> = { 'Front 3': 1.15, 'Back 3': 1.15, 'Front 2': 1.3, 'Middle 2': 1.3, 'Back 2': 1.3, Mono: 1.5 };
 /** A one-arm hang's bonus on top of its doubled load (a one-arm lift's weight is already per hand, so it gets none). */
@@ -65,20 +72,26 @@ export function holdFactor(s: Hold) {
   return Math.min(HOLD_CAP, (GRIP_FACTOR[s.grip] ?? 1) * (FINGER_FACTOR[s.fingers] ?? 1) * (s.mode === 'hang' && s.hands !== 'both' ? ONE_ARM : 1));
 }
 
-/** Each hold counts up to its target (as the database does); full = held the whole target. */
+/** Each hold counts up to its target (as the database does). */
 const heldOf = (h: HangResult) => Math.max(0, Math.min(h.held, h.target));
-/** Time in one set: in full up to 10s, then √ (a 10s hang = 1, a 40s set = 2). */
+/** A set's full length: in full up to 10s, then √ (a 10s hang = 1, a 40s set = 2). */
 const setTime = (t: number) => (t <= 10 ? t / 10 : Math.sqrt(t / 10));
-/** Points from the sets in one session, before load, edge and hold (see the top of this file). */
-export function setPoints(s: Pick<Session, 'hands' | 'hangs'>) {
-  const sets = new Map<unknown, { t: number; full: boolean }>();
+/** Points from the sets in one session, before load, edge and hold (see the top of this file). A set ended
+ *  early earns only its share: the log has just the hangs that were done, so the set's full length comes from
+ *  the planned reps × hang time (or what was logged, if more). */
+export function setPoints(s: Sets) {
+  const sets = new Map<unknown, { held: number; target: number }>();
   for (const h of s.hangs) {
-    const x = sets.get(h.set) ?? sets.set(h.set, { t: 0, full: true }).get(h.set)!;
-    x.t += heldOf(h); x.full &&= h.held >= h.target;
+    const x = sets.get(h.set) ?? sets.set(h.set, { held: 0, target: 0 }).get(h.set)!;
+    x.held += heldOf(h); x.target += Math.max(0, h.target);
   }
   const perArm = s.hands === 'both' ? 1 : 0.5; // one-arm: each arm's time at half
+  const planned = (s.reps || 0) * (s.hang || 0) * (s.hands === 'LR' ? 2 : 1) * perArm;
   let p = 0;
-  for (const x of sets.values()) p += 10 * setTime(x.t * perArm) * (x.full ? 1.25 : 1);
+  for (const x of sets.values()) {
+    const full = Math.max(x.target * perArm, planned);
+    if (full > 0) p += 10 * setTime(full) * (x.held * perArm) / full;
+  }
   return p;
 }
 /** Raw points for one session: set points × load × edge × hold (see the top of this file). */
