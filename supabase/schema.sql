@@ -1074,9 +1074,7 @@ create trigger sessions_rescore_upd after update on public.sessions
   for each row when (old.load_pct is distinct from new.load_pct or old.edge_mm is distinct from new.edge_mm or old.mode is distinct from new.mode)
   execute function public.sessions_rescore_day();
 
--- Re-score this season with the new rules (each session's points depend only on the other
--- sessions' weights and times, so the order rows are updated in doesn't matter).
-update public.sessions set points = points where created_at >= public.current_season_start();
+-- (This season is re-scored at the end of the latest points section, "points v4" below.)
 
 
 -- =====================================================================
@@ -1179,3 +1177,248 @@ create policy "app settings: admins update" on public.app_settings
 drop policy if exists "app settings: admins delete" on public.app_settings;
 create policy "app settings: admins delete" on public.app_settings
   for delete to authenticated using ((select public.is_admin()));
+
+
+-- =====================================================================
+-- Bluies Finest: points v4, every set scores (November 2026). Part of schema.sql, safe to run again.
+--
+-- Matches src/lib/scoring.ts. Why: one heavy set could earn what a whole session did (load was squared
+-- and a day's volume was squashed hard). What changed:
+--   • Every set in the hang log scores: 10 × time, × 1.25 if every hang in it was held its full time.
+--     Time = seconds held in the set ÷ 10, in full up to 10s, then √ (a 7s × 6 repeater set ≈ 2).
+--     A one-arm hang's time counts half per arm, so left + right together count like one two-arm hang.
+--   • A session's raw points = its set points × load × edge × hold. Load counts in proportion now
+--     (it was squared): +100% doubles a set's points. Abrahangs and Warm-up count at most 40%.
+--   • Hold = grip × fingers × one-arm, together at most ×2: open hand and drag ×1.1, pinch and
+--     sloper ×1.2; three fingers ×1.15, two ×1.3, mono ×1.5; a one-arm hang (not a lift) ×1.5.
+--   • Per day (Sydney time) the first 200 raw points count in full, then 200 + 75·ln(1 + rest/75).
+--     Each session still earns what it adds to its day; the 5 for showing up and the PB 10 are as before.
+--   • Training regularly: points × 1.1 when there were real sessions (15s+) on 2 or more of the 7 days before.
+--   • Load, edge, grip, fingers and hang-or-lift lock 24 hours after a session (and stay locked once
+--     its season is over). Grip and fingers now change points, so changing them re-scores.
+--   • Adding or removing a session re-scores the climber's later sessions that day and the 7 days after
+--     (the regular-training bonus looks back a week).
+-- At the end, every session in the current season is re-scored. Finished seasons are untouched.
+-- =====================================================================
+
+-- Points from the sets in a hang log, before load, edge and hold. Same rules as src/lib/scoring.ts setPoints().
+create or replace function public.set_points(p_hands text, p_hangs jsonb)
+returns double precision
+language sql immutable
+set search_path = public
+as $$
+  select coalesce(sum(10 * case when x.t <= 10 then x.t / 10 else sqrt(x.t / 10) end
+                         * case when x.full_set then 1.25 else 1 end), 0)
+    from (select sum(greatest(0, least((h->>'held')::double precision, (h->>'target')::double precision)))
+                   * case when p_hands = 'both' then 1 else 0.5 end as t,
+                 bool_and((h->>'held')::double precision >= (h->>'target')::double precision) as full_set
+            from jsonb_array_elements(p_hangs) h
+           group by h->'set') x;
+$$;
+
+-- Raw points for one session: set points × load × edge × hold. Same rules as src/lib/scoring.ts sessionWork().
+drop function if exists public.session_work(text, text, text, double precision, double precision, double precision, double precision, double precision, double precision);
+create or replace function public.session_work(p_protocol text, p_mode text, p_hands text, p_load_pct double precision,
+  p_added double precision, p_assist double precision, p_lift double precision, p_edge double precision,
+  p_grip text, p_fingers text, p_hangs jsonb)
+returns double precision
+language sql immutable
+set search_path = public
+as $$
+  select public.set_points(p_hands, p_hangs)
+       -- load: two-arm-equivalent ÷ bodyweight (one-arm hang ×2; lifts are per hand × 2 ÷ bw), in proportion
+       * least(case when p_protocol in ('abra', 'warm') then 0.4 else 3 end, greatest(case when p_mode = 'lift' then 0.1 else 0.4 end,
+           coalesce(p_load_pct,
+             least(400, greatest(10, round((case when p_mode = 'lift' then 2 * p_lift / 70.0 * 100
+                                                 else (70 + p_added - p_assist) / 70.0 * 100 end)::numeric)))::double precision)
+           / 100.0 * case when p_mode = 'hang' and p_hands <> 'both' then 2 else 1 end))
+       -- edge
+       * least(1.6, greatest(0.6, 20.0 / greatest(1, p_edge)))
+       -- hold: grip × fingers × one-arm hang, at most ×2
+       * least(2, (case p_grip when 'Open' then 1.1 when 'Drag' then 1.1 when 'Pinch' then 1.2 when 'Sloper' then 1.2 else 1 end)::double precision
+                * (case p_fingers when 'Front 3' then 1.15 when 'Back 3' then 1.15 when 'Front 2' then 1.3 when 'Middle 2' then 1.3
+                                  when 'Back 2' then 1.3 when 'Mono' then 1.5 else 1 end)::double precision
+                * case when p_mode = 'hang' and p_hands <> 'both' then 1.5 else 1 end);
+$$;
+
+-- A day's points from its raw points: the first 200 in full, then with diminishing returns.
+create or replace function public.day_points(w double precision)
+returns double precision
+language sql immutable
+set search_path = public
+as $$
+  select case when w <= 200 then w else 200 + 75 * ln(1 + (w - 200) / 75.0) end;
+$$;
+
+create or replace function public.sessions_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  bw       double precision;
+  day0     timestamptz;
+  w0       double precision;
+  w        double precision;
+  had_real boolean;
+  had_pb   boolean;
+  regular  boolean;
+  reload   boolean;
+begin
+  if tg_op = 'INSERT' then
+    -- Sessions saved offline upload later with their real finish time; accept up to 7 days old,
+    -- otherwise (or if in the future) use the server's clock. No long-range back-dating.
+    new.created_at := case when new.created_at between now() - interval '7 days' and now() + interval '5 minutes'
+                           then new.created_at else now() end;
+    -- A finished season's results are final: nothing new can be dated into it.
+    if new.created_at < public.current_season_start() then new.created_at := now(); end if;
+    new.user_id := auth.uid();          -- always the signed-in user
+    reload := true;
+  else
+    new.created_at := old.created_at;   -- immutable after creation
+    new.user_id    := old.user_id;
+    new.is_pb      := old.is_pb;        -- PB is decided when the session is saved
+    new.hangs      := old.hangs;        -- the hang log can't be rewritten
+    -- What scores can be fixed for 24 hours, then it's final (and a finished season's always is).
+    -- Its name, note, RPE, board and the like can still be changed.
+    if old.created_at < now() - interval '24 hours' or old.created_at < public.current_season_start() then
+      new.edge_mm := old.edge_mm; new.added_kg := old.added_kg; new.assist_kg := old.assist_kg;
+      new.lift_kg := old.lift_kg; new.mode := old.mode; new.grip := old.grip; new.fingers := old.fingers;
+    end if;
+    -- switching between a hang and a no-hang lift changes the load as much as a new weight does
+    reload := new.added_kg is distinct from old.added_kg or new.assist_kg is distinct from old.assist_kg
+           or new.lift_kg is distinct from old.lift_kg or new.mode is distinct from old.mode;
+  end if;
+
+  -- Load always comes from the kg entered and the climber's own bodyweight, never the app's number.
+  -- (Edits only recompute it when the weights change, using today's bodyweight.)
+  if reload then
+    select pd.bodyweight_kg into bw from public.private_data pd where pd.id = new.user_id;
+    new.load_pct := case when bw is null or bw <= 0 then null
+                         when new.mode = 'lift' then least(400, greatest(10, round((2 * new.lift_kg / bw * 100)::numeric)))
+                         else least(400, greatest(10, round(((bw + new.added_kg - new.assist_kg) / bw * 100)::numeric))) end;
+  else
+    new.load_pct := old.load_pct;
+  end if;
+
+  -- Totals come from the hang log (each hold counts up to its target), not from the app's numbers.
+  if jsonb_array_length(new.hangs) > 0 then
+    select count(*)::int,
+           count(*) filter (where (h->>'held')::double precision >= (h->>'target')::double precision)::int,
+           coalesce(sum(least((h->>'held')::double precision, (h->>'target')::double precision)), 0)
+      into new.total_hangs, new.full_hangs, new.tut_s
+      from jsonb_array_elements(new.hangs) h;
+  else
+    new.total_hangs := 0; new.full_hangs := 0; new.tut_s := 0;
+  end if;
+
+  -- Personal best, checked against the climber's earlier sessions (same rules as src/views/hang.ts):
+  -- heavier than every comparable session (same mode, edge, one/two-arm, hang length within 3s),
+  -- or a smaller edge than ever before at the same load or more.
+  if tg_op = 'INSERT' then
+    new.is_pb := new.full_hangs > 0 and (
+      (exists (select 1 from public.sessions c
+                where c.user_id = new.user_id and c.mode = new.mode and c.edge_mm = new.edge_mm and c.full_hangs > 0
+                  and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                  and (new.mode = 'lift' or c.load_pct is not null))
+       and case when new.mode = 'lift' then
+             not exists (select 1 from public.sessions c
+                          where c.user_id = new.user_id and c.mode = 'lift' and c.edge_mm = new.edge_mm and c.full_hangs > 0
+                            and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                            and c.lift_kg >= new.lift_kg)
+           else
+             new.load_pct is not null
+             and not exists (select 1 from public.sessions c
+                              where c.user_id = new.user_id and c.mode = 'hang' and c.edge_mm = new.edge_mm and c.full_hangs > 0
+                                and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                                and c.load_pct is not null and c.load_pct >= new.load_pct)
+           end)
+      or
+      (new.mode = 'hang' and new.load_pct is not null
+       and exists (select 1 from public.sessions c
+                    where c.user_id = new.user_id and c.mode = 'hang' and c.full_hangs > 0 and c.load_pct is not null
+                      and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                      and c.edge_mm > new.edge_mm)
+       and not exists (select 1 from public.sessions c
+                        where c.user_id = new.user_id and c.mode = 'hang' and c.full_hangs > 0 and c.load_pct is not null
+                          and (c.hands = 'both') = (new.hands = 'both') and abs(c.hang - new.hang) <= 3
+                          and c.load_pct >= new.load_pct and c.edge_mm <= new.edge_mm))
+    );
+  end if;
+  if new.full_hangs = 0 then new.is_pb := false; end if; -- no PB without a single full hang
+
+  -- Points: what this session adds to the climber's day, with diminishing returns past 200 a day.
+  day0 := public.scoring_day_start(new.created_at);
+  select coalesce(sum(public.session_work(c.protocol_key, c.mode, c.hands, c.load_pct, c.added_kg, c.assist_kg, c.lift_kg,
+                                          c.edge_mm, c.grip, c.fingers, c.hangs)), 0),
+         coalesce(bool_or(c.tut_s >= 15), false),
+         coalesce(bool_or(c.is_pb), false)
+    into w0, had_real, had_pb
+    from public.sessions c
+   where c.user_id = new.user_id and c.id <> new.id
+     and c.created_at >= day0
+     and (c.created_at, c.id) < (new.created_at, new.id);
+  -- Training regularly: real sessions on 2 or more different days of the 7 before this one's.
+  select count(distinct public.scoring_day_start(c.created_at)) >= 2
+    into regular
+    from public.sessions c
+   where c.user_id = new.user_id and c.id <> new.id and c.tut_s >= 15
+     and c.created_at >= ((day0 at time zone 'Australia/Sydney') - interval '7 days') at time zone 'Australia/Sydney'
+     and c.created_at < day0;
+  w := public.session_work(new.protocol_key, new.mode, new.hands, new.load_pct, new.added_kg, new.assist_kg, new.lift_kg,
+                           new.edge_mm, new.grip, new.fingers, new.hangs);
+  -- numeric rounding (halves round up) to match JavaScript's Math.round
+  new.points := round((
+      case when new.tut_s >= 15 and not had_real then 5 else 0 end
+    + (public.day_points(w0 + w) - public.day_points(w0)) * case when regular then 1.1::double precision else 1 end
+    + case when new.is_pb and not had_pb then 10 else 0 end)::numeric);
+
+  -- a finished season's points are final
+  if tg_op = 'UPDATE' and old.created_at < public.current_season_start() then new.points := old.points; end if;
+  return new;
+end $$;
+
+drop trigger if exists sessions_guard on public.sessions;
+create trigger sessions_guard
+  before insert or update on public.sessions
+  for each row execute function public.sessions_guard();
+
+-- When a session is added, edited or deleted, re-score the climber's later sessions that day (each one's
+-- points depend on the work done earlier that day) and in the 7 days after (the regular-training bonus).
+-- Runs as the owner so an admin removing someone's session re-scores theirs too.
+create or replace function public.sessions_rescore_day()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r    record;
+  day0 timestamptz;
+begin
+  if pg_trigger_depth() > 1 then return null; end if; -- the re-score itself doesn't cascade
+  if tg_op = 'DELETE' then r := old; else r := new; end if;
+  day0 := public.scoring_day_start(r.created_at);
+  update public.sessions s set points = s.points
+   where s.user_id = r.user_id
+     and s.created_at >= greatest(day0, public.current_season_start())
+     and s.created_at < ((day0 at time zone 'Australia/Sydney') + interval '8 days') at time zone 'Australia/Sydney'
+     and (s.created_at, s.id) > (r.created_at, r.id);
+  return null;
+end $$;
+
+drop trigger if exists sessions_rescore_ins on public.sessions;
+create trigger sessions_rescore_ins after insert on public.sessions
+  for each row execute function public.sessions_rescore_day();
+drop trigger if exists sessions_rescore_del on public.sessions;
+create trigger sessions_rescore_del after delete on public.sessions
+  for each row execute function public.sessions_rescore_day();
+drop trigger if exists sessions_rescore_upd on public.sessions;
+create trigger sessions_rescore_upd after update on public.sessions
+  for each row when (old.load_pct is distinct from new.load_pct or old.edge_mm is distinct from new.edge_mm or old.mode is distinct from new.mode
+                     or old.grip is distinct from new.grip or old.fingers is distinct from new.fingers)
+  execute function public.sessions_rescore_day();
+
+-- Re-score this season with the new rules (each session's points depend only on the other sessions'
+-- weights, times and hang logs, never their points, so the order rows are updated in doesn't matter).
+update public.sessions set points = points where created_at >= public.current_season_start();

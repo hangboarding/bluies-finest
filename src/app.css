@@ -561,6 +561,9 @@ html:has(#view-feed:not(.hide)){overscroll-behavior-y:contain}
 .sedit select{width:100%}
 .sedit .rpe-hd{margin-top:14px}
 .sedit textarea.tx{min-height:72px}
+/* load, edge, grip and fingers lock a day after a session (scoringLocked) */
+.sedit-lock{display:flex;gap:6px;align-items:flex-start;margin:6px 0 0;font-size:12px}.sedit-lock .lic{flex:none;width:14px;height:14px;margin-top:1px}
+.sedit .tx:disabled{opacity:.55}.sedit .chips.locked .chip{opacity:.55;cursor:default}
 /* "Chalk up" can be tapped during get-ready (secret Chalk Bucket): quick taps count instead of selecting the text */
 #setlbl{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 

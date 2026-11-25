@@ -25,6 +25,9 @@ function swipe(el: Element, x0: number, x1: number, y0 = 300, y1 = y0) {
   ev('touchstart', x0, y0); ev('touchend', x1, y1);
 }
 
+/** An hour before the faked clock (see beforeEach), so the session's load can still be edited. */
+const JUST_NOW = '2026-11-23T09:00:00.000Z';
+
 async function openApp(sessions: Session[] = []) {
   document.body.innerHTML = '<div id="view-hang"></div><div id="view-workouts"></div><div id="view-profile"></div>';
   vi.resetModules();
@@ -160,7 +163,7 @@ describe('editing a logged session', () => {
     $(`#recent .lrow[data-sid="${s.id}"] [data-ed]`).click(); await flush();
   };
   it('shows the timings, and edits grip, fingers, board, edge, feel, effort rating and note', async () => {
-    const s = session({ id: 'e1', grip: 'Half crimp', fingers: 'All 4', board: 'Beastmaker 1000', edgeMaterial: 'Wood', edgeProfile: 'Rounded', feel: '🙂', rpe: 7, note: '' });
+    const s = session({ id: 'e1', createdAt: JUST_NOW, grip: 'Half crimp', fingers: 'All 4', board: 'Beastmaker 1000', edgeMaterial: 'Wood', edgeProfile: 'Rounded', feel: '🙂', rpe: 7, note: '' });
     await open(s);
     expect($('.modal .sedit-sum').textContent).toContain('10s hangs');
     expect($('.modal .sedit-sum').textContent).toContain('5 sets');
@@ -195,7 +198,7 @@ describe('editing a logged session', () => {
   });
   it('a database without the latest update still saves the load and note', async () => {
     updateError = p => ('grip' in p ? Object.assign(new Error('permission denied for table sessions'), { code: '42501' }) : null);
-    const s = session({ id: 'e4', addedKg: 0 });
+    const s = session({ id: 'e4', createdAt: JUST_NOW, addedKg: 0 });
     await open(s);
     $('.modal [data-sk="grip"] [data-v="Open"]').click();
     $<HTMLInputElement>('.modal [data-f="addedKg"]').value = '5';
@@ -205,6 +208,30 @@ describe('editing a logged session', () => {
     expect(updates[0]!.patch).not.toHaveProperty('grip');
     expect(s.grip).toBe('Half crimp');
     expect($('#toast').textContent).toContain('schema.sql');
+  });
+  it('a day after a session, what scores is locked (load, edge, grip, fingers, hang or lift); the rest can still change', async () => {
+    const s = session({ id: 'e5', createdAt: '2026-11-22T09:00:00.000Z', addedKg: 0, edgeMm: 20, grip: 'Half crimp', fingers: 'All 4', board: 'Beastmaker 1000' });
+    await open(s);
+    expect($('.modal .sedit-lock').textContent).toContain('24 hours');
+    for (const f of ['addedKg', 'assistKg', 'edgeMm']) expect($<HTMLInputElement>(`.modal [data-f="${f}"]`).disabled, f).toBe(true);
+    expect($<HTMLInputElement>('.modal [data-f="effortPct"]').disabled).toBe(false); // doesn't score
+    $<HTMLInputElement>('.modal [data-f="addedKg"]').value = '40';
+    $('.modal [data-sk="grip"] [data-v="Open"]').click();
+    $('.modal [data-sk="fingers"] [data-v="Mono"]').click();
+    $('.modal [data-sk="mode"] [data-v="lift"]').click();
+    expect($('.modal [data-sk="grip"] [data-v="Open"]').classList.contains('on')).toBe(false);
+    expect($('.modal [data-sk="mode"] [data-v="hang"]').classList.contains('on')).toBe(true);
+    $<HTMLTextAreaElement>('.modal [data-f="note"]').value = 'Felt strong';
+    $<HTMLSelectElement>('.modal select[data-f="board"]').value = 'Tension Block';
+    sheetButtons()[1]!.click(); await flush();
+    expect(updates).toHaveLength(1);
+    expect(updates[0]!.patch).toMatchObject({ note: 'Felt strong', board: 'Tension Block' });
+    for (const k of ['addedKg', 'grip', 'fingers', 'mode', 'loadPct']) expect(updates[0]!.patch, k).not.toHaveProperty(k);
+  });
+  it('a fresh session has no lock', async () => {
+    await open(session({ id: 'e6', createdAt: JUST_NOW }));
+    expect($('.modal .sedit-lock')).toBeNull();
+    expect($<HTMLInputElement>('.modal [data-f="addedKg"]').disabled).toBe(false);
   });
 });
 
@@ -378,7 +405,7 @@ describe('no-hang lifts count only the weight lifted', () => {
   });
   it('a session logged as a hang by mistake can be switched to a lift in Edit session', async () => {
     const hangs = Array.from({ length: 6 }, (_, i) => ({ set: i + 1, rep: 1, hand: 'L' as const, target: 10, held: 10, full: true }));
-    const s = session({ id: 'm1', protocolKey: 'jlmh', protocolName: 'Quick Sesh', mode: 'hang', hands: 'L', addedKg: 10, loadPct: 114, hangs, tutS: 60, fullHangs: 6, totalHangs: 6, points: 0 });
+    const s = session({ id: 'm1', createdAt: JUST_NOW, protocolKey: 'jlmh', protocolName: 'Quick Sesh', mode: 'hang', hands: 'L', addedKg: 10, loadPct: 114, hangs, tutS: 60, fullHangs: 6, totalHangs: 6, points: 0 });
     const { sessionPoints } = await import('../src/lib/scoring');
     s.points = sessionPoints(s, [s]);
     await openApp([s]);
@@ -398,7 +425,7 @@ describe('no-hang lifts count only the weight lifted', () => {
   });
   it('on a database without the latest update, switching hang and lift saves nothing and says why', async () => {
     updateError = p => ('mode' in p ? Object.assign(new Error('permission denied for table sessions'), { code: '42501' }) : null);
-    const s = session({ id: 'm2', mode: 'hang', addedKg: 10 });
+    const s = session({ id: 'm2', createdAt: JUST_NOW, mode: 'hang', addedKg: 10 });
     await openApp([s]);
     const wk = await import('../src/views/workouts');
     wk.renderWorkouts($('#view-workouts'));
@@ -448,7 +475,7 @@ describe('a lift of nothing', () => {
     expect(added).toHaveLength(0);
   });
   it('Edit session won’t switch a hang to a lift without a weight', async () => {
-    const s = session({ id: 'z1', mode: 'hang', addedKg: 0, liftKg: 0 });
+    const s = session({ id: 'z1', createdAt: JUST_NOW, mode: 'hang', addedKg: 0, liftKg: 0 });
     await openApp([s]);
     const wk = await import('../src/views/workouts');
     wk.renderWorkouts($('#view-workouts'));

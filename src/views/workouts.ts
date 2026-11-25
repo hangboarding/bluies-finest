@@ -4,7 +4,8 @@ import { $, $$, esc, sheet, confirmSheet, promptSheet, toast, relTime, onSwipe, 
 import { ic, hydrateIcons } from '../lib/icons';
 import { state, mySessions, saveSettings, allProtos, protoName } from '../lib/state';
 import { personalVals, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS, TITLE_MAX } from '../lib/protocols';
-import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
+import { sessionPoints, loadPct, liftPct, rescoreFrom, scoringDay, scoringLocked, EDIT_HOURS } from '../lib/scoring';
+import { seasonOf } from '../lib/seasons';
 import type { Session } from '../lib/types';
 import { TEMPLATES, fromTemplate, cloneWorkout, newId, workoutTotals, fmtLength, protoValues, blockLine, type Workout } from '../lib/workouts';
 import { drawQueue, addExercise, libWorkouts, findWorkout, upsertWorkout, removeWorkout, totalsLine, getReadySecs, workoutsUsing, deleteCustomProto, renameCustomProto } from './workout-parts';
@@ -124,20 +125,25 @@ async function deleteSession(s: Session) {
   try {
     await state.store.deleteSession(s.id);
     state.sessions = state.sessions.filter(x => x.id !== s.id);
-    rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt));
+    rescoreFrom(state.sessions, s.userId, scoringDay(s.createdAt));
     toast('Session deleted'); drawHistory();
   } catch (err: any) { toast(err.message); }
 }
 
 /** Edit a logged session: its name, its load and edge, how it was done (grip, fingers, board, edge, feel) and how it felt.
- *  The timings and the hang-by-hang log come from the timer, so they're shown but can't be changed. */
+ *  The timings and the hang-by-hang log come from the timer, so they're shown but can't be changed. What scores
+ *  (load, edge, grip, fingers, hang or lift) locks EDIT_HOURS after the session, as the database does. */
 async function editSession(s: Session) {
   let el!: HTMLElement;
+  const locked = scoringLocked(s), lockF = (k: string) => locked && SCORING.includes(k);
   const B = state.settings.boards.list, boards = s.board && !B.includes(s.board) ? [s.board, ...B] : B;
   // `only`: shown just for a hang or just for a lift (the Load method switch swaps them)
-  const num = (k: string, label: string, v: number, step = '0.5', only = '') => `<div${only ? ` data-for="${only}"${only !== s.mode ? ' class="hide"' : ''}` : ''}><label class="f">${label}</label><input class="tx" data-f="${k}" type="number" inputmode="decimal" step="${step}" value="${esc(v)}"></div>`;
+  const num = (k: string, label: string, v: number, step = '0.5', only = '') => `<div${only ? ` data-for="${only}"${only !== s.mode ? ' class="hide"' : ''}` : ''}><label class="f">${label}</label><input class="tx" data-f="${k}" type="number" inputmode="decimal" step="${step}" value="${esc(v)}"${lockF(k) ? ' disabled' : ''}></div>`;
   const chips = (k: string, opts: string[], cur: string, cls: string, show: (v: string) => string = esc) =>
-    `<div class="chips g ${cls}" data-sk="${k}">${opts.map(v => `<span class="chip${v === cur ? ' on' : ''}" data-v="${esc(v)}" role="button" tabindex="0" aria-pressed="${v === cur}">${show(v)}</span>`).join('')}</div>`;
+    `<div class="chips g ${cls}${lockF(k) ? ' locked' : ''}" data-sk="${k}"${lockF(k) ? ' data-locked aria-disabled="true"' : ''}>${opts.map(v => `<span class="chip${v === cur ? ' on' : ''}" data-v="${esc(v)}" role="button" tabindex="${lockF(k) ? -1 : 0}" aria-pressed="${v === cur}">${show(v)}</span>`).join('')}</div>`;
+  const lockNote = !locked ? '' : `<p class="sub sedit-lock">${ic('lock')}<span>${+new Date(s.createdAt) < +seasonOf(new Date()).start
+    ? 'This season is over, so its load, edge and grip are final.'
+    : `Load, edge, grip and fingers lock ${EDIT_HOURS} hours after a session, so points stay fair. If they’re wrong, delete it and log it again.`}</span></p>`;
   const when = new Date(s.createdAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const shape = s.mode === 'lift' ? `${s.hang}s lifts` : `${s.hang}s hangs`;
   const sets = `${s.sets} set${s.sets === 1 ? '' : 's'}${s.reps > 1 ? ` × ${s.reps} reps` : ''}`;
@@ -148,7 +154,7 @@ async function editSession(s: Session) {
         <small class="sedit-why">Times and hangs come from the timer, so they stay as they were.</small></p>
       <label class="f" for="seTitle">Session name</label>
       <input class="tx" id="seTitle" maxlength="${TITLE_MAX}" autocomplete="off" enterkeyhint="done" value="${esc(s.title || protoName(s))}" placeholder="${esc(protoName(s))}">
-      <h4>${ic('add')} Load</h4>
+      <h4>${ic('add')} Load</h4>${lockNote}
       <label class="f">Load method</label>${chips('mode', ['hang', 'lift'], s.mode, 'g2', v => (v === 'hang' ? 'Hang (on board)' : 'No-hang (lift)'))}
       <p class="sub sedit-lift${s.mode === 'lift' ? '' : ' hide'}" data-for="lift">A lift counts only the weight lifted (plates, a dumbbell), not your bodyweight.</p>
       <div class="split">${num('edgeMm', 'Edge (mm)', s.edgeMm, '1')}${num('addedKg', 'Added (kg)', s.addedKg, '0.5', 'hang')}${num('liftKg', 'Weight lifted (kg)', s.liftKg, '0.5', 'lift')}</div>
@@ -174,7 +180,8 @@ async function editSession(s: Session) {
       rpe.addEventListener('input', () => { delete rpe.dataset.unset; label(); }); label();
       // tap to pick, tap the picked one again to leave it blank (a session is always a hang or a lift, though)
       el.addEventListener('click', ev => {
-        const c = (ev.target as HTMLElement).closest('[data-sk] .chip') as HTMLElement | null; if (!c) return;
+        const c = (ev.target as HTMLElement).closest('[data-sk] .chip') as HTMLElement | null;
+        if (!c || (c.parentElement as HTMLElement).dataset.locked != null) return;
         const isMode = (c.parentElement as HTMLElement).dataset.sk === 'mode', on = isMode || !c.classList.contains('on');
         $$('.chip', c.parentElement!).forEach(x => { x.classList.toggle('on', x === c && on); x.setAttribute('aria-pressed', String(x === c && on)); });
         if (isMode) $$<HTMLElement>('[data-for]', el).forEach(x => x.classList.toggle('hide', x.dataset.for !== c.dataset.v));
@@ -188,6 +195,7 @@ async function editSession(s: Session) {
   for (const inp of $$<HTMLInputElement>('input[type="number"][data-f]', el)) {
     const only = (inp.closest('[data-for]') as HTMLElement | null)?.dataset.for;
     if (only && only !== mode) continue; // the other kind's numbers (zeroed below)
+    if (inp.disabled) continue; // locked: stays as it was
     const k = inp.dataset.f!, raw = inp.value.trim().replace(',', '.');
     if (raw === '') continue; // leave a cleared box as it was
     const n = +raw, [lo, hi] = LIM[k]!;
@@ -195,13 +203,16 @@ async function editSession(s: Session) {
     if (n !== (s as any)[k]) patch[k] = n;
   }
   for (const g of $$('[data-sk]', el)) {
+    if (g.dataset.locked != null) continue; // locked: stays as it was
     const k = g.dataset.sk!, v = ($('.chip.on', g) as HTMLElement | null)?.dataset.v ?? '', was = (s as any)[k] ?? '';
     // a saved value that isn't one of the chips (so none showed as picked) stays as it was unless one is picked
     if (v !== was && (v || $$<HTMLElement>('.chip', g).some(c => c.dataset.v === was))) patch[k] = v;
   }
-  if (mode === 'lift' && !(patch.liftKg ?? s.liftKg)) { toast('Enter the weight you lifted: just the plates or dumbbell.'); return; }
-  // a lift has no added weight or assist (it's only the weight lifted), and a hang has no weight lifted
-  if (mode === 'lift') { if (s.addedKg) patch.addedKg = 0; if (s.assistKg) patch.assistKg = 0; } else if (s.liftKg) patch.liftKg = 0;
+  if (!locked) {
+    if (mode === 'lift' && !(patch.liftKg ?? s.liftKg)) { toast('Enter the weight you lifted: just the plates or dumbbell.'); return; }
+    // a lift has no added weight or assist (it's only the weight lifted), and a hang has no weight lifted
+    if (mode === 'lift') { if (s.addedKg) patch.addedKg = 0; if (s.assistKg) patch.assistKg = 0; } else if (s.liftKg) patch.liftKg = 0;
+  }
   const board = $<HTMLSelectElement>('select[data-f="board"]', el).value; if (board !== s.board) patch.board = board;
   const rpe = $<HTMLInputElement>('[data-f="rpe"]', el); if (rpe.dataset.unset == null && +rpe.value !== s.rpe) patch.rpe = +rpe.value;
   const note = $<HTMLTextAreaElement>('[data-f="note"]', el).value.trim().slice(0, 2000); if (note !== s.note) patch.note = note;
@@ -228,13 +239,15 @@ async function editSession(s: Session) {
   try {
     await save();
     Object.assign(s, patch); // apply locally only once the save succeeded
-    rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); // later sessions that day change too (the server does the same)
+    rescoreFrom(state.sessions, s.userId, scoringDay(s.createdAt)); // later sessions that day and the week after change too (the server does the same)
     toast(skipped.length ? `Saved, except ${skipped.join(' and ')}: those can be changed once an admin runs the latest supabase/schema.sql.` : 'Session updated', skipped.length ? 6000 : 2200);
     drawHistory(); checkUnlocks();
   } catch (e: any) { toast(e.message ?? 'Could not save'); }
 }
 /** Session fields that describe how it was done; editable since the November 2026 schema update. */
 const DESCRIPTIVE = ['grip', 'fingers', 'board', 'edgeMaterial', 'edgeProfile', 'feel', 'effortPct'];
+/** Fields that change points: locked EDIT_HOURS after a session (see scoringLocked). */
+const SCORING = ['mode', 'edgeMm', 'addedKg', 'assistKg', 'liftKg', 'grip', 'fingers'];
 
 // ---------- the builder ----------
 const dirty = () => !!draft && JSON.stringify(draft) !== baseline;

@@ -38,7 +38,7 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 401 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts, the weekly flock (every species run through a busy few minutes)
+npm test         # 410 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts, the weekly flock (every species run through a busy few minutes)
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.
@@ -59,15 +59,18 @@ Every push to `main` runs the tests, then builds and deploys to GitHub Pages via
 
 Harder training earns more, and there's nothing to gain from gaming it.
 
-- **Work** = time under tension × intensity² × edge factor.
-  - **Intensity:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2 (never your bodyweight). Capped at 3; a hang counts as at least 0.4, but a lift counts only what it lifts. Squared, so heavier hangs earn clearly more.
-  - **One-arm hangs** count each arm's time at half, so left + right at bodyweight equals a two-arm hang at +100%: the same load on each arm.
-  - **Edge factor:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
-  - **Abrahangs and Warm-up** are done light (feet on or assisted), which people rarely enter as assist, so they count at most 60% of bodyweight.
-- **Points are scored per day.** A day's work is worth 40 × ln(1 + work ÷ 40): more always scores more, with diminishing returns, so piling on easy volume pays less and less. Each session gets what it adds to its day, so splitting training into lots of little sessions earns nothing extra.
-  - Holding every hang its full time adds up to 25% to a session's work points.
+- **Every set scores:** 10 × time, and 25% more when every hang in the set was held its full time. One set never earns what a whole session does.
+  - **Time:** seconds held in the set ÷ 10, counted in full up to 10s and with diminishing returns after that (√). A 10s hang is 1; a 7s × 6 repeater set is about 2. Splitting a set into tiny ones gains nothing.
+- **A session's points** = its set points × load × edge × hold.
+  - **Load:** load as a fraction of bodyweight on two arms, worked out on the server from the kg you entered and your bodyweight (70kg is assumed if you haven't set it). +20% added = 1.2, and +100% doubles a set's points; a one-arm hang counts double; no-hang lifts use the weight lifted per hand × 2 (never your bodyweight). Capped at 3; a hang counts as at least 0.4, but a lift counts only what it lifts.
+  - **Edge:** 20mm ÷ edge size, capped between 0.6 and 1.6, so smaller edges score more.
+  - **Hold** (the type of hang): open hand and drag ×1.1, pinch and sloper ×1.2 (half and full crimp ×1); three fingers ×1.15, two ×1.3, mono ×1.5; a one-arm hang ×1.5 on top of its doubled load (not a one-arm lift). Together at most ×2.
+  - **One-arm hangs** count each arm's time at half, so left + right together count like one two-arm hang, with double the load and the one-arm bonus.
+  - **Abrahangs and Warm-up** are done light (feet on or assisted), which people rarely enter as assist, so they count at most 40% of bodyweight.
+- **Points are scored per day.** The first 200 points of a day count in full; past that, more still scores more but each extra point is worth less. Each session gets what it adds to its day, so splitting training into lots of little sessions earns nothing extra.
+  - **Training regularly:** 10% more when you trained (15s or more under tension) on 2 or more of the 7 days before.
   - +5 for the day's first session with 15s or more under tension, and +10 for the day's first personal best (checked on the server).
-- Points are calculated on the server, so they can't be faked, and a finished season's points never change.
+- Points are calculated on the server, so they can't be faked. A session's load, edge, grip and fingers can be fixed in Edit session for 24 hours, then they're locked, and a finished season's points never change.
 - **Overall rank** = points from the last 28 days, plus 15 for each week of your current streak (a streak week means training on 2 or more different days).
 
 ## Project layout

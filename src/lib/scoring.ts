@@ -1,27 +1,34 @@
 // Points + leaderboard maths. Kept deliberately simple and explainable.
-// The database (the fair-scoring section of supabase/schema.sql) uses exactly the same rules; this copy is for the
-// done screen, the edit sheet and demo mode.
+// The database (the "points v4" section of supabase/schema.sql) uses exactly the same rules; this copy is for
+// the done screen, the edit sheet and demo mode.
 //
-// Intensity  = two-arm-equivalent load as a fraction of bodyweight, always worked out from
-//              the kg entered: bodyweight on two arms = 1.0, +20% added = 1.2, one arm = ×2.
-//              No-hang lifts use the weight lifted per hand × 2 ÷ bodyweight. Capped at 3. A hang counts
-//              as at least 0.4; a lift counts only what it lifts (at least 0.1, the floor of liftPct).
-//              With no bodyweight set, a 70kg climber is assumed (target effort % never counts).
-//              Abrahangs and Warm-up are light by design (feet on or assisted, which people rarely
-//              enter as assist), so they count at most 60%.
-// Work       = time under tension × intensity² × edge factor, per arm: a one-arm hang's time
-//              counts half, so left + right at bodyweight = one two-arm hang at +100% (the
-//              same load on each arm), and one hand only is half of that.
-// Edge factor = 20mm ÷ edge size, clamped 0.6–1.6 (smaller edges score more)
-// Points are scored per day (Sydney time), so splitting training into lots of little
-// sessions never earns more than doing it in one:
-//   day work points = 40 × ln(1 + day's total work ÷ 40)   (more work always scores more,
-//                     with diminishing returns, so piling on easy volume pays less and less)
-//   each session gets the work points it adds to its day, × (1 + 0.25 × share of hangs held
-//   full time), + 5 for the day's first real session (15s+ under tension),
+// Points v4 (November 2026): every set scores, so one set can't earn what a whole session does.
+//   set points  = 10 × time × 1.25 if every hang in the set was held its full time
+//     time      = seconds held in the set ÷ 10, in full up to 10s, then with diminishing returns (√):
+//                 a 10s hang = 1, a 7s × 6 repeater set (42s) ≈ 2. A one-arm hang's time counts half,
+//                 per arm, so left + right together count like one two-arm hang.
+//   A session's raw points = its set points × load × edge × hold:
+//     load      = two-arm-equivalent load as a fraction of bodyweight, always worked out from the kg
+//                 entered: bodyweight on two arms = 1.0, +20% added = 1.2, one arm = ×2. It counts in
+//                 proportion, so +100% doubles a set's points (it used to be squared, which let one
+//                 heavy set match a whole session). No-hang lifts use the weight lifted per hand × 2 ÷
+//                 bodyweight. Capped at 3. A hang counts as at least 0.4; a lift counts only what it
+//                 lifts (at least 0.1, the floor of liftPct). With no bodyweight set, a 70kg climber is
+//                 assumed (target effort % never counts). Abrahangs and Warm-up are light by design
+//                 (feet on or assisted, which people rarely enter as assist), so they count at most 40%.
+//     edge      = 20mm ÷ edge size, clamped 0.6–1.6 (smaller edges score more)
+//     hold      = grip × fingers × one-arm, together at most ×2 (see GRIP_FACTOR, FINGER_FACTOR):
+//                 open hand and drag ×1.1, pinch and sloper ×1.2; three fingers ×1.15, two ×1.3,
+//                 mono ×1.5; a one-arm hang (not a lift) ×1.5 on top of its doubled load.
+// Points are scored per day (Sydney time), so splitting training into lots of little sessions
+// never earns more than doing it in one:
+//   day points  = the day's raw points, the first 200 in full, then 200 + 75 × ln(1 + rest ÷ 75)
+//                 (more always scores more, but a mountain of volume in one day pays less and less)
+//   each session gets what it adds to its day, × 1.1 if there were real sessions (15s+ under
+//   tension) on 2 or more of the 7 days before, + 5 for the day's first real session,
 //   + 10 for the day's first personal best.
 // Overall rank = points over the last 28 days + 15 per week of current weekly streak.
-import type { Session } from './types';
+import type { HangResult, Session } from './types';
 import { seasonOf, inSeason, tzParts } from './seasons';
 
 /** Assumed bodyweight when a climber hasn't set theirs. */
@@ -32,8 +39,10 @@ export const MIN_TUT = 15;
 
 type Load = Pick<Session, 'mode' | 'loadPct' | 'hands' | 'addedKg' | 'assistKg' | 'liftKg'> & { protocolKey?: string };
 /** Protocols done light by design, and the most they can count for. */
-export const LIGHT_PROTOCOLS = new Set(['abra', 'warm']), LIGHT_CAP = 0.6;
-type Scored = Load & Pick<Session, 'tutS' | 'fullHangs' | 'totalHangs' | 'isPb' | 'edgeMm' | 'createdAt'> & { id?: string };
+export const LIGHT_PROTOCOLS = new Set(['abra', 'warm']), LIGHT_CAP = 0.4;
+type Hold = Pick<Session, 'mode' | 'hands' | 'grip' | 'fingers'>;
+type Worked = Load & Hold & Pick<Session, 'hangs' | 'edgeMm'>;
+type Scored = Worked & Pick<Session, 'tutS' | 'isPb' | 'createdAt'> & { id?: string };
 
 /** Two-arm-equivalent load ÷ bodyweight. */
 export function intensity(s: Load) {
@@ -42,35 +51,94 @@ export function intensity(s: Load) {
   return Math.min(LIGHT_PROTOCOLS.has(s.protocolKey ?? '') ? LIGHT_CAP : 3, Math.max(s.mode === 'lift' ? 0.1 : 0.4, raw));
 }
 export const edgeFactor = (mm: number) => Math.min(1.6, Math.max(0.6, 20 / Math.max(1, mm)));
-/** Training work in one session (see the top of this file). */
-export function sessionWork(s: Load & Pick<Session, 'tutS' | 'edgeMm'>) {
-  const i = intensity(s);
-  return Math.max(0, s.tutS) * (s.hands === 'both' ? 1 : 0.5) * i * i * edgeFactor(s.edgeMm);
+
+/** Harder grips score more. Half and full crimp are the baseline (×1); anything not listed counts ×1. */
+export const GRIP_FACTOR: Record<string, number> = { Open: 1.1, Drag: 1.1, Pinch: 1.2, Sloper: 1.2 };
+/** Fewer fingers score more. All 4 and Custom count ×1. */
+export const FINGER_FACTOR: Record<string, number> = { 'Front 3': 1.15, 'Back 3': 1.15, 'Front 2': 1.3, 'Middle 2': 1.3, 'Back 2': 1.3, Mono: 1.5 };
+/** A one-arm hang's bonus on top of its doubled load (a one-arm lift's weight is already per hand, so it gets none). */
+export const ONE_ARM = 1.5;
+/** grip × fingers × one-arm together count at most this much. */
+export const HOLD_CAP = 2;
+/** The type of hang: grip × fingers × one-arm (see the top of this file). */
+export function holdFactor(s: Hold) {
+  return Math.min(HOLD_CAP, (GRIP_FACTOR[s.grip] ?? 1) * (FINGER_FACTOR[s.fingers] ?? 1) * (s.mode === 'hang' && s.hands !== 'both' ? ONE_ARM : 1));
 }
-const curve = (w: number) => 40 * Math.log(1 + w / 40);
+
+/** Each hold counts up to its target (as the database does); full = held the whole target. */
+const heldOf = (h: HangResult) => Math.max(0, Math.min(h.held, h.target));
+/** Time in one set: in full up to 10s, then √ (a 10s hang = 1, a 40s set = 2). */
+const setTime = (t: number) => (t <= 10 ? t / 10 : Math.sqrt(t / 10));
+/** Points from the sets in one session, before load, edge and hold (see the top of this file). */
+export function setPoints(s: Pick<Session, 'hands' | 'hangs'>) {
+  const sets = new Map<unknown, { t: number; full: boolean }>();
+  for (const h of s.hangs) {
+    const x = sets.get(h.set) ?? sets.set(h.set, { t: 0, full: true }).get(h.set)!;
+    x.t += heldOf(h); x.full &&= h.held >= h.target;
+  }
+  const perArm = s.hands === 'both' ? 1 : 0.5; // one-arm: each arm's time at half
+  let p = 0;
+  for (const x of sets.values()) p += 10 * setTime(x.t * perArm) * (x.full ? 1.25 : 1);
+  return p;
+}
+/** Raw points for one session: set points × load × edge × hold (see the top of this file). */
+export function sessionWork(s: Worked) {
+  return setPoints(s) * intensity(s) * edgeFactor(s.edgeMm) * holdFactor(s);
+}
+/** A day's raw points: the first 200 count in full, then with diminishing returns. */
+export const DAY_FULL = 200;
+const curve = (w: number) => (w <= DAY_FULL ? w : DAY_FULL + 75 * Math.log(1 + (w - DAY_FULL) / 75));
 export const qualifies = (s: Pick<Session, 'tutS'>) => s.tutS >= MIN_TUT;
+/** Points × this when there were real sessions on at least REGULAR_DAYS of the 7 days before. */
+export const REGULAR_BONUS = 1.1, REGULAR_DAYS = 2;
 
 /** The scoring day (YYYY-MM-DD in Sydney time, same as the database). */
 export function scoringDay(iso: string) { const p = tzParts(new Date(iso)); return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`; }
+/** The scoring day `n` days after `day` (calendar days, so daylight saving doesn't matter). */
+export function shiftDay(day: string, n: number) {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d! + n)).toISOString().slice(0, 10);
+}
 // same order as the database: by time, then id. A session not saved yet (no id) comes after a saved one at the same time.
 const before = (a: Scored, b: Scored) => a.createdAt < b.createdAt || (a.createdAt === b.createdAt && (b.id == null || (a.id != null && a.id < b.id)));
+const WEEK_MS = 9 * 864e5; // a quick filter before working out Sydney days: more than the 7 days looked back, with room for time zones
 
-/** Points for `s`, given the same climber's other sessions (any day; only ones earlier the same day count). */
+/** Trained regularly: real sessions on at least 2 different days of the 7 before `day`. */
+export function trainedRegularly(day: string, others: readonly Pick<Session, 'createdAt' | 'tutS'>[]) {
+  const from = shiftDay(day, -7), t = +new Date(day);
+  const days = new Set<string>();
+  for (const o of others) {
+    if (!qualifies(o) || Math.abs(+new Date(o.createdAt) - t) > WEEK_MS) continue;
+    const d = scoringDay(o.createdAt);
+    if (d >= from && d < day) days.add(d);
+  }
+  return days.size >= REGULAR_DAYS;
+}
+
+/** Points for `s`, given the same climber's other sessions (any day: earlier the same day for what it adds,
+ *  the 7 days before for the regular-training bonus). */
 export function sessionPoints(s: Scored, others: readonly Scored[] = []) {
-  const day = scoringDay(s.createdAt);
-  const earlier = others.filter(o => o !== s && (o.id == null || o.id !== s.id) && before(o, s) && scoringDay(o.createdAt) === day);
+  const day = scoringDay(s.createdAt), t = +new Date(s.createdAt);
+  const near = others.filter(o => o !== s && (o.id == null || o.id !== s.id) && Math.abs(+new Date(o.createdAt) - t) <= WEEK_MS);
+  const earlier = near.filter(o => before(o, s) && scoringDay(o.createdAt) === day);
   const w0 = earlier.reduce((a, o) => a + sessionWork(o), 0);
   const gain = curve(w0 + sessionWork(s)) - curve(w0);
-  const held = s.totalHangs > 0 ? s.fullHangs / s.totalHangs : 0;
   const showUp = qualifies(s) && !earlier.some(qualifies) ? 5 : 0;
   const pb = s.isPb && !earlier.some(o => o.isPb) ? 10 : 0;
-  return Math.round(showUp + gain * (1 + 0.25 * held) + pb);
+  return Math.round(showUp + gain * (trainedRegularly(day, near) ? REGULAR_BONUS : 1) + pb);
 }
-/** Re-score every session of `userId` on `day` in place (after a save, edit or delete). */
-export function rescoreDay(sessions: Session[], userId: string, day: string) {
-  const mine = sessions.filter(s => s.userId === userId && scoringDay(s.createdAt) === day);
-  for (const s of mine) s.points = sessionPoints(s, mine);
+/** Re-score `userId`'s sessions on `day` and the 7 days after it in place, after a save, edit or delete
+ *  (later sessions that day depend on what came before, and the next week's on whether you trained). */
+export function rescoreFrom(sessions: Session[], userId: string, day: string) {
+  const mine = sessions.filter(s => s.userId === userId), last = shiftDay(day, 7);
+  for (const s of mine) { const d = scoringDay(s.createdAt); if (d >= day && d <= last) s.points = sessionPoints(s, mine); }
 }
+
+/** Load, edge, grip, fingers and hang-or-lift can be changed for this long after a session, then they're
+ *  locked so points can't be raised later (the database enforces the same). A finished season is locked too. */
+export const EDIT_HOURS = 24;
+export const scoringLocked = (s: Pick<Session, 'createdAt'>, now = new Date()) =>
+  +now - +new Date(s.createdAt) > EDIT_HOURS * 3600e3 || +new Date(s.createdAt) < +seasonOf(now).start;
 
 /** Whole % only (finer values would reveal bodyweight), kept inside the 10–400% the database accepts
  *  so an extreme assist or added weight can't make a session impossible to save. */

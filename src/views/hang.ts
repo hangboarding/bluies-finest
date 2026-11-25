@@ -3,7 +3,7 @@ import { ic, hydrateIcons } from '../lib/icons';
 import { PROTOCOLS, FIELDS, DEFAULTS, TIPS, QUOTES, MAX_EFFORT, LIMITS, GRIPS, FINGERS, MATERIALS, PROFILES, FEELS, RPE_WORDS as RW, TITLE_MAX, personalVals, type Values, type Protocol } from '../lib/protocols';
 import { state, saveSettings, mySessions, achievementCtx, allProtos } from '../lib/state';
 import { SessionTimer, buildSteps, beep, fanfare, unlockAudio, keepAwake, handsLabel, type Step } from '../lib/timer';
-import { sessionPoints, loadPct, liftPct, rescoreDay, scoringDay } from '../lib/scoring';
+import { sessionPoints, loadPct, liftPct, rescoreFrom, scoringDay } from '../lib/scoring';
 import { diffUnlocks, bumpDaily } from '../lib/achievements';
 import type { HangResult, NewSession, Session } from '../lib/types';
 import { confetti } from '../lib/confetti';
@@ -732,7 +732,7 @@ function addSaved(s: Session, queued: boolean) {
   // a back-logged session goes in date order, not at the top
   const at = state.sessions.findIndex(x => x.createdAt <= s.createdAt);
   state.sessions.splice(at === -1 ? state.sessions.length : at, 0, s);
-  if (!queued) rescoreDay(state.sessions, s.userId, scoringDay(s.createdAt)); // a back-logged session changes later ones that day (the server does the same)
+  if (!queued) rescoreFrom(state.sessions, s.userId, scoringDay(s.createdAt)); // a back-logged session changes later ones that day and the week after (the server does the same)
 }
 
 // ---------------- workouts: several protocols back to back ----------------
