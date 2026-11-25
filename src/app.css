@@ -62,6 +62,8 @@ svg.lic{stroke:currentColor}
 .tdots{display:flex;gap:6px;justify-content:center;margin:4px 0 14px}.tdots i{width:8px;height:8px;border-radius:50%;background:var(--line)}.tdots i.on{background:var(--acc)}
 .welcome .sheet{padding-top:28px}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:50}
+/* the finish-screen parade: birds on the tab bar and all over the page above it, below sheets (40) and the aviary (30) */
+canvas.parade{position:fixed;left:0;top:0;width:100%;pointer-events:none;z-index:20}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 details.panel>summary{gap:6px}details.panel>summary:after{margin-left:auto}

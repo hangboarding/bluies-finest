@@ -27,7 +27,7 @@ function rrect(c: Ctx, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
 }
 /** How light a #rrggbb colour is, 0..1. */
-function lum(hex: string) {
+export function lum(hex: string) {
   const n = parseInt(hex.slice(1), 16); if (hex.length !== 7 || Number.isNaN(n)) return 0.5;
   return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
 }

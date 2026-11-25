@@ -15,6 +15,7 @@ import { type Workout, blockValues, readyFor, sanitizeVals, hangCount, loadAdjus
 import { protoLabel, drawQueue, libWorkouts, findWorkout, upsertWorkout, totalsLine, customOption, newCustomExercise, deleteCustomProto, setSessionActiveCheck } from './workout-parts';
 import { openBuilder } from './workouts';
 import { checkUnlocks } from './unlocks';
+import { parade } from './parade';
 let cur = 'max';
 let val: Values;
 let timer: SessionTimer | null = null;
@@ -697,6 +698,7 @@ function done(log: HangResult[]) {
   $('#saveSess').textContent = 'Save session';
   ($('#rpe') as HTMLInputElement).value = '7'; rpeUpd(); ($('#note') as HTMLInputElement).value = '';
   show('done'); if (!past) { fanfare(); vibrate([100, 50, 100, 50, 300]); } confetti();
+  parade([{ points: pending.points, createdAt: past ?? new Date().toISOString() }]); // your birds come out to see
 }
 function drawUnlocks(unlocked: { icon: string; text: string }[]) {
   $('#unlocks').innerHTML = unlocked.length ? 'Unlocked: ' + unlocked.map(u => `<span class="unl">${ic(u.icon)} ${esc(u.text)}</span>`).join(' &nbsp;·&nbsp; ') : ''; hydrateIcons($('#unlocks'));
@@ -968,6 +970,7 @@ function workoutDone(restored = false) {
   drawUnlocks(diffUnlocks(achievementCtx(), achievementCtx([...fake.reverse(), ...mine])));
   ($('#note') as HTMLInputElement).value = '';
   show('done'); if (!restored) { fanfare(); vibrate([100, 50, 100, 50, 300]); } confetti();
+  parade(all.map(s => ({ points: s.points, createdAt: s.createdAt! })));
 }
 
 async function saveRun() {

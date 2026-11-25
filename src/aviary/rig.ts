@@ -2,7 +2,7 @@
 // behaviour is a Pose: body tilt, neck and head, bill, crest, wings, tail and feet. The caller places,
 // scales and flips the bird.
 import type { Look, Patch, Species } from './species';
-import { drawHat, type HatKind } from './hats';
+import { drawHat, lum, type HatKind } from './hats';
 
 type Ctx = CanvasRenderingContext2D;
 const TAU = Math.PI * 2;
@@ -170,8 +170,17 @@ function item(c: Ctx, kind: number, wig: number) {
 }
 
 /** band: the leg band's colour; hat: a hat to wear, in the band's colour; t: the time, for anything dangling from it;
- *  sil: draw the whole bird flat in this one colour. */
-export interface DrawOpts { band?: string; sil?: string; hat?: HatKind; t?: number }
+ *  sil: draw the whole bird flat in this one colour; wink: 0..1, how far into a wink (the eye's shut from 0.4, with a twinkle). */
+export interface DrawOpts { band?: string; sil?: string; hat?: HatKind; t?: number; wink?: number }
+/** A four-pointed twinkle of radius `r`. */
+function twinkle(c: Ctx, x: number, y: number, r: number, spin: number) {
+  c.save(); c.translate(x, y); c.rotate(spin);
+  c.beginPath();
+  for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4, d = i % 2 ? r * 0.26 : r; c.lineTo(Math.cos(a) * d, Math.sin(a) * d); }
+  c.closePath(); c.fillStyle = '#fff6cf'; c.fill();
+  c.beginPath(); c.arc(0, 0, r * 0.22, 0, TAU); c.fillStyle = '#ffffff'; c.fill();
+  c.restore();
+}
 export function drawBird(c: Ctx, sp: Species, lk: Look, p: Pose, o: DrawOpts = {}) {
   const sil = !!o.sil, col = (s?: string) => o.sil ?? s ?? '#000';
   const rx = sp.rx * (1 + 0.1 * p.fluff), ry = sp.ry * (1 + 0.22 * p.fluff), hr = sp.hr * (1 + 0.08 * p.fluff);
@@ -275,11 +284,18 @@ export function drawBird(c: Ctx, sp: Species, lk: Look, p: Pose, o: DrawOpts = {
   if (!sil && p.tuck < 0.7) {
     const ex = hr * 0.3, ey = -hr * 0.2, ir = hr * (lk.iris === '#f5d63b' || lk.iris === '#f2f2f0' ? 0.23 : 0.2);
     if (lk.eyeRing) { c.beginPath(); c.arc(ex, ey, ir * 1.7, 0, TAU); c.fillStyle = lk.eyeRing; c.fill(); }
-    if (p.eye > 0.45) {
+    const wk = o.wink ?? 0;
+    if (wk > 0.4) { // a wink: the eye squeezed shut in an arch, bigger than the eye so it reads at any size, with a lash
+      const R = Math.max(ir * 1.4, hr * 0.38);
+      c.strokeStyle = lum(lk.head) < 0.3 ? '#e4e7ec' : '#17130f'; c.lineWidth = Math.max(0.9, hr * 0.15); c.lineCap = 'round';
+      c.beginPath(); c.arc(ex, ey + R * 0.5, R, Math.PI + 0.4, -0.4); c.stroke();
+      c.beginPath(); c.moveTo(ex - R * 0.92, ey + R * 0.12); c.lineTo(ex - R * 1.45, ey - R * 0.2); c.stroke();
+    } else if (p.eye > 0.45) {
       c.beginPath(); c.arc(ex, ey, ir, 0, TAU); c.fillStyle = lk.iris; c.fill();
       c.beginPath(); c.arc(ex + ir * 0.12, ey, ir * 0.5, 0, TAU); c.fillStyle = '#0a0a0a'; c.fill();
       c.beginPath(); c.arc(ex - ir * 0.25, ey - ir * 0.35, ir * 0.28, 0, TAU); c.fillStyle = 'rgba(255,255,255,0.85)'; c.fill();
     } else { c.strokeStyle = shade(lk.head, 0.55); c.lineWidth = 1; c.beginPath(); c.arc(ex, ey - ir * 0.3, ir, 0.3, Math.PI - 0.3); c.stroke(); }
+    if (wk > 0.4) twinkle(c, ex + hr * 1.1, ey - hr * 0.8, hr * 0.9 * Math.sin(((wk - 0.4) / 0.6) * Math.PI / 2), (o.t ?? 0) * 2);
   }
   if (o.hat && (o.band || sil)) { // sat on the crown, upright when the head's at rest, a touch jaunty, and tipping as the head moves
     const a0 = sp.bill.type === 'hook' ? -0.28 : -0.1, th = a0 - 0.12, k = 0.8 - 0.06 * p.fluff;
