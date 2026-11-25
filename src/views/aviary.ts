@@ -2,10 +2,11 @@
 // earns this week brings a bird. See lib/flock.ts for the counting and src/aviary/ for the birds.
 import { $, esc, avatar, onSwipe, slideIn, toast } from '../lib/ui';
 import { state, refreshShared } from '../lib/state';
-import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, weekNames, isBirdWeek, SPECIES_NAMES, SPECIES_ORDER, POINTS_PER_BIRD, type FlockMember, type SpeciesId, type BirdWeek } from '../lib/flock';
+import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, weekNames, isBirdWeek, hatsOn, SPECIES_NAMES, SPECIES_ORDER, POINTS_PER_BIRD, type FlockMember, type SpeciesId, type BirdWeek } from '../lib/flock';
 import { FACTS } from '../aviary/facts';
 import { SPECIES } from '../aviary/species';
 import { drawBird, restPose } from '../aviary/rig';
+import { hatOf } from '../aviary/hats';
 import { World } from '../aviary/sim';
 import { paintSky, paintBack, paintForest, paintLand, paintCanopy, paintProps, skyAt, type Sprite, type Swayer } from '../aviary/scene';
 import { drawWorld } from '../aviary/render';
@@ -26,14 +27,14 @@ export function flockBtnHtml() {
 }
 
 const icons = new Map<string, HTMLCanvasElement>();
-/** The week's bird as a solid silhouette in `colour`, fitted to a 64×64 canvas. */
+/** The week's bird as a solid silhouette in `colour`, fitted to a 64×64 canvas (in a top hat, when hats are on). */
 function silhouette(id: SpeciesId, colour: string): HTMLCanvasElement | null {
-  const key = `${id}|${colour}`, hit = icons.get(key); if (hit) return hit;
+  const hat = hatsOn(), key = `${id}|${colour}|${hat}`, hit = icons.get(key); if (hit) return hit;
   const big = document.createElement('canvas'); big.width = big.height = 240;
   const c = big.getContext('2d'); if (!c) return null;
   const sp = SPECIES[id];
   c.translate(150, 200); c.scale(-1.7, 1.7); // facing left, towards the app's name
-  drawBird(c, sp, sp.look, restPose(sp), { sil: colour });
+  drawBird(c, sp, sp.look, restPose(sp), hat ? { sil: colour, hat: 'tophat' } : { sil: colour });
   const d = c.getImageData(0, 0, 240, 240).data;
   let x0 = 240, y0 = 240, x1 = 0, y1 = 0;
   for (let y = 0; y < 240; y++) for (let x = 0; x < 240; x++) if (d[(y * 240 + x) * 4 + 3]! > 30) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
@@ -111,6 +112,7 @@ export function openAviary() {
   const sky = document.createElement('canvas'), far = document.createElement('canvas'), land = document.createElement('canvas'), canopy = document.createElement('canvas');
   let sprites: (Sprite | null)[] = [], forest: Swayer[] = [], leaves: Swayer[] = [];
   const world = new World();
+  world.hats = hatsOn();
   let dpr = 1, hourPainted = -1, light = 1, raf = 0, last = performance.now();
   world.onSound = (b, k) => birdSound(b.sp.id, k, (b.x / world.w) * 1.4 - 0.7, 0.45 + 0.55 * Math.min(1, Math.max(0, (b.y - world.hor) / world.gh)));
   world.onOwl = x => owlHoot((x / world.w) * 1.4 - 0.7, 0.8);
@@ -167,8 +169,9 @@ export function openAviary() {
       if (want > have) {
         let place = first ? Math.min(seen[m.userId] ?? 0, want) : 0;
         for (let i = have; i < want; i++) {
-          if (place-- > 0) { world.add(nextSpecies(), m.userId, m.band, 'place'); continue; }
-          world.queue.push({ at: world.t + delay, uid: m.userId, run: () => world.add(nextSpecies(), m.userId, m.band, 'arrive') });
+          const hat = hatOf(m.userId, i, week); // the climber's ith bird wears the same hat all week
+          if (place-- > 0) { world.add(nextSpecies(), m.userId, m.band, 'place', hat); continue; }
+          world.queue.push({ at: world.t + delay, uid: m.userId, run: () => world.add(nextSpecies(), m.userId, m.band, 'arrive', hat) });
           delay += 0.5 + Math.random() * 0.8; arriving++;
         }
       } else if (want < have) {
@@ -212,7 +215,7 @@ export function openAviary() {
   cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); world.tap(e.clientX - r.left, e.clientY - r.top); });
   $('#avLegend', el).addEventListener('click', e => { const b = (e.target as HTMLElement).closest('[data-who]') as HTMLElement | null; if (b) world.highlight(b.dataset.who!); });
   const ro = new ResizeObserver(() => fit()); ro.observe(stage);
-  const onChange = () => { if (birdNow() !== id) { close(); openAviary(); } else sync(false); }; // a refresh may bring an admin's new pick
+  const onChange = () => { world.hats = hatsOn(); if (birdNow() !== id) { close(); openAviary(); } else sync(false); }; // a refresh may bring an admin's new pick, or hats
   document.addEventListener('bf:sessions-changed', onChange);
   const tick = setInterval(() => {
     if (weekIndex() !== week || birdNow() !== id) { close(); openAviary(); return; } // a new week, or an admin picked another bird: a new flock

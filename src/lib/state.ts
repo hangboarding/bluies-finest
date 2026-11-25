@@ -6,7 +6,7 @@ import { LocalStore } from './local-store';
 import { BUILTIN_BOARDS, PROTOCOLS, type Protocol } from './protocols';
 import { mergeWorkouts, mergeDeleted, readWorkouts, type Deleted, type Workout } from './workouts';
 import { mergeSeen, type Ctx } from './achievements';
-import { chooseBird } from './flock';
+import { chooseBird, setHats } from './flock';
 
 export interface Settings {
   proto: string;
@@ -138,12 +138,13 @@ export async function loadUserData() {
   void syncProtoNames();
 }
 
-/** Takes in the crew-wide settings an admin has set: for now, the bird they've picked (none: the weekly rotation).
- *  null (offline, or not set up on the server) keeps what this phone last knew. */
+/** Takes in the crew-wide settings an admin has set: the bird they've picked (none: the weekly rotation) and
+ *  whether the birds wear hats. null (offline, or not set up on the server) keeps what this phone last knew. */
 export function applyAppSettings(a: Record<string, unknown> | null) {
   if (!a) return;
   state.appSettings = a;
   chooseBird(a.bird ?? null);
+  setHats(a.hats);
 }
 
 /** Re-fetch what other people change (profiles, recent sessions, challenges, crew settings) without touching my

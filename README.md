@@ -31,14 +31,14 @@ Hangboard accountability and bragging rights. A mobile-first web app for a small
   - Other animals: a powerful owl lives in the hollow of an old dead stag and comes out at night, hooting, to swoop on the antechinus scurrying about; skinks dart between the rocks and a water dragon basks by the pond by day, bolting into the water if a bird comes too close; at dusk, now and then, a red-bellied black snake slides across (swimming the pond if it's in the way) and sends nearby birds up with alarm calls; a kangaroo or swamp wallaby sometimes hops by in the distance, stopping to graze or sit up; and at night a wombat comes out of its burrow on the left to graze, scratch and wander, going back underground by morning. Overhead, a loose flock of sulphur-crested cockatoos screeches across now and then through the day, yellow-tailed black cockatoos wail slowly over at dusk, and at night microbats flit about the clearing, snapping up moths.
   - Tap the ground to throw seed, or a bird to startle it; tap an animal and it reacts (the owl turns and hoots). Tap a climber below the clearing and their birds look up. Calls are made in the browser and follow the Sound setting; the speaker button at the top right mutes just the birds and animals on this phone.
 - **Notifications:** an in-app bell for hearts, comments and losing your top-3 place on the Overall board, plus optional phone push notifications ([docs/PUSH.md](docs/PUSH.md)).
-- **Admin tools:** invite codes, group challenges, the bird of the week (pick one, or all the birds, for everyone, or leave it on the weekly rotation), backups and moderation, all from inside the app.
+- **Admin tools:** invite codes, group challenges, the bird of the week (pick one, or all the birds, for everyone, or leave it on the weekly rotation), hats on the birds (top hats, caps, beanies, crowns, cork hats and more, each in its climber's leg-band colour), backups and moderation, all from inside the app.
 
 ## Run it locally
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 393 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts, the weekly flock (every species run through a busy few minutes)
+npm test         # 401 tests: timer, scoring, streaks, seasons, challenges, achievements, workouts (including full workout runs on the Hang page), top-3 alerts, the weekly flock (every species run through a busy few minutes)
 ```
 
 Without Supabase keys the app runs in **demo mode**: data stays in your browser, there are sample climbers, and the invite code is `BLUIES`.

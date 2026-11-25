@@ -59,6 +59,18 @@ export function chooseBird(id: unknown): boolean {
   return changed;
 }
 export const chosenBird = () => chosen;
+
+/** Hats on the birds: an admin turns them on (or off) for everyone. Kept on the phone too, like the bird. */
+const HATS_KEY = 'bf.hats';
+let hats = (() => { try { return localStorage.getItem(HATS_KEY) === '1'; } catch { return false; } })();
+/** Turns the hats on (only for `true`) or off. Returns whether that changed anything. */
+export function setHats(on: unknown): boolean {
+  const next = on === true, changed = next !== hats;
+  hats = next;
+  try { if (next) localStorage.setItem(HATS_KEY, '1'); else localStorage.removeItem(HATS_KEY); } catch { /* storage blocked */ }
+  return changed;
+}
+export const hatsOn = () => hats;
 /** When this week's flock flies off: next Monday 00:00 (local time). */
 export const flockEnds = (now = new Date()) => addDays(weekStart(now), 7);
 

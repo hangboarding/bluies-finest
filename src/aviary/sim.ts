@@ -9,6 +9,7 @@ import { restPose, billTip, type Pose, type PoseKey } from './rig';
 import type { SpeciesId } from '../lib/flock';
 import { stepCritters, tapCritter, type Critter } from './critters';
 import { stepFlyers, type Flyer, type FlyerKind } from './flyers';
+import { HATS, type HatKind } from './hats';
 
 /** Drops the ones that fail `ok`, in place, so there's no new array every frame. */
 function keep<T>(a: T[], ok: (v: T) => boolean) { let n = 0; for (const v of a) if (ok(v)) a[n++] = v; a.length = n; }
@@ -19,6 +20,8 @@ export type SoundKind = 'song' | 'alarm' | 'squabble';
 interface Flight { x0: number; y0: number; a0: number; x1: number; y1: number; a1: number; T: number; H: number; t: number; take: number; glide: boolean; away: boolean }
 export interface Bird {
   id: number; sp: Species; lk: Look; uid: string; band: string; female: boolean;
+  /** The hat it wears when an admin has hats on (World.hats), in its climber's band colour. */
+  hat: HatKind;
   /** Where it is on the ground (screen px; y is how far forward it stands), and how high above that it is. */
   x: number; y: number; alt: number; face: number; size: number; bold: number;
   pose: Pose; want: Pose; rate: number;
@@ -103,6 +106,8 @@ export class World {
   bend = 0; private bendV = 0; private bendLog = new Float32Array(48); private bendI = 0; private bendClock = 0;
   /** Flocks passing over and bats about at night (see flyers.ts), and when the next flock might come. */
   flyers: Flyer[] = []; flockT = 10; batN = 0;
+  /** Whether the birds wear their hats (an admin's setting for the whole crew). */
+  hats = false;
   onFly?: (k: FlyerKind, x: number) => void;
   /** The species the perch slots are sized for, and the crowd size they were built at. */
   private ref: Species | null = null; private builtCrowd = 1;
@@ -480,13 +485,13 @@ export class World {
 
   // ---------- birds ----------
   private restOf(sp: Species) { let r = this.rests.get(sp.id); if (!r) this.rests.set(sp.id, r = restPose(sp)); return r; }
-  add(id: SpeciesId, uid: string, band: string, how: 'place' | 'arrive') {
+  add(id: SpeciesId, uid: string, band: string, how: 'place' | 'arrive', hat?: HatKind) {
     const sp = SPECIES[id], female = this.rand() < (id === 'crimsonrosella' ? 0.3 : 0.45), p = this.spot(null);
     // perch slots are spaced for the biggest bird about, so a mixed flock never overlaps on a branch
     let big = sp; for (const o of this.birds) if (!o.gone && o.sp.rx * o.sp.size > big.rx * big.size) big = o.sp;
     if (this.ref !== big) { this.ref = big; this.buildPerches(); }
     const b: Bird = {
-      id: ++this.seq, sp, lk: lookOf(sp, female), uid, band, female, x: p.x, y: p.y, alt: 0, face: this.rand() < 0.5 ? 1 : -1,
+      id: ++this.seq, sp, lk: lookOf(sp, female), uid, band, female, hat: hat ?? HATS[this.seq % HATS.length]!, x: p.x, y: p.y, alt: 0, face: this.rand() < 0.5 ? 1 : -1,
       size: this.r(0.93, 1.07), bold: clamp(sp.bold + this.r(-0.2, 0.2), 0.1, 1), pose: { ...this.restOf(sp) }, want: { ...this.restOf(sp) }, rate: 9,
       act: 'idle', at: 0, s: {}, then: null, last: null, fl: null, perch: -1, swim: false, hang: 0, hangT: 0, swing: 0, jit: 0,
       hold: 0, blink: this.r(0.5, 4), ph: this.rand() * 6, gone: false, leaving: false,

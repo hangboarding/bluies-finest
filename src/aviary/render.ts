@@ -120,7 +120,7 @@ function bird(c: Ctx, w: World, b: Bird) {
   c.save(); c.translate(x, y);
   if (b.hang > 0.01) c.rotate(b.face * Math.PI * b.hang + b.swing);
   c.scale(k * b.face, k);
-  drawBird(c, b.sp, b.lk, b.pose, { band: b.band });
+  drawBird(c, b.sp, b.lk, b.pose, w.hats ? { band: b.band, hat: b.hat, t: w.t + b.ph } : { band: b.band });
   c.restore();
   if (b.pose.swim > 0.05) { // where the water meets the bird
     const rx = b.sp.rx * 1.25 * k;

@@ -8,7 +8,7 @@ import { ISSUE_CATS } from './report';
 import { forgetClimber } from './climber';
 import { METRICS, todayISO, type Metric } from '../lib/challenges';
 import { rescoreDay, scoringDay } from '../lib/scoring';
-import { ROTATION, weekNames, chosenBird, rotationOf, speciesOfWeek } from '../lib/flock';
+import { ROTATION, weekNames, chosenBird, rotationOf, speciesOfWeek, hatsOn } from '../lib/flock';
 import { applyAppSettings } from '../lib/state';
 
 let root: HTMLElement | null = null;
@@ -104,7 +104,8 @@ async function draw() {
         <option value=""${pick ? '' : ' selected'}>Automatic: the weekly rotation (${esc(weekNames(rot).one)} this week)</option>
         ${ROTATION.map(id => `<option value="${id}"${pick === id ? ' selected' : ''}>${esc(weekNames(id).one)}</option>`).join('')}
       </select>
-      <p class="sub" style="font-size:12px;margin:6px 0 0">Everyone sees ${pick === 'all' ? 'all the birds together' : pick ? `the ${esc(weekNames(pick).one.toLowerCase())}` : 'your pick'} on the bird page and the button by the bell, every week until you set it back to Automatic. The birds already in the clearing become the new ones; nobody loses any. The rotation has a week of all the birds together after the black cockatoos.</p>`}
+      <p class="sub" style="font-size:12px;margin:6px 0 0">Everyone sees ${pick === 'all' ? 'all the birds together' : pick ? `the ${esc(weekNames(pick).one.toLowerCase())}` : 'your pick'} on the bird page and the button by the bell, every week until you set it back to Automatic. The birds already in the clearing become the new ones; nobody loses any. The rotation has a week of all the birds together after the black cockatoos.</p>
+      <div class="tg"><span>${ic('crown')} Hats on the birds<small>Every bird wears a hat in its climber's leg-band colour: top hats, caps, beanies, crowns, cork hats and more.</small></span><button class="sw2 ${hatsOn() ? 'on' : ''}" data-act="hats" role="switch" aria-checked="${hatsOn()}" aria-label="Hats on the birds"></button></div>`}
 
     <h3>${ic('users')} Members (${state.profiles.size})</h3>
     ${[...state.profiles.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(p => `<div class="lrow">${avatar(p)}<span class="nm">${esc(p.name)}${p.isAdmin ? ' · admin' : ''}<small>Joined ${new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · ${counts.get(p.id) ?? 0} recent sessions</small></span></div>`).join('')}
@@ -182,6 +183,17 @@ async function onClick(e: MouseEvent) {
     switch (b.dataset.act) {
       case 'close': closeSheet(root!); return;
       case 'backup': await backupAll(b as HTMLButtonElement); return;
+      case 'hats': { // for everyone, straight away
+        const on = !hatsOn(); (b as HTMLButtonElement).disabled = true;
+        try {
+          await state.store.saveAppSetting('hats', on || null);
+          applyAppSettings({ ...state.appSettings, hats: on || undefined });
+          b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on));
+          document.dispatchEvent(new CustomEvent('bf:sessions-changed')); // the button by the bell puts its hat on (or takes it off)
+          toast(on ? 'Hats on! Everyone’s birds are wearing them' : 'Hats off', 3000);
+        } finally { (b as HTMLButtonElement).disabled = false; }
+        return;
+      }
       case 'resolve': case 'reopen':
         await state.store.setIssueStatus((b.closest('.iss') as HTMLElement).dataset.iss!, b.dataset.act === 'resolve' ? 'resolved' : 'open'); break;
       case 'deliss':

@@ -2,6 +2,7 @@
 // behaviour is a Pose: body tilt, neck and head, bill, crest, wings, tail and feet. The caller places,
 // scales and flips the bird.
 import type { Look, Patch, Species } from './species';
+import { drawHat, type HatKind } from './hats';
 
 type Ctx = CanvasRenderingContext2D;
 const TAU = Math.PI * 2;
@@ -168,7 +169,9 @@ function item(c: Ctx, kind: number, wig: number) {
   }
 }
 
-export interface DrawOpts { band?: string; sil?: string }
+/** band: the leg band's colour; hat: a hat to wear, in the band's colour; t: the time, for anything dangling from it;
+ *  sil: draw the whole bird flat in this one colour. */
+export interface DrawOpts { band?: string; sil?: string; hat?: HatKind; t?: number }
 export function drawBird(c: Ctx, sp: Species, lk: Look, p: Pose, o: DrawOpts = {}) {
   const sil = !!o.sil, col = (s?: string) => o.sil ?? s ?? '#000';
   const rx = sp.rx * (1 + 0.1 * p.fluff), ry = sp.ry * (1 + 0.22 * p.fluff), hr = sp.hr * (1 + 0.08 * p.fluff);
@@ -277,6 +280,12 @@ export function drawBird(c: Ctx, sp: Species, lk: Look, p: Pose, o: DrawOpts = {
       c.beginPath(); c.arc(ex + ir * 0.12, ey, ir * 0.5, 0, TAU); c.fillStyle = '#0a0a0a'; c.fill();
       c.beginPath(); c.arc(ex - ir * 0.25, ey - ir * 0.35, ir * 0.28, 0, TAU); c.fillStyle = 'rgba(255,255,255,0.85)'; c.fill();
     } else { c.strokeStyle = shade(lk.head, 0.55); c.lineWidth = 1; c.beginPath(); c.arc(ex, ey - ir * 0.3, ir, 0.3, Math.PI - 0.3); c.stroke(); }
+  }
+  if (o.hat && (o.band || sil)) { // sat on the crown, upright when the head's at rest, a touch jaunty, and tipping as the head moves
+    const a0 = sp.bill.type === 'hook' ? -0.28 : -0.1, th = a0 - 0.12, k = 0.8 - 0.06 * p.fluff;
+    c.save(); c.translate(hr * k * Math.sin(a0) - hr * 0.08, -hr * k * Math.cos(a0)); c.rotate(th);
+    drawHat(c, o.hat, hr * 1.2, col(o.band), sil, Math.sin(th - a), Math.cos(th - a), o.t ?? 0);
+    c.restore();
   }
   if (p.hold && !p.inFoot && !sil) { c.save(); c.translate(hr * 0.62 + sp.bill.len * 0.82, hr * 0.12 + sp.bill.depth * 0.25); item(c, p.hold, p.wig); c.restore(); }
   c.restore();
