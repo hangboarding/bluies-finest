@@ -1,5 +1,8 @@
 import type { Session } from './types';
 import { bestWeekStreak, dayKey, isCrimp, parseDayKey, qualifies } from './scoring';
+import { seasonOf } from './seasons';
+import { FEELS, GRIPS } from './protocols';
+import { SPECIES_ORDER, type BirdWeek } from './flock';
 
 export const TIER_NAMES = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond', 'Master', 'Grand Master', 'GOAT'];
 export const TIER_COLOURS = ['#8a8f94', '#c8814a', '#c9d1d9', '#f2c14e', '#9fd8d1', '#2ecc71', '#7ad7f0', '#b48cff', '#ff5a8a', '#ffd700'];
@@ -62,6 +65,24 @@ const sameProtoRun = (ss: Session[]) => {
   }
   return false;
 };
+/** Times seed has to be dropped in the flock's clearing for Seed Funding. */
+export const SEED_FEEDS = 1000;
+/** Days off before coming back earns Comeback Kid. */
+export const COMEBACK_DAYS = 30;
+/** Calendar days from one session to the next of at least COMEBACK_DAYS (in days, so daylight saving can't shift it). */
+const cameBack = (ss: Session[]) => {
+  const days = [...new Set(ss.map(s => +parseDayKey(dayKey(new Date(s.createdAt)))))].sort((a, b) => a - b);
+  return days.some((d, i) => i > 0 && Math.round((d - days[i - 1]!) / 864e5) >= COMEBACK_DAYS);
+};
+/** Every grip on one day. */
+const allGripsOneDay = (ss: Session[]) => {
+  const byDay = new Map<string, Set<string>>();
+  for (const s of ss) { const k = dayKey(new Date(s.createdAt)); (byDay.get(k) ?? byDay.set(k, new Set()).get(k)!).add(s.grip); }
+  return [...byDay.values()].some(g => GRIPS.every(([name]) => g.has(name)));
+};
+const onDay = (s: Session, f: (d: Date) => boolean) => f(new Date(s.createdAt));
+/** Every species ticked off in a flag kept as species → anything. */
+const allSpecies = (x: Record<string, unknown> | undefined) => SPECIES_ORDER.every(sp => x?.[sp] != null);
 
 export const ONE_OFFS: OneOff[] = [
   { icon: '👶', name: 'First Hang', desc: 'Complete your very first session.', got: c => c.sessions.length > 0 },
@@ -89,6 +110,19 @@ export const ONE_OFFS: OneOff[] = [
   { secret: true, icon: '🌀', name: 'Spin Cycle', desc: 'Change your accent colour 10 times in one day.', hint: 'Indecisive? Fabulous.', got: c => !!c.flags.spinCycle },
   { secret: true, icon: '👀', name: 'Peeping Tom', desc: 'Check the leaderboard 20 times in a day.', hint: 'Obsessed? Never.', got: c => !!c.flags.peepingTom },
   { secret: true, icon: '🧂', name: 'Chalk Bucket', desc: 'Tap the “Chalk up” text 10 times during get-ready.', hint: 'Too much chalk is never enough.', got: c => !!c.flags.chalkBucket },
+  { secret: true, icon: '🌾', name: 'Seed Funding', desc: `Drop seed for the birds ${SEED_FEEDS} times.`, hint: 'Invest in the flock.', got: c => (c.flags.seedTaps ?? 0) >= SEED_FEEDS },
+  { secret: true, icon: '🍽️', name: 'Bird Buffet', desc: `Feed a bird of every species (all ${SPECIES_ORDER.length}) with seed you dropped.`, hint: 'Something for every beak.', got: c => allSpecies(c.flags.birdsFed) },
+  { secret: true, icon: '🔭', name: 'Twitcher', desc: `Bring a bird to the flock in every species’ week (all ${SPECIES_ORDER.length}; the all-birds week doesn’t count).`, hint: 'Tick them all off.', got: c => allSpecies(c.flags.birdsEarned) },
+  { secret: true, icon: '🪃', name: 'Comeback Kid', desc: `Train again after ${COMEBACK_DAYS} or more days off.`, hint: 'It always comes back.', got: c => cameBack(c.sessions) },
+  { secret: true, icon: '🎰', name: 'One-Armed Bandit', desc: 'Hold a one-arm hang full time with added weight.', hint: 'Pull the lever. With one arm.',
+    got: c => c.sessions.some(s => s.mode === 'hang' && s.addedKg > 0 && s.hangs.some(h => h.hand !== 'both' && h.full)) },
+  { secret: true, icon: '⏰', name: 'Buzzer Beater', desc: 'Finish a session in the last hour of a season.', hint: 'Cutting it fine.',
+    got: c => c.sessions.some(s => { const t = new Date(s.createdAt); return +seasonOf(t).end - +t <= 3600e3; }) },
+  { secret: true, icon: '🎲', name: 'Grip Roulette', desc: `Use all ${GRIPS.length} grips on the same day.`, hint: 'One of everything, please.', got: c => allGripsOneDay(c.sessions) },
+  { secret: true, icon: '🪞', name: 'Mirror Mirror', desc: 'Heart your own session.', hint: 'Who’s the strongest of them all?', got: c => !!c.flags.mirrorMirror },
+  { secret: true, icon: '💍', name: 'Mood Ring', desc: `Pick every mood (all ${FEELS.length}) at least once.`, hint: 'All the feels.', got: c => FEELS.every(f => c.sessions.some(s => s.feel === f)) },
+  { secret: true, icon: '🐈‍⬛', name: 'Friday the 13th', desc: 'Hang on a Friday the 13th.', hint: 'Unlucky for some.', got: c => c.sessions.some(s => onDay(s, d => d.getDay() === 5 && d.getDate() === 13)) },
+  { secret: true, icon: '🎆', name: 'New Year, New Me', desc: 'Hang on New Year’s Day.', hint: 'Resolutions start now.', got: c => c.sessions.some(s => onDay(s, d => d.getMonth() === 0 && d.getDate() === 1)) },
 ];
 
 export function tierOf(v: number | null, t: number[], lower?: boolean) {
@@ -160,4 +194,24 @@ export function bumpDaily(flags: Record<string, any>, key: string) {
   const c = flags[key + 'Day'] === today ? (flags[key + 'Count'] ?? 0) + 1 : 1;
   flags[key + 'Day'] = today; flags[key + 'Count'] = c;
   return c;
+}
+
+// ---- the flock's secrets: kept in flags as they happen ----
+/** Seed dropped in the clearing (Seed Funding). Returns true when this drop just earned it. */
+export function noteSeed(flags: Record<string, any>) {
+  flags.seedTaps = (flags.seedTaps ?? 0) + 1;
+  return flags.seedTaps === SEED_FEEDS;
+}
+/** A bird of species `sp` ate seed I dropped (Bird Buffet). Returns true the first time for each species. */
+export function noteFed(flags: Record<string, any>, sp: string) {
+  if (flags.birdsFed?.[sp]) return false;
+  flags.birdsFed = { ...flags.birdsFed, [sp]: 1 };
+  return true;
+}
+/** I have `birds` in this week's flock of `week` (Twitcher): ticks off the week's species, remembering which
+ *  week (`weekNo`) did it. The all-birds week ticks nothing off. Returns true if it ticked a new one off. */
+export function noteBirdEarned(flags: Record<string, any>, week: BirdWeek, birds: number, weekNo: number) {
+  if (week === 'all' || birds < 1 || flags.birdsEarned?.[week] != null) return false;
+  flags.birdsEarned = { ...flags.birdsEarned, [week]: weekNo };
+  return true;
 }

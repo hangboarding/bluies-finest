@@ -8,10 +8,10 @@ import {
   CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench,
   MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar,
   Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper, Bug, Bird, MapPin, ChartBarDecreasing,
-  ListChecks, History, GripVertical, ArrowUp, ArrowDown,
+  ListChecks, History, GripVertical, ArrowUp, ArrowDown, Wheat, Utensils, Binoculars, Undo2, Cherry, AlarmClock, Dices, ScanFace, Drama, Cat, Rocket,
 } from 'lucide';
 
-const LUCIDE = { Timer, Wind, Repeat, Repeat1, Sofa, Ruler, Dumbbell, Anchor, Weight, Target, ArrowLeftRight, TrafficCone, Mountain, Trophy, ChartColumn, MessageCircle, User, Heart, Flame, Medal, CalendarDays, Download, Trash2, Pencil, Star, Volume2, Vibrate, Palette, Settings, LogOut, Plus, Play, Pause, SkipForward, X, Camera, BookOpen, Crown, Sparkles, Lock, CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench, MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar, Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper, Bug, Bird, MapPin, ChartBarDecreasing, ListChecks, History, GripVertical, ArrowUp, ArrowDown };
+const LUCIDE = { Timer, Wind, Repeat, Repeat1, Sofa, Ruler, Dumbbell, Anchor, Weight, Target, ArrowLeftRight, TrafficCone, Mountain, Trophy, ChartColumn, MessageCircle, User, Heart, Flame, Medal, CalendarDays, Download, Trash2, Pencil, Star, Volume2, Vibrate, Palette, Settings, LogOut, Plus, Play, Pause, SkipForward, X, Camera, BookOpen, Crown, Sparkles, Lock, CircleHelp, Zap, Sprout, Gem, TrendingUp, Clock, Moon, Sunrise, Award, BicepsFlexed, Layers, Hourglass, Brain, Baby, Wrench, MessagesSquare, Eye, RotateCcw, Check, Globe, Users, Square, Boxes, FlaskConical, BadgeCheck, Flag, TreePine, MoonStar, Snail, Glasses, RefreshCw, CalendarPlus, Cloud, Pointer, Bell, ShieldCheck, Copy, Ticket, PartyPopper, Bug, Bird, MapPin, ChartBarDecreasing, ListChecks, History, GripVertical, ArrowUp, ArrowDown, Wheat, Utensils, Binoculars, Undo2, Cherry, AlarmClock, Dices, ScanFace, Drama, Cat, Rocket };
 
 // ---- custom 24×24 line icons (same stroke style as Lucide) ----
 // Grips are drawn side-on: a finger on an edge (the block top-right).
@@ -67,6 +67,8 @@ const MAP: Record<string, [string, string]> = {
   '💯': ['💯', 'badge-check'], '🙌': ['🙌', 'arrow-left-right'], '⚡': ['⚡', 'zap'], '🏅': ['🏅', 'medal'], '💬': ['💬', 'messages-square'], '❤️': ['❤️', 'heart'],
   '🫠': ['🫠', 'gOpen'], '🏳️': ['🏳️', 'flag'], '🎄': ['🎄', 'tree-pine'], '🐸': ['🐸', 'calendar-plus'], '🌚': ['🌚', 'moon-star'],
   '🐌': ['🐌', 'snail'], '😎': ['😎', 'glasses'], '🌀': ['🌀', 'refresh-cw'], '👀': ['👀', 'eye'], '🧂': ['🧂', 'cloud'], '❓': ['❓', 'circle-help'], '👑': ['👑', 'crown'],
+  '🌾': ['🌾', 'wheat'], '🍽️': ['🍽️', 'utensils'], '🔭': ['🔭', 'binoculars'], '🪃': ['🪃', 'undo-2'], '🎰': ['🎰', 'cherry'], '⏰': ['⏰', 'alarm-clock'],
+  '🎲': ['🎲', 'dices'], '🪞': ['🪞', 'scan-face'], '💍': ['💍', 'drama'], '🐈‍⬛': ['🐈‍⬛', 'cat'], '🎆': ['🎆', 'rocket'],
 };
 
 let mode: 'emoji' | 'flat' = 'flat';

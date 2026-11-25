@@ -109,6 +109,8 @@ export class World {
   /** Whether the birds wear their hats (an admin's setting for the whole crew). */
   hats = false;
   onFly?: (k: FlyerKind, x: number) => void;
+  /** A bird took a bite of seed (all seed is what someone tapped down). */
+  onEat?: (b: Bird) => void;
   /** The species the perch slots are sized for, and the crowd size they were built at. */
   private ref: Species | null = null; private builtCrowd = 1;
   /** Things due to happen later (birds arriving one after another), with the climber they're for. */
@@ -1362,7 +1364,7 @@ export const ACTS: Record<Act, ActFn> = {
     }
     const T = 0.32, u = ((b.at - S.t0) % T) / T;
     w.reach(b, Math.sin(u * Math.PI)); b.rate = 26;
-    if (u > 0.5 && !S.bit) { S.bit = 1; if (f.a <= 0 && f.left > 0) { f.left--; w.dust(b, 1); } } else if (u < 0.5) S.bit = 0;
+    if (u > 0.5 && !S.bit) { S.bit = 1; if (f.a <= 0 && f.left > 0) { f.left--; w.dust(b, 1); w.onEat?.(b); } } else if (u < 0.5) S.bit = 0;
     if (w.rand() < dt * 0.5 * b.bold) { // squabbling over the seed
       const o = w.nearest(b, x => x.act === 'forage' && x.s.st === 'peck' && x.alt < 1 && !x.swim, 40 * w.px(b));
       if (o) { if (w.rand() < 0.5) w.faceoff(b, o); else w.go(o, 'flee', { from: b }); return false; }

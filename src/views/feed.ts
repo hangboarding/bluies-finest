@@ -1,6 +1,6 @@
 import { $, esc, avatar, relTime, toast, confirmSheet, vibrate } from '../lib/ui';
 import { ic, hydrateIcons } from '../lib/icons';
-import { state, profileOf, refreshShared, shownName, protoLine } from '../lib/state';
+import { state, profileOf, refreshShared, shownName, protoLine, saveSettings } from '../lib/state';
 import { refreshNotifs } from './notifs';
 import type { FeedItem } from '../lib/types';
 import { weeklyRecap } from '../lib/recap';
@@ -133,7 +133,11 @@ async function onClick(e: MouseEvent) {
     liking.add(it.session.id);
     const want = !it.likedByMe;
     it.likedByMe = want; it.likes += want ? 1 : -1; if (want) vibrate(15); draw();
-    try { await state.store.setLike(it.session.id, want); }
+    try {
+      await state.store.setLike(it.session.id, want);
+      const F = state.settings.flags;
+      if (want && it.session.userId === state.me?.id && !F.mirrorMirror) { F.mirrorMirror = true; saveSettings(); checkUnlocks(); } // Mirror Mirror
+    }
     catch (err: any) { it.likedByMe = !want; it.likes += want ? -1 : 1; draw(); toast(err.message ?? 'Couldn’t save that heart'); }
     finally { liking.delete(it.session.id); }
     return;

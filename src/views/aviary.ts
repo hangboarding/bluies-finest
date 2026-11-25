@@ -1,7 +1,9 @@
 // The crew's weekly flock: the bird button in the header opens a clearing where every 30 points anyone
 // earns this week brings a bird. See lib/flock.ts for the counting and src/aviary/ for the birds.
 import { $, esc, avatar, onSwipe, slideIn, toast } from '../lib/ui';
-import { state, refreshShared } from '../lib/state';
+import { state, refreshShared, saveSettings } from '../lib/state';
+import { noteFed, noteSeed } from '../lib/achievements';
+import { checkUnlocks } from './unlocks';
 import { crewFlock, flockSize, newBirds, seenBirds, markSeen, speciesOfWeek, weekIndex, weekNames, isBirdWeek, hatsOn, SPECIES_NAMES, SPECIES_ORDER, POINTS_PER_BIRD, type FlockMember, type SpeciesId, type BirdWeek } from '../lib/flock';
 import { FACTS } from '../aviary/facts';
 import { SPECIES } from '../aviary/species';
@@ -212,7 +214,14 @@ export function openAviary() {
   raf = requestAnimationFrame(frame);
 
   // ---- input and housekeeping ----
-  cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); world.tap(e.clientX - r.left, e.clientY - r.top); });
+  // secrets: Seed Funding (seed dropped over and over) and Bird Buffet (a bird of every species fed)
+  world.onEat = b => { if (noteFed(state.settings.flags, b.sp.id)) { saveSettings(); checkUnlocks(); } };
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect();
+    if (world.tap(e.clientX - r.left, e.clientY - r.top) !== 'food') return;
+    if (noteSeed(state.settings.flags)) checkUnlocks();
+    saveSettings();
+  });
   $('#avLegend', el).addEventListener('click', e => { const b = (e.target as HTMLElement).closest('[data-who]') as HTMLElement | null; if (b) world.highlight(b.dataset.who!); });
   const ro = new ResizeObserver(() => fit()); ro.observe(stage);
   const onChange = () => { world.hats = hatsOn(); if (birdNow() !== id) { close(); openAviary(); } else sync(false); }; // a refresh may bring an admin's new pick, or hats

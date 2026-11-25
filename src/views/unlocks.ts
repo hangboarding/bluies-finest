@@ -1,8 +1,9 @@
 // Achievement pop-ups. Whatever earns a badge (saving a session, adding a photo or a board, a secret found
 // mid-session, hearts from friends), it pops up as soon as the app knows. What's been shown is kept in
 // settings, so each one pops once, on whichever device sees it first.
-import { state, saveSettings, achievementCtx } from '../lib/state';
-import { earned, newUnlocks, mergeSeen, recheckSeen, type Unlock } from '../lib/achievements';
+import { state, saveSettings, achievementCtx, mySessions } from '../lib/state';
+import { earned, newUnlocks, mergeSeen, recheckSeen, noteBirdEarned, type Unlock } from '../lib/achievements';
+import { crewFlock, speciesOfWeek, weekIndex } from '../lib/flock';
 import { ic, hydrateIcons } from '../lib/icons';
 import { esc, vibrate } from '../lib/ui';
 import { confetti } from '../lib/confetti';
@@ -17,7 +18,11 @@ export function checkUnlocks(delay = 250) {
 
 function check() {
   if (!state.loaded || !state.me) return;
-  const S = state.settings, now = earned(achievementCtx());
+  const S = state.settings;
+  // Twitcher: a bird of my own in this week's flock ticks the week's species off (whatever bird it is, an admin's pick too)
+  const mine = crewFlock(mySessions(), new Map([[state.me.id, state.me]]))[0]?.birds ?? 0;
+  if (noteBirdEarned(S.flags, speciesOfWeek(), mine, weekIndex())) saveSettings();
+  const now = earned(achievementCtx());
   // the first check on this version: what's already earned was celebrated before, so it doesn't pop
   if (!S.achSeen) { S.achSeen = now; saveSettings(); return; }
   if (recheckSeen(S.achSeen, now)) saveSettings(); // a badge's rule was tightened: re-work what it shows
